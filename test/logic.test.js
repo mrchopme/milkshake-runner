@@ -252,3 +252,42 @@ test('a section theme merges over the level theme', () => {
   assert.deepEqual(norm.sections[0].theme, { id: 'downtown', sky: '#222222', fog: 0.2 });
   assert.deepEqual(norm.sections[1].theme, { id: 'downtown', sky: '#111111', fog: 0.2 });
 });
+
+import { loadSave, writeSave, recordRun } from '../src/save.js';
+import { isLocked, completeLevel, orderLevels } from '../src/campaign.js';
+
+const campaign = { start: 'a', locked: { b: 'a', endless: 'b' } };
+
+test('blocked storage never breaks the game', () => {
+  const blocked = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
+  assert.deepEqual(loadSave(blocked), { best: {}, completed: [] });
+  assert.doesNotThrow(() => writeSave({ best: {}, completed: [] }, blocked));
+  assert.deepEqual(loadSave(undefined), { best: {}, completed: [] });
+  assert.deepEqual(loadSave({ getItem: () => 'not json' }), { best: {}, completed: [] });
+});
+
+test('save round-trips and best only goes up', () => {
+  const mem = new Map();
+  const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  const s = loadSave(storage);
+  recordRun(s, 'a', 10); recordRun(s, 'a', 4); completeLevel(s, 'a'); completeLevel(s, 'a');
+  writeSave(s, storage);
+  assert.deepEqual(loadSave(storage), { best: { a: 10 }, completed: ['a'] });
+});
+
+test('campaign locks come from the data, and community levels are open', () => {
+  const s = { best: {}, completed: [] };
+  assert.equal(isLocked(campaign, s, 'b'), true);
+  assert.equal(isLocked(campaign, s, 'canal-street-dash'), false);
+  completeLevel(s, 'a');
+  assert.equal(isLocked(campaign, s, 'b'), false);
+  assert.equal(isLocked(campaign, s, 'endless'), true);
+});
+
+test('shipped order first, community levels by title, invalid files listed but not playable', () => {
+  const levels = { a: { title: 'A' }, b: { title: 'B' }, zed: { title: 'Alpha' }, bad: { title: 'Broken' } };
+  const { order, valid } = orderLevels(levels, ['b', 'a', 'ghost'], { 'bad.json': ['nope'] });
+  assert.deepEqual(order, ['b', 'a', 'zed', 'bad']);
+  assert.equal(valid('a'), true);
+  assert.equal(valid('bad'), false);
+});
