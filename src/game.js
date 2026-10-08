@@ -35,7 +35,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
       const sky = world.skyAt(run.z), key = `${sky.sky}/${sky.fog}`;
       if (key !== skyKey) { skyKey = key; engine.setSky(sky); }
       character.update(run);
-      engine.follow(run, {}, dt);
+      engine.follow(run, world.cameraAt(run.z), dt);
       hud.update(run, level, registry);
       if (run.over) end('dead');
       else if (level.length_m !== null && run.z >= level.length_m) end('complete');

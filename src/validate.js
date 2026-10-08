@@ -5,8 +5,8 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const inRange = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const isName = (v) => typeof v === 'string' && v.trim().length >= 1 && v.length <= 60;
 const HEX = /^#[0-9a-fA-F]{6}$/;
-const LEVEL_KEYS = ['id', 'title', 'author', 'length_m', 'seed', 'character', 'theme', 'rules', 'obstacles', 'density', 'jugs', 'sections', 'ending', 'curve'];
-const SECTION_KEYS = ['from_m', 'to_m', 'obstacles', 'density', 'jugs', 'theme', 'generation', 'placements', 'curve'];
+const LEVEL_KEYS = ['id', 'title', 'author', 'length_m', 'seed', 'character', 'theme', 'rules', 'obstacles', 'density', 'jugs', 'sections', 'ending', 'curve', 'camera'];
+const SECTION_KEYS = ['from_m', 'to_m', 'obstacles', 'density', 'jugs', 'theme', 'generation', 'placements', 'curve', 'camera'];
 
 // Every object is checked against an allow-list, so a typo can never pass as a working option.
 const keys = (obj, allowed, path, e) => { for (const k of Object.keys(obj)) if (!allowed.includes(k)) e.push(`${path}: unknown key "${k}"`); };
@@ -45,6 +45,12 @@ function checkCurve(c, path, e) {
   if (!isObj(c)) return e.push(`${path} must be an object with turn and hill (-1 to 1), or "random"`);
   keys(c, ['turn', 'hill'], path, e);
   for (const k of ['turn', 'hill']) if (c[k] !== undefined && !inRange(c[k], -1, 1)) e.push(`${path}.${k} must be -1 to 1`);
+}
+const CAMERA_RANGES = { height: [1.5, 8], distance: [3, 12], fov: [45, 100] };
+function checkCamera(c, path, e) {
+  if (!isObj(c)) return e.push(`${path} must be an object with height, distance and fov`);
+  keys(c, Object.keys(CAMERA_RANGES), path, e);
+  for (const [k, [lo, hi]] of Object.entries(CAMERA_RANGES)) if (c[k] !== undefined && !inRange(c[k], lo, hi)) e.push(`${path}.${k} must be ${lo} to ${hi}`);
 }
 function checkRules(r, path, e) {
   if (!isObj(r)) return e.push(`${path} must be an object`);
@@ -95,6 +101,7 @@ function checkSections(level, registry, rules, e) {
     if (s.jugs !== undefined) checkJugs(s.jugs, `${path}.jugs`, registry, e);
     if (s.theme !== undefined) checkTheme(s.theme, `${path}.theme`, registry, e, false);
     if (s.curve !== undefined) checkCurve(s.curve, `${path}.curve`, e);
+    if (s.camera !== undefined) checkCamera(s.camera, `${path}.camera`, e);
     if (s.generation !== undefined && typeof s.generation !== 'boolean') e.push(`${path}.generation must be true or false`);
     if (s.placements === undefined) return;
     if (!Array.isArray(s.placements)) return e.push(`${path}.placements must be a list`);
@@ -149,6 +156,7 @@ export function validateLevel(level, { fileId, allIds, registry }) {
   if (level.theme === undefined) e.push('theme is required'); else checkTheme(level.theme, 'theme', registry, e, true);
   if (level.rules !== undefined) checkRules(level.rules, 'rules', e);
   if (level.curve !== undefined) checkCurve(level.curve, 'curve', e);
+  if (level.camera !== undefined) checkCamera(level.camera, 'camera', e);
   if (!isObj(level.obstacles)) e.push('obstacles must be an object of {id: weight}'); else checkObstacles(level.obstacles, 'obstacles', registry, e);
   if (level.density === undefined) e.push('density is required'); else checkDensity(level.density, 'density', e);
   if (level.jugs === undefined) e.push('jugs is required'); else checkJugs(level.jugs, 'jugs', registry, e);

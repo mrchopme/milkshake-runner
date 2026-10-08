@@ -121,3 +121,13 @@ test('curve is turn and hill in -1..1, or "random"', () => {
   assert.equal(errs({ sections: [{ from_m: 0, to_m: 100, curve: { hill: -0.5 } }] }), '');
   assert.match(errs({ sections: [{ from_m: 0, to_m: 100, curve: { hill: 3 } }] }), /sections\[0\]\.curve\.hill/);
 });
+
+test('camera overrides are known and in range', () => {
+  assert.equal(errs({ camera: { height: 5, distance: 8, fov: 70 } }), '');
+  assert.match(errs({ camera: { height: 9 } }), /camera\.height must be 1.5 to 8/);
+  assert.match(errs({ camera: { distance: 2 } }), /distance must be 3 to 12/);
+  assert.match(errs({ camera: { fov: 120 } }), /fov must be 45 to 100/);
+  assert.match(errs({ camera: { tilt: 1 } }), /unknown key "tilt"/);
+  assert.match(errs({ camera: 'low' }), /camera must be an object/);
+  assert.equal(errs({ sections: [{ from_m: 0, to_m: 100, camera: { fov: 65 } }] }), '');
+});

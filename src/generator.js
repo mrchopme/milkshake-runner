@@ -34,7 +34,7 @@ export function normalizeLevel(level) {
   const length = level.length_m;
   const end = length ?? Infinity;
   const levelSpan = [0, length ?? ENDLESS_RAMP_M];
-  const base = (from, to) => ({ from, to, obstacles: level.obstacles, density: level.density, densitySpan: levelSpan, jugs: level.jugs, theme: level.theme, curve: level.curve ?? null, generation: true, placements: [] });
+  const base = (from, to) => ({ from, to, obstacles: level.obstacles, density: level.density, densitySpan: levelSpan, jugs: level.jugs, theme: level.theme, curve: level.curve ?? null, camera: level.camera ?? null, generation: true, placements: [] });
   const sections = [];
   let cursor = 0;
   for (const s of level.sections ?? []) {
@@ -47,6 +47,7 @@ export function normalizeLevel(level) {
       jugs: s.jugs ?? level.jugs,
       theme: s.theme ? { ...level.theme, ...s.theme } : level.theme,
       curve: s.curve ?? level.curve ?? null,
+      camera: s.camera ? { ...(level.camera ?? {}), ...s.camera } : level.camera ?? null,
       generation: s.generation !== false,
       placements: s.placements ?? [],
     });
@@ -57,6 +58,7 @@ export function normalizeLevel(level) {
 }
 
 export const sectionAt = (norm, z) => norm.sections.find((s) => z >= s.from && z < s.to) ?? norm.sections[norm.sections.length - 1];
+export const cameraAt = (norm, z) => sectionAt(norm, z).camera ?? {}; // the section's camera override, merged over the level's
 
 export function densityAt(section, z) {
   const [z0, z1] = section.densitySpan;

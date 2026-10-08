@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as gfx from './gfx.js';
-import { generate, normalizeLevel, rng, sectionAt, curveAt } from './generator.js';
+import { generate, normalizeLevel, rng, sectionAt, curveAt, cameraAt } from './generator.js';
 import { laneX, obstacleBox, updateObstacle, pull } from './rules.js';
 import { safeCall } from './registry.js';
 
@@ -107,5 +107,5 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
     scene.remove(root); gfx.dispose(root);
   }
 
-  return { live, update, removePickup, skyAt, dispose };
+  return { live, update, removePickup, skyAt, cameraAt: (z) => cameraAt(norm, z), dispose };
 }
