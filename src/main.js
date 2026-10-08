@@ -3,7 +3,7 @@ import { createEngine } from './engine.js';
 import { loadRegistry } from './registry.js';
 import { loadLevels } from './levels.js';
 import { loadCharacter } from './character.js';
-import { createHud } from './hud.js';
+import { createHud, pickupIcon, pickupName } from './hud.js';
 import { playLevel } from './game.js';
 import { playEnding } from './endings.js';
 import { createWorld } from './world.js';
@@ -12,7 +12,7 @@ import { loadSave, writeSave, recordRun } from './save.js';
 import { isLocked, completeLevel } from './campaign.js';
 
 const $ = (id) => document.getElementById(id);
-const SCREENS = ['menu', 'select', 'results', 'error'];
+const SCREENS = ['menu', 'select', 'results', 'error', 'help'];
 const show = (id) => SCREENS.forEach((s) => ($(s).hidden = s !== id));
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const text = (parent, tag, content, cls) => { const n = document.createElement(tag); n.textContent = content; if (cls) n.className = cls; parent.append(n); return n; };
@@ -82,6 +82,22 @@ async function main() {
     show('select');
   }
 
+  // Every registered power-up explains itself here from its own name and blurb, community ones included.
+  function help(back) {
+    const list = $('powerup-list');
+    list.replaceChildren();
+    for (const def of Object.values(registry.pickup).filter((d) => d.effect)) {
+      const row = document.createElement('div'), words = document.createElement('div');
+      row.className = 'power';
+      text(words, 'b', pickupName(def));
+      if (def.blurb) text(words, 'small', def.blurb);
+      row.append(pickupIcon(def), words);
+      list.append(row);
+    }
+    $('help-ok').onclick = back;
+    show('help');
+  }
+
   async function startLevel(id, carry = {}) {
     show(null);
     if (backdrop) { backdrop.dispose(); backdrop = null; }
@@ -111,7 +127,12 @@ async function main() {
     show('results');
   }
 
-  $('play').onclick = () => startLevel(campaign.start);
+  $('play').onclick = () => {
+    if (save.helpSeen) return startLevel(campaign.start);
+    save.helpSeen = true; writeSave(save);           // once per browser, before the first run
+    help(() => startLevel(campaign.start));
+  };
+  $('how').onclick = () => help(menu);
   $('levels').onclick = levelSelect;
   $('endless').onclick = () => startLevel('endless');
   $('back').onclick = menu;

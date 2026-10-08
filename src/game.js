@@ -31,7 +31,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
         const box = obstacleBox(o, o.def, run.time, rules);
         if (box && overlaps(me, box) && hit(run) === 'shield') hud.flash();
       }
-      for (const p of [...world.live.pickups]) if (inReach(run, p)) { collect(run, p.def); world.removePickup(p); }
+      for (const p of [...world.live.pickups]) if (inReach(run, p)) { collect(run, p.def); if (p.def.effect) hud.toast(p.def); world.removePickup(p); }
       const sky = world.skyAt(run.z), key = `${sky.sky}/${sky.fog}`;
       if (key !== skyKey) { skyKey = key; engine.setSky(sky); }
       character.update(run);

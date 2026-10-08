@@ -45,6 +45,9 @@ test('metadata is checked per kind', () => {
   assert.match(checkModule({ kind: 'character', id: 'ari/bot', height: 2, width: 1 }).join(), /createView/);
   assert.match(checkModule({ kind: 'ending', id: 'ari/wave', params: { n: { type: 'bool' } }, run() {} }).join(), /type/);
   assert.match(checkModule({ kind: 'spell', id: 'x' }).join(), /kind/);
+  assert.match(checkModule({ kind: 'pickup', id: 'ari/gem', color: '#ffffff', value: 1, name: 'x'.repeat(25) }).join(), /name must be 1-24/);
+  assert.match(checkModule({ kind: 'pickup', id: 'ari/gem', color: '#ffffff', value: 1, blurb: 'x'.repeat(81) }).join(), /blurb must be 1-80/);
+  assert.equal(checkModule({ kind: 'pickup', id: 'ari/gem', color: '#ffffff', value: 1, name: 'GEM', blurb: 'Worth five jugs' }).length, 0);
   assert.equal(checkModule(ok).length, 0);
 });
 

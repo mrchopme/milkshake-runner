@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import * as gfx from '../src/gfx.js';
 import milkshake from '../content/characters/milkshake.js';
 import { createRun, resolveRules, step } from '../src/rules.js';
+import { pickupName } from '../src/hud.js';
+import magnet from '../content/pickups/magnet.js';
 
 // In Node there is no GLB loader, so createView falls back to the shape-built cow; the motion code is the same for both.
 test('Milkshake leans and strides harder with speed, and kicks up dust on the ground', async () => {
@@ -23,4 +25,10 @@ test('Milkshake leans and strides harder with speed, and kicks up dust on the gr
   run.y = 1; // airborne: no new puffs, the old ones fade within 0.35 s
   for (let i = 0; i < 40; i++) { run.time += 1 / 60; view.update(run); }
   assert.ok(puffs.children.every((p) => !p.visible));
+});
+
+test('a pickup is named by its module, or by its id in capitals', () => {
+  assert.equal(pickupName({ id: 'ari/gem' }), 'GEM');
+  assert.equal(pickupName(magnet), 'MAGNET');
+  assert.ok(magnet.blurb.length <= 80);
 });

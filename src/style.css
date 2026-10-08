@@ -47,3 +47,12 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #9fd3f5; ove
 #level-list button { width: 100%; text-align: left; display: flex; flex-direction: column; align-items: flex-start; padding: 10px 20px; font-size: 20px; }
 #level-list small { font: 500 13px/18px system-ui, sans-serif; opacity: 0.8; }
 #error-list { max-width: 640px; text-align: left; font: 500 15px/22px system-ui, sans-serif; }
+.toast { display: flex; align-items: center; gap: 12px; padding: 12px 18px 12px 12px; border-radius: 26px; background: var(--accent); color: var(--ink); text-shadow: none; text-align: left; box-shadow: 0 5px 0 var(--ink); font: 22px/24px var(--display); }
+.toast svg { width: 40px; height: 40px; flex-shrink: 0; }
+.toast small { display: block; font: 500 14px/18px system-ui, sans-serif; }
+.copy { max-width: 420px; margin: 0; font: 500 17px/24px system-ui, sans-serif; }
+#powerup-list { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 420px; text-align: left; }
+.power { display: flex; align-items: center; gap: 12px; }
+.power svg { width: 36px; height: 36px; flex-shrink: 0; }
+.power b { display: block; font: 20px/22px var(--display); }
+.power small { font: 500 14px/18px system-ui, sans-serif; opacity: 0.85; }

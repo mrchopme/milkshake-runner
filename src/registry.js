@@ -38,6 +38,8 @@ const CHECKS = {
     if (m.stroke !== undefined && typeof m.stroke !== 'boolean') e.push('stroke must be true or false');
     if (m.label !== undefined && !(typeof m.label === 'string' && m.label.length >= 1 && m.label.length <= 3)) e.push('label must be 1-3 characters');
     if (m.createView !== undefined && !fn(m.createView)) e.push('createView must be a function');
+    if (m.name !== undefined && !(typeof m.name === 'string' && m.name.length >= 1 && m.name.length <= 24)) e.push('name must be 1-24 characters');
+    if (m.blurb !== undefined && !(typeof m.blurb === 'string' && m.blurb.length >= 1 && m.blurb.length <= 80)) e.push('blurb must be 1-80 characters');
     return e;
   },
   theme(m) {

@@ -12,15 +12,32 @@ export function pickupIcon(def) {
   return svg;
 }
 
+// A pickup's display name: the module's `name`, or the last part of its id in capitals.
+export const pickupName = (def) => def.name ?? def.id.replace(/^.*\//, '').toUpperCase();
+
 export function createHud() {
   let onPause = () => {};
-  let paused = false;
+  let paused = false, toastT = 0;
   $('pause').onclick = () => onPause();
   $('overlay').onclick = () => paused && onPause();
   const chips = $('powerups');
 
   return {
-    show(on) { $('hud').hidden = !on; if (!on) { chips.replaceChildren(); chips.dataset.key = ''; } },
+    show(on) {
+      $('hud').hidden = !on;
+      if (!on) { chips.replaceChildren(); chips.dataset.key = ''; clearTimeout(toastT); $('card').hidden = true; $('card').replaceChildren(); }
+    },
+    // Two seconds of icon, name and blurb at the bottom of the screen; a new pickup replaces it. Community strings: textContent only.
+    toast(def) {
+      const c = $('card'), t = document.createElement('div'), words = document.createElement('div');
+      t.className = 'toast';
+      words.append(Object.assign(document.createElement('b'), { textContent: pickupName(def) }));
+      if (def.blurb) words.append(Object.assign(document.createElement('small'), { textContent: def.blurb }));
+      t.append(pickupIcon(def), words);
+      c.replaceChildren(t); c.hidden = false;
+      clearTimeout(toastT);
+      toastT = setTimeout(() => { c.hidden = true; c.replaceChildren(); }, 2000);
+    },
     onPause(fn) { onPause = fn; },
     update(run, level, registry) {
       $('jugs').textContent = run.jugs;

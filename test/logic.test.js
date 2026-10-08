@@ -277,10 +277,10 @@ const campaign = { start: 'a', locked: { b: 'a', endless: 'b' } };
 
 test('blocked storage never breaks the game', () => {
   const blocked = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
-  assert.deepEqual(loadSave(blocked), { best: {}, completed: [] });
-  assert.doesNotThrow(() => writeSave({ best: {}, completed: [] }, blocked));
-  assert.deepEqual(loadSave(undefined), { best: {}, completed: [] });
-  assert.deepEqual(loadSave({ getItem: () => 'not json' }), { best: {}, completed: [] });
+  assert.deepEqual(loadSave(blocked), { best: {}, completed: [], helpSeen: false });
+  assert.doesNotThrow(() => writeSave({ best: {}, completed: [], helpSeen: false }, blocked));
+  assert.deepEqual(loadSave(undefined), { best: {}, completed: [], helpSeen: false });
+  assert.deepEqual(loadSave({ getItem: () => 'not json' }), { best: {}, completed: [], helpSeen: false });
 });
 
 test('save round-trips and best only goes up', () => {
@@ -288,12 +288,13 @@ test('save round-trips and best only goes up', () => {
   const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
   const s = loadSave(storage);
   recordRun(s, 'a', 10); recordRun(s, 'a', 4); completeLevel(s, 'a'); completeLevel(s, 'a');
+  s.helpSeen = true;
   writeSave(s, storage);
-  assert.deepEqual(loadSave(storage), { best: { a: 10 }, completed: ['a'] });
+  assert.deepEqual(loadSave(storage), { best: { a: 10 }, completed: ['a'], helpSeen: true });
 });
 
 test('campaign locks come from the data, and community levels are open', () => {
-  const s = { best: {}, completed: [] };
+  const s = { best: {}, completed: [], helpSeen: false };
   assert.equal(isLocked(campaign, s, 'b'), true);
   assert.equal(isLocked(campaign, s, 'canal-street-dash'), false);
   completeLevel(s, 'a');
@@ -313,8 +314,8 @@ test('a storage getter that throws (blocked cookies) never breaks the game', () 
   const desc = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('SecurityError'); } });
   try {
-    assert.deepEqual(loadSave(), { best: {}, completed: [] });
-    assert.doesNotThrow(() => writeSave({ best: {}, completed: [] }));
+    assert.deepEqual(loadSave(), { best: {}, completed: [], helpSeen: false });
+    assert.doesNotThrow(() => writeSave({ best: {}, completed: [], helpSeen: false }));
   } finally {
     if (desc) Object.defineProperty(globalThis, 'localStorage', desc); else delete globalThis.localStorage;
   }

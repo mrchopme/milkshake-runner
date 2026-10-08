@@ -23,6 +23,7 @@
     <div class="spacer"></div>
     <button id="play" class="primary">RUN</button>
     <div class="row"><button id="levels">LEVELS</button><button id="endless" hidden>ENDLESS</button></div>
+    <button id="how">HOW TO PLAY</button>
     <p class="hint">Swipe, or use the arrow keys · Esc pauses</p>
   </section>
   <section id="select" class="screen panel" hidden>
@@ -40,6 +41,12 @@
     <h2>This build has problems</h2>
     <ul id="error-list"></ul>
     <p>Fix the files above and reload. See CONTRIBUTING.md.</p>
+  </section>
+  <section id="help" class="screen panel" hidden>
+    <h2>How to play</h2>
+    <p class="copy">Swipe, or use the arrow keys. Left and right change lane, up jumps, down slides. Esc pauses.</p>
+    <div id="powerup-list"></div>
+    <button id="help-ok" class="primary">GOT IT</button>
   </section>
   <script type="module" src="/src/main.js"></script>
 </body>
