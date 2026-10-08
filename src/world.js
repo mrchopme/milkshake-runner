@@ -36,7 +36,8 @@ export function createWorld(scene, level, { registry, rules, seed, end }) {
   const fallbackView = () => ({ object: gfx.box(1, 1, 1, '#ff00ff') }); // a loud pink block instead of a crash
 
   function build() {
-    const { obstacles, pickups } = generate(norm, r, builtTo, builtTo + CHUNK, registry, rules);
+    const length = Math.min(CHUNK, end - builtTo); // the last chunk stops exactly at `end`, so no street runs past the finish line
+    const { obstacles, pickups } = generate(norm, r, builtTo, builtTo + length, registry, rules);
     for (const o of obstacles) {
       o.def = registry.obstacle[o.id];
       o.view = safeCall(`obstacle ${o.id} createView`, () => o.def.createView(gfx, o), null) ?? fallbackView();
@@ -54,11 +55,11 @@ export function createWorld(scene, level, { registry, rules, seed, end }) {
     const section = sectionAt(norm, builtTo);
     const themeDef = registry.theme[section.theme.id];
     const theme = { ...themeDef, ...section.theme };
-    const args = { z0: builtTo, length: CHUNK, lanes, rng: rs, theme };
+    const args = { z0: builtTo, length, lanes, rng: rs, theme };
     const g = safeCall(`theme ${theme.id} createChunk`, () => (themeDef.createChunk ? themeDef.createChunk(gfx, args) : defaultChunk(gfx, args)), null) ?? new THREE.Group();
     root.add(g);
     chunks.push({ z: builtTo, g });
-    builtTo += CHUNK;
+    builtTo += length;
   }
 
   function update(run, dt) {
