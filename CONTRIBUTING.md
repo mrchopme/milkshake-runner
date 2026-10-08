@@ -164,6 +164,15 @@ export default {
 };
 ```
 
+### Packs: a new look for existing content
+
+A pack re-skins modules that are already registered, without changing how they play. It lives at
+`packs/<pack>/<kind>s/<id>.js`, mirrors the module's id, and may set only `createView` (obstacle, pickup, prop,
+character), `createChunk` and `look` (theme), and `assets`. Anything else, a box, a speed or an effect, is rejected:
+packs change how things look, not how they play. The game merges the `hifi` pack on devices with a mouse or trackpad;
+add `?hifi` or `?lofi` to the address to force either. A broken overlay disables only itself, and the module
+underneath carries on.
+
 ## What you may change
 
 - Your own files under `levels/` and `content/<kind>s/<your-handle>/`.

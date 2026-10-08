@@ -2,6 +2,7 @@
 export const KIND_DIR = { obstacle: 'obstacles', pickup: 'pickups', prop: 'props', theme: 'themes', character: 'characters', ending: 'endings' };
 const KINDS = Object.keys(KIND_DIR);
 const PLAIN = /^[a-z0-9_-]+$/, NAMESPACED = /^[a-z0-9_-]+\/[a-z0-9_-]+$/, HEX = /^#[0-9a-fA-F]{6}$/;
+const ASSET = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.glb$/; // a .glb under public/: lowercase, no leading slash, no ..
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const fn = (v) => typeof v === 'function';
@@ -81,7 +82,45 @@ export function checkModule(m) {
   if (!isObj(m)) return ['the default export must be an object'];
   if (!KINDS.includes(m.kind)) return [`kind must be one of ${KINDS.join(', ')}`];
   if (typeof m.id !== 'string' || !(PLAIN.test(m.id) || NAMESPACED.test(m.id))) return ['id must be a-z0-9_- (built-in) or handle/name (community)'];
-  return CHECKS[m.kind](m);
+  const e = CHECKS[m.kind](m);
+  // Any module may list files the game preloads before play (src/assets.js); only .glb loads today.
+  if (m.assets !== undefined && !(Array.isArray(m.assets) && m.assets.every((a) => typeof a === 'string' && ASSET.test(a)))) e.push('assets must be a list of .glb files under public/, like "hifi/model.glb" (lowercase)');
+  return e;
+}
+
+// Pack modules (packs/<pack>/<kind>s/<id>.js) re-skin a registered module: how it looks, never how it plays.
+export const SKIN_FIELDS = { obstacle: ['createView'], pickup: ['createView'], prop: ['createView'], character: ['createView'], theme: ['createChunk', 'look'], ending: [] };
+const PACK_PATH = /^packs\/[a-z0-9_-]+\/([a-z]+)\/(.+)\.js$/;
+
+// entries: [{ path: 'packs/<pack>/<kind>s/<id>.js', module }]. Pure. Returns a new registry with each overlay merged over
+// the module it names, plus the overlays that failed; a failed overlay leaves that module exactly as it was.
+export function applyPack(registry, entries) {
+  const reg = Object.fromEntries(KINDS.map((k) => [k, Object.assign(Object.create(null), registry[k])]));
+  const problems = [], done = new Set();
+  for (const { path, module: m } of entries) {
+    const e = [], where = PACK_PATH.exec(path);
+    if (!isObj(m)) e.push('the default export must be an object');
+    else if (!KINDS.includes(m.kind)) e.push(`kind must be one of ${KINDS.join(', ')}`);
+    else if (typeof m.id !== 'string' || !(PLAIN.test(m.id) || NAMESPACED.test(m.id))) e.push('id must name a registered module');
+    else if (!where || where[1] !== KIND_DIR[m.kind] || where[2] !== m.id) e.push(`must be saved as packs/<pack>/${KIND_DIR[m.kind]}/${m.id}.js`);
+    else if (!registry[m.kind]?.[m.id]) e.push(`no registered ${m.kind} "${m.id}" to re-skin`);
+    else if (done.has(`${m.kind}:${m.id}`)) e.push('duplicate overlay');
+    else {
+      for (const k of Object.keys(m)) if (!['kind', 'id', 'assets', ...SKIN_FIELDS[m.kind]].includes(k)) e.push(`"${k}" is not a looks-only field of ${m.kind} modules: packs change how things look, not how they play`);
+      const merged = { ...registry[m.kind][m.id], ...m };
+      if (!e.length) e.push(...checkModule(merged));
+      if (!e.length) { reg[m.kind][m.id] = merged; done.add(`${m.kind}:${m.id}`); }
+    }
+    if (e.length) problems.push(`${isObj(m) && m.id ? `${m.kind} "${m.id}" (${path})` : path}: ${e.join('; ')}`);
+  }
+  return { registry: reg, problems };
+}
+
+// Browser loader for one pack. Lazy: a low-fi session never downloads pack code.
+export async function loadPack(name) {
+  const files = import.meta.glob('../packs/**/*.js', { import: 'default' });
+  const mine = Object.entries(files).filter(([p]) => p.startsWith(`../packs/${name}/`));
+  return Promise.all(mine.map(async ([p, load]) => ({ path: p.replace(/^(\.\.\/)+/, ''), module: await load() })));
 }
 
 // entries: [{ path: 'content/<kind>s/...js', module }]. Pure. Only modules with no problem are registered;

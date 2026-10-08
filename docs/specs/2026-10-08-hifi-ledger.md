@@ -14,6 +14,8 @@ last-verified: never
 |---|---|---|---|---|---|
 | 2 | `src/engine.js` | `resize(w = innerWidth, h = innerHeight)` takes an explicit size and is on the returned object; the listener wraps it so the event is not read as the width | Stills render at 2160×3840 without resizing the window | Generic hook | No: the renderer and camera live inside `createEngine` |
 | 2 | `src/game.js` | The dev hook adds `character` | `scripts/hifi-shot.js` poses the character for stills | Dev only (stripped from builds) | No: the hook is the only handle on a running level |
+| 3 | `src/registry.js` | `applyPack`, `SKIN_FIELDS`, `loadPack`; `checkModule` validates an optional `assets` list for every kind | Packs re-skin registered modules with looks-only fields | Generic hook | No: before this a module could not re-skin another module (spec finding 6, look and gameplay fused per id) |
+| 3 | `src/main.js` | Quality switch (`?hifi`, `?lofi`, else `pointer: fine`) and the lazy `hifi` pack load merged over the registry | HiFi on mouse and trackpad, low-fi on touch | Generic hook | No |
 
 ## Credits
 

@@ -1,7 +1,7 @@
 import './style.css';
 import * as gfx from './gfx.js';
 import { createEngine } from './engine.js';
-import { loadRegistry } from './registry.js';
+import { loadRegistry, applyPack, loadPack } from './registry.js';
 import { loadLevels } from './levels.js';
 import { loadCharacter } from './character.js';
 import { createHud, pickupIcon, pickupName } from './hud.js';
@@ -24,12 +24,21 @@ function showErrors(errors) {
   show('error');
 }
 
+// HiFi is a looks-only pack over the shipped content: on with a mouse or trackpad, off on touch. ?hifi or ?lofi forces it.
+const params = new URLSearchParams(location.search);
+const quality = params.has('hifi') ? 'hifi' : params.has('lofi') ? 'lofi' : matchMedia('(pointer: fine)').matches ? 'hifi' : 'lofi';
+
 async function main() {
   const engine = createEngine($('game'));
   const hud = createHud();
   const save = loadSave();
   const fixtures = import.meta.env.DEV && location.search.includes('fixtures');
-  const { registry, problems } = loadRegistry({ fixtures }); // a broken content module disables only itself
+  let { registry, problems } = loadRegistry({ fixtures }); // a broken content module disables only itself
+  if (quality === 'hifi') {
+    const pack = applyPack(registry, await loadPack('hifi')); // a broken overlay disables only itself; the module underneath carries on
+    registry = pack.registry;
+    problems = [...problems, ...pack.problems];
+  }
   if (problems.length) console.warn('Some content files are disabled:', problems);
   const { levels, campaign, order, errors, valid } = loadLevels(registry, { fixtures });
   if (errors['campaign.json'] || errors['index.json'] || !valid(campaign.start)) return showErrors(errors);
