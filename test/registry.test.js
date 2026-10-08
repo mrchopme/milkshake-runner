@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import { buildRegistry, checkModule, safeCall } from '../src/registry.js';
+import { buildRegistry, tryBuildRegistry, checkModule, safeCall } from '../src/registry.js';
 import { discover } from './helpers.js';
 
 const CONTENT = fileURLToPath(new URL('../content/', import.meta.url));
@@ -51,4 +51,12 @@ test('metadata is checked per kind', () => {
 test('safeCall contains a throwing hook', () => {
   assert.equal(safeCall('test hook', () => { throw new Error('boom'); }, 42), 42);
   assert.equal(safeCall('test hook', () => 7, 42), 7);
+});
+
+test('tryBuildRegistry keeps the good modules and lists the bad ones', () => {
+  const { registry, problems } = tryBuildRegistry([...at('content/obstacles/ari/rock.js', ok), ...at('content/pickups/ari/gem.js', { kind: 'pickup', id: 'ari/gem' })]);
+  assert.deepEqual(Object.keys(registry.obstacle), ['ari/rock']);
+  assert.deepEqual(Object.keys(registry.pickup), []);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /ari\/gem/);
 });

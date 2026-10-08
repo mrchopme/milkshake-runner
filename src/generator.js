@@ -87,7 +87,8 @@ export function generate(norm, r, fromZ, toZ, registry, rules) {
 
   for (let z = firstRow; z < Math.min(toZ, lastRow); z += ROW_GAP) {
     const s = sectionAt(norm, z);
-    if (!s.generation || r() >= densityAt(s, z)) continue;
+    if (!s.generation || s.placements.some((p) => p.kind === 'obstacle' && Math.abs(p.at_m - z) < ROW_GAP)) continue; // placements own their row
+    if (r() >= densityAt(s, z)) continue;
     const ids = Object.keys(s.obstacles);
     if (!ids.length) continue;
     const roll = r();

@@ -75,27 +75,39 @@ export function checkModule(m) {
   return CHECKS[m.kind](m);
 }
 
-// entries: [{ path: 'content/<kind>s/...js', module }]. Pure. Throws one error that lists every problem.
-export function buildRegistry(entries) {
-  const reg = Object.fromEntries(KINDS.map((k) => [k, {}]));
+// entries: [{ path: 'content/<kind>s/...js', module }]. Pure. Only modules with no problem are registered;
+// the maps have no prototype, so a level naming "constructor" or "toString" finds nothing.
+function assemble(entries) {
+  const reg = Object.fromEntries(KINDS.map((k) => [k, Object.create(null)]));
   const problems = [];
   for (const { path, module: m } of entries) {
     const errs = checkModule(m);
     const label = isObj(m) && m.id ? `${m.kind} "${m.id}" (${path})` : path;
     if (errs.length) { problems.push(`${label}: ${errs.join('; ')}`); continue; }
     const dir = `content/${KIND_DIR[m.kind]}/`;
-    if (!path.startsWith(dir)) problems.push(`${label}: is in the wrong folder, expected ${dir}`);
+    const mine = [];
+    if (!path.startsWith(dir)) mine.push(`is in the wrong folder, expected ${dir}`);
     const builtin = new RegExp(`^${dir}[a-z0-9_-]+\\.js$`).test(path);
     if (!builtin) {
-      if (!NAMESPACED.test(m.id)) problems.push(`${label}: community ids must be namespaced like "yourhandle/${m.id}"`);
-      else if (path !== `${dir}${m.id}.js`) problems.push(`${label}: must be saved as ${dir}${m.id}.js`);
+      if (!NAMESPACED.test(m.id)) mine.push(`community ids must be namespaced like "yourhandle/${m.id}"`);
+      else if (path !== `${dir}${m.id}.js`) mine.push(`must be saved as ${dir}${m.id}.js`);
     }
-    if (reg[m.kind][m.id]) problems.push(`${label}: duplicate id`);
+    if (reg[m.kind][m.id]) mine.push('duplicate id');
+    if (mine.length) problems.push(`${label}: ${mine.join('; ')}`);
     else reg[m.kind][m.id] = m;
   }
-  if (problems.length) throw new Error(problems.join('\n'));
-  return reg;
+  return { registry: reg, problems };
 }
+
+// Strict: throws one error that lists every problem (tests and CI).
+export function buildRegistry(entries) {
+  const { registry, problems } = assemble(entries);
+  if (problems.length) throw new Error(problems.join('\n'));
+  return registry;
+}
+
+// Lenient: the browser keeps the good modules and shows the bad ones, so one broken file disables only itself.
+export const tryBuildRegistry = assemble;
 
 // Browser loader. `fixtures` adds test/fixtures/content for the manual pass (dev only, ?fixtures in the URL).
 export function loadRegistry({ fixtures = false } = {}) {
@@ -105,7 +117,7 @@ export function loadRegistry({ fixtures = false } = {}) {
     const extra = import.meta.glob('../test/fixtures/content/**/*.js', { eager: true, import: 'default' });
     for (const [p, module] of Object.entries(extra)) entries.push({ path: p.replace(/^.*\/fixtures\//, ''), module });
   }
-  return buildRegistry(entries);
+  return tryBuildRegistry(entries);
 }
 
 // A hook written by someone else may throw; the game must not freeze because of it.

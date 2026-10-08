@@ -28,40 +28,44 @@ async function main() {
   const hud = createHud();
   const save = loadSave();
   const fixtures = import.meta.env.DEV && location.search.includes('fixtures');
-  let registry;
-  try { registry = loadRegistry({ fixtures }); }
-  catch (err) { return showErrors({ 'content/': String(err.message).split('\n') }); }
+  const { registry, problems } = loadRegistry({ fixtures }); // a broken content module disables only itself
+  if (problems.length) console.warn('Some content files are disabled:', problems);
   const { levels, campaign, order, errors, valid } = loadLevels(registry, { fixtures });
   if (errors['campaign.json'] || errors['index.json'] || !valid(campaign.start)) return showErrors(errors);
   if (Object.keys(errors).length) console.warn('Some levels are disabled:', errors);
 
   const defaultRules = resolveRules();
   let backdrop = null;
+  // One character in the scene at a time: a level's character replaces the previous one.
   const character = async (level) => {
     const view = await loadCharacter(registry.character[level.character?.id ?? 'milkshake']);
-    if (!view.object.parent) engine.scene.add(view.object);
+    for (const c of engine.scene.children.filter((c) => c.userData.character && c !== view.object)) engine.scene.remove(c);
+    if (!view.object.parent) { view.object.userData.character = true; engine.scene.add(view.object); }
     return view;
   };
 
   async function menu() {
     const level = levels[campaign.start];
-    const view = await character(level);
-    for (const v of engine.scene.children.filter((c) => c.userData.character && c !== view.object)) engine.scene.remove(v);
-    view.object.userData.character = true;
     if (!backdrop) backdrop = createWorld(engine.scene, level, { registry, rules: defaultRules, seed: 1, end: 400 });
     const idle = createRun(defaultRules, registry.character[level.character?.id ?? 'milkshake']);
     backdrop.update(idle, 0);
-    view.update(idle);
     engine.setSky(backdrop.skyAt(0));
     engine.follow(idle);
     engine.render();
     $('endless').hidden = !levels.endless || isLocked(campaign, save, 'endless');
-    show('menu');
+    show('menu'); // the street and the buttons appear before the character model has downloaded
+    const view = await character(level);
+    view.update(idle);
+    engine.render();
   }
 
   function levelSelect() {
     const list = $('level-list');
     list.replaceChildren();
+    for (const p of problems) { // disabled content modules, listed where contributors look
+      const b = document.createElement('button'), i = p.indexOf(': ');
+      text(b, 'span', p.slice(0, i)); text(b, 'small', `needs fixing: ${p.slice(i + 2)}`); b.disabled = true; list.append(b);
+    }
     for (const id of order) {
       const lv = levels[id], b = document.createElement('button');
       const locked = isLocked(campaign, save, id), broken = !valid(id);

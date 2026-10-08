@@ -33,6 +33,7 @@ export function createWorld(scene, level, { registry, rules, seed, end }) {
   const lanes = { count: 3, width: rules.laneWidth, roadHalf: ROAD_HALF };
   let builtTo = 0;
   const drop = (obj) => { root.remove(obj); gfx.dispose(obj); };
+  const dropView = (item, label) => { if (item.view.dispose) safeCall(`${label} ${item.id} dispose`, () => item.view.dispose()); drop(item.view.object); };
   const fallbackView = () => ({ object: gfx.box(1, 1, 1, '#ff00ff') }); // a loud pink block instead of a crash
 
   function build() {
@@ -66,7 +67,7 @@ export function createWorld(scene, level, { registry, rules, seed, end }) {
     while (builtTo < Math.min(end, run.z + AHEAD)) build();
     const behind = run.z - BEHIND;
     for (const list of [live.obstacles, live.pickups]) {
-      for (let i = list.length - 1; i >= 0; i--) if (list[i].z < behind) { drop(list[i].view.object); list.splice(i, 1); }
+      for (let i = list.length - 1; i >= 0; i--) if (list[i].z < behind) { dropView(list[i], list === live.obstacles ? 'obstacle' : 'pickup'); list.splice(i, 1); }
     }
     while (chunks.length && chunks[0].z + CHUNK < behind) drop(chunks.shift().g);
     for (const o of live.obstacles) {
@@ -87,8 +88,12 @@ export function createWorld(scene, level, { registry, rules, seed, end }) {
     const s = sectionAt(norm, z), t = registry.theme[s.theme.id];
     return { sky: s.theme.sky ?? t.sky, fog: s.theme.fog ?? t.fog };
   };
-  function removePickup(p) { live.pickups.splice(live.pickups.indexOf(p), 1); drop(p.view.object); }
-  function dispose() { scene.remove(root); gfx.dispose(root); }
+  function removePickup(p) { live.pickups.splice(live.pickups.indexOf(p), 1); dropView(p, 'pickup'); }
+  function dispose() {
+    for (const o of live.obstacles) if (o.view.dispose) safeCall(`obstacle ${o.id} dispose`, () => o.view.dispose());
+    for (const p of live.pickups) if (p.view.dispose) safeCall(`pickup ${p.id} dispose`, () => p.view.dispose());
+    scene.remove(root); gfx.dispose(root);
+  }
 
   return { live, update, removePickup, skyAt, dispose };
 }

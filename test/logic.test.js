@@ -291,3 +291,26 @@ test('shipped order first, community levels by title, invalid files listed but n
   assert.equal(valid('a'), true);
   assert.equal(valid('bad'), false);
 });
+
+test('a storage getter that throws (blocked cookies) never breaks the game', () => {
+  const desc = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('SecurityError'); } });
+  try {
+    assert.deepEqual(loadSave(), { best: {}, completed: [] });
+    assert.doesNotThrow(() => writeSave({ best: {}, completed: [] }));
+  } finally {
+    if (desc) Object.defineProperty(globalThis, 'localStorage', desc); else delete globalThis.localStorage;
+  }
+});
+
+test('generated rows keep clear of placed obstacles in a generating section', () => {
+  const level = lvl({ density: { start: 0.9, end: 0.9 }, sections: [{ from_m: 100, to_m: 400, placements: [
+    { at_m: 180, lane: 0, kind: 'obstacle', id: 'taxi' }, { at_m: 180, lane: 1, kind: 'obstacle', id: 'taxi' }, { at_m: 255, lane: 2, kind: 'obstacle', id: 'taxi' },
+  ] }] });
+  for (const s of seeds) {
+    const { obstacles } = all(level, s);
+    const placed = obstacles.filter((o) => o.placed);
+    assert.equal(placed.length, 3, `seed ${s}`);
+    for (const o of obstacles.filter((o) => !o.placed)) for (const p of placed) assert.ok(Math.abs(o.z - p.z) >= ROW_GAP, `seed ${s}: generated ${o.id} at ${o.z} m next to a placement at ${p.z} m`);
+  }
+});

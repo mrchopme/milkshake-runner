@@ -78,6 +78,14 @@ test('sections and placements', () => {
   assert.match(s([{ from_m: 0, to_m: 100, placements: [0, 1, 2].map((lane) => ({ at_m: 50, lane, kind: 'obstacle', id: 'taxi' })) }]), /block every lane/);
   assert.equal(s([{ from_m: 0, to_m: 100, placements: [0, 1, 2].map((lane) => ({ at_m: 50, lane, kind: 'obstacle', id: lane === 1 ? 'barrier_low' : 'taxi' })) }]), '');
   assert.match(s([{ from_m: 0, to_m: 100, rows: 3 }]), /unknown key "rows"/);
+  assert.match(s([{ from_m: 0, to_m: 100, placements: [[50, 0], [51, 1], [52, 2]].map(([at_m, lane]) => ({ at_m, lane, kind: 'obstacle', id: 'taxi' })) }]), /block every lane/);
+});
+test('ids that are object prototype keys are unknown, not inherited', () => {
+  assert.match(errs({ obstacles: { constructor: 1 } }), /unknown obstacle "constructor"/);
+  assert.match(errs({ theme: { id: 'constructor' } }), /unknown theme "constructor"/);
+  assert.match(errs({ character: { id: 'hasOwnProperty' } }), /unknown character "hasOwnProperty"/);
+  assert.match(errs({ ending: { id: 'constructor' } }), /unknown ending "constructor"/);
+  assert.match(errs({ sections: [{ from_m: 0, to_m: 100, placements: [{ at_m: 50, lane: 0, kind: 'obstacle', id: 'toString' }] }] }), /unknown obstacle "toString"/);
 });
 test('the file name is the id', () => assert.match(errs({ id: 'y' }), /file name/));
 test('index lists real files, once each; unlisted levels are fine', () => {

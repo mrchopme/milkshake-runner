@@ -1,5 +1,5 @@
 import { RULE_RANGES, resolveRules } from './rules.js';
-import { passable } from './generator.js';
+import { passable, ROW_GAP } from './generator.js';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const inRange = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
@@ -90,7 +90,7 @@ function checkSections(level, registry, rules, e) {
     if (s.generation !== undefined && typeof s.generation !== 'boolean') e.push(`${path}.generation must be true or false`);
     if (s.placements === undefined) return;
     if (!Array.isArray(s.placements)) return e.push(`${path}.placements must be a list`);
-    const rows = new Map();
+    const placed = [];
     s.placements.forEach((p, j) => {
       const pp = `${path}.placements[${j}]`;
       if (!isObj(p)) return e.push(`${pp} must be an object`);
@@ -100,12 +100,15 @@ function checkSections(level, registry, rules, e) {
       if (!['obstacle', 'pickup'].includes(p.kind)) return e.push(`${pp}.kind must be obstacle or pickup`);
       const def = registry[p.kind][p.id];
       if (!def) return e.push(`${pp}: unknown ${p.kind} "${p.id}"`);
-      if (p.kind === 'obstacle') (rows.get(p.at_m) ?? rows.set(p.at_m, []).get(p.at_m)).push({ lane: p.lane, def });
+      if (p.kind === 'obstacle') placed.push({ at: p.at_m, lane: p.lane, def });
     });
-    for (const [z, row] of rows) {
-      const lanes = new Set(row.map((r) => r.lane));
-      if (lanes.size === 3 && !row.some((r) => passable(r.def, rules))) e.push(`${path}: placements at ${z} m block every lane with nothing to jump or slide`);
+    // Obstacles within half a row of each other are one row: three lanes with nothing to jump or slide is a wall.
+    const walls = new Set();
+    for (const p of placed) {
+      const row = placed.filter((q) => Math.abs(q.at - p.at) <= ROW_GAP / 2);
+      if (new Set(row.map((r) => r.lane)).size === 3 && !row.some((r) => passable(r.def, rules))) walls.add(Math.min(...row.map((r) => r.at)));
     }
+    for (const z of walls) e.push(`${path}: placements at ${z} m block every lane with nothing to jump or slide`);
   });
 }
 
