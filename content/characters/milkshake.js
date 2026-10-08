@@ -24,14 +24,26 @@ export default {
     }
     body.add(model);
 
-    const pose = (time, { sliding = false, over = false, lean = 0, airborne = false } = {}) => {
-      const stride = airborne || sliding || over ? 0 : Math.sin(time * 14);
-      body.position.y = Math.abs(stride) * 0.08;
+    // Dust: six puffs pooled under the hooves, one per footfall while on the ground. They stay on the road as Milkshake runs on.
+    const puffs = gfx.group();
+    root.add(puffs);
+    const pool = Array.from({ length: 6 }, () => {
+      const m = new gfx.three.Mesh(new gfx.three.SphereGeometry(0.18, 8, 6), new gfx.three.MeshBasicMaterial({ color: P.spot, transparent: true, opacity: 0.5, depthWrite: false }));
+      m.visible = false; puffs.add(m); return m;
+    });
+    let lastStride = 0, nextPuff = 0;
+
+    const BASE = 12; // m/s the v1 stride was tuned at
+    const pose = (time, { sliding = false, over = false, lean = 0, airborne = false, speed = BASE } = {}) => {
+      const k = speed / BASE;                                       // 1 at the old pace, 2 at 24 m/s
+      const stride = airborne || sliding || over ? 0 : Math.sin(time * 14 * k);
+      body.position.y = Math.abs(stride) * Math.min(0.14, 0.08 * k);
       body.scale.y = sliding ? 0.5 : 1;
-      body.rotation.z = lean;
-      body.rotation.x = over ? 0.9 : sliding ? -0.3 : 0;
+      body.rotation.z = lean + stride * 0.03 * Math.max(0, k - 1);  // a little roll per stride once it is running hard
+      body.rotation.x = over ? 0.9 : sliding ? -0.3 : Math.max(0, 0.1 * (k - 1)); // forward lean grows with speed
       legs.forEach((l, i) => (l.rotation.x = stride * 0.7 * (i ? 1 : -1)));
       arms.forEach((a, i) => (a.rotation.x = stride * 0.7 * (i ? -1 : 1)));
+      return stride;
     };
     return {
       object: root,
@@ -39,9 +51,22 @@ export default {
       update(run) {
         root.position.set(run.x, run.y, run.z);
         shadow.position.y = -run.y + 0.01; // the shadow stays on the road while Milkshake jumps
-        pose(run.time, { sliding: run.slideT > 0, over: run.over, lean: ((1 - run.lane) * run.rules.laneWidth - run.x) * 0.12, airborne: run.y > 0 });
+        const stride = pose(run.time, { sliding: run.slideT > 0, over: run.over, lean: ((1 - run.lane) * run.rules.laneWidth - run.x) * 0.12, airborne: run.y > 0, speed: run.speed ?? BASE });
+        if (run.y === 0 && run.slideT === 0 && !run.over && stride !== 0 && Math.sign(stride) !== Math.sign(lastStride)) {
+          const p = pool[nextPuff++ % pool.length];
+          p.visible = true; p.userData.born = run.time; p.userData.z = run.z - 0.4;
+          p.position.set(nextPuff % 2 ? 0.18 : -0.18, 0.1, 0);
+        }
+        lastStride = stride;
+        for (const p of pool) if (p.visible) {
+          const age = run.time - p.userData.born;
+          if (age > 0.35) { p.visible = false; continue; }
+          p.position.z = p.userData.z - run.z;
+          p.scale.setScalar(0.6 + age * 3);
+          p.material.opacity = 0.5 * (1 - age / 0.35);
+        }
       },
-      dispose() { gfx.dispose(root); },
+      dispose() { pool.forEach((p) => p.material.dispose()); gfx.dispose(root); },
     };
   },
 };
