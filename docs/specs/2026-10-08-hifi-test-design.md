@@ -1,11 +1,11 @@
 ---
-provenance: agent-generated
-last-verified: never
+provenance: human-approved
+last-verified: 2026-10-08
 ---
 
 # Milkshake Runner: HiFi test, sub-project 1 design (foundation + the taxi)
 
-**Date:** 2026-10-08 · **Status:** design approved by Caedon in chat on 2026-10-08; this written spec awaits his review · **Builds on:** [spec v3](2026-10-08-milkshake-runner-design-v3.md), [plan v3](2026-10-08-milkshake-runner-plan-v3.md), the Paper style sheet (board 01 "Reference") · **Branch:** `hi-fi-test`, local, cut from `feat/v3-feedback` at e3742bc · **Builder:** chosen at the plan stage
+**Date:** 2026-10-08 · **Status:** approved by Caedon on 2026-10-08, in chat, as a design and then as this written spec · **Builds on:** [spec v3](2026-10-08-milkshake-runner-design-v3.md), [plan v3](2026-10-08-milkshake-runner-plan-v3.md), the Paper style sheet (board 01 "Reference") · **Branch:** `hi-fi-test`, local, cut from `feat/v3-feedback` at e3742bc · **Builder:** chosen at the plan stage
 
 > Point-in-time snapshot. Written on 2026-10-08 against `feat/v3-feedback` at e3742bc (PR #2 open, PR #1 open).
 > The decisions table records what Caedon chose in chat that day; everything else is the agent's design and may
