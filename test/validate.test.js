@@ -102,3 +102,12 @@ test('campaign points at real levels', () => {
   assert.match(validateCampaign({ start: 'x', locked: { y: 'x' } }, ['x']).join(), /"y"/);
   assert.match(validateCampaign({ start: 'x', extra: 1 }, ['x']).join(), /unknown key/);
 });
+
+test('placed obstacle rows closer than the reaction floor are rejected', () => {
+  const two = (gap, rules = { speed: { start: 30, end: 30 } }) => errs({ rules, sections: [{ from_m: 0, to_m: 600, placements: [
+    { at_m: 100, lane: 0, kind: 'obstacle', id: 'taxi' }, { at_m: 100 + gap, lane: 1, kind: 'obstacle', id: 'taxi' }] }] });
+  assert.match(two(12), /reaction floor/);
+  assert.equal(two(24), '');
+  assert.equal(two(3), '', 'placements within half a row are one row, checked by the wall rule instead');
+  assert.equal(two(12, { speed: { start: 30, end: 30 }, reaction: 0.3 }), '', 'a lower reaction rule allows it');
+});

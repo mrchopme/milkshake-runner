@@ -11,7 +11,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
     const streetAfter = level.ending ? (registry.ending[level.ending.id].streetAfter ?? 200) : 200;
     const world = createWorld(engine.scene, level, {
       registry, rules, seed: level.seed ?? ((Math.random() * 2 ** 32) >>> 0),
-      end: level.length_m === null ? Infinity : level.length_m + streetAfter,
+      end: level.length_m === null ? Infinity : level.length_m + streetAfter, speedFrom: run.speedFrom,
     });
     if (import.meta.env.DEV) window.__milkshake = { run, world, level, engine }; // dev-only hook for the manual pass; stripped from builds
     let paused = false, last = performance.now(), raf = 0, skyKey = '';

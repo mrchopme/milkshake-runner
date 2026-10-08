@@ -1,4 +1,4 @@
-import { jumpHeight } from './rules.js';
+import { jumpHeight, speedAt } from './rules.js';
 
 export const ROW_GAP = 12;          // metres between generated obstacle rows
 export const START_CLEAR = 40;      // empty road at the start of every level
@@ -79,15 +79,21 @@ function shuffledLanes(r) {
   return lanes;
 }
 
-// Obstacles and pickups for z in [fromZ, toZ). Call with consecutive ranges on one rng.
-export function generate(norm, r, fromZ, toZ, registry, rules) {
+// Obstacles, pickups (and later props) for z in [fromZ, toZ). Call with consecutive ranges on one rng and one `state`:
+// state.lastRow remembers the previous generated row across chunks, state.speedFrom is the speed carried into the level.
+export function generate(norm, r, fromZ, toZ, registry, rules, state = { lastRow: -Infinity, speedFrom: rules.speed.start }) {
   const obstacles = [], pickups = [];
   const lastRow = norm.length == null ? Infinity : norm.length - END_CLEAR;
   const firstRow = Math.ceil(Math.max(fromZ, START_CLEAR) / ROW_GAP) * ROW_GAP;
+  const level = { length_m: norm.length ?? null };
+  const placedRows = norm.sections.flatMap((s) => s.placements.filter((p) => p.kind === 'obstacle').map((p) => p.at_m));
 
   for (let z = firstRow; z < Math.min(toZ, lastRow); z += ROW_GAP) {
     const s = sectionAt(norm, z);
     if (!s.generation || s.placements.some((p) => p.kind === 'obstacle' && Math.abs(p.at_m - z) < ROW_GAP)) continue; // placements own their row
+    // Reaction floor: at speed v a row never comes closer than v × reaction metres after the previous row, generated or placed.
+    const prev = Math.max(state.lastRow, ...placedRows.filter((a) => a < z));
+    if (z - prev < speedAt(level, z, rules, state.speedFrom) * rules.reaction) continue;
     if (r() >= densityAt(s, z)) continue;
     const ids = Object.keys(s.obstacles);
     if (!ids.length) continue;
@@ -108,6 +114,7 @@ export function generate(norm, r, fromZ, toZ, registry, rules) {
       }
       obstacles.push(o);
     });
+    state.lastRow = z;
   }
 
   for (const s of norm.sections) for (const p of s.placements) {

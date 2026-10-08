@@ -26,9 +26,10 @@ export function defaultChunk(g, { z0, length, lanes, rng: r, theme }) {
   return grp;
 }
 
-export function createWorld(scene, level, { registry, rules, seed, end }) {
+export function createWorld(scene, level, { registry, rules, seed, end, speedFrom = rules.speed.start }) {
   const norm = normalizeLevel(level);
   const r = rng(seed), rs = rng(seed ^ 0x9e3779b9); // scenery has its own rng so it never shifts the street
+  const gen = { lastRow: -Infinity, speedFrom };     // the generator's memory across chunks
   const root = new THREE.Group();
   scene.add(root);
   const live = { obstacles: [], pickups: [] };
@@ -41,7 +42,7 @@ export function createWorld(scene, level, { registry, rules, seed, end }) {
 
   function build() {
     const length = Math.min(CHUNK, end - builtTo); // the last chunk stops exactly at `end`, so no street runs past the finish line
-    const { obstacles, pickups } = generate(norm, r, builtTo, builtTo + length, registry, rules);
+    const { obstacles, pickups } = generate(norm, r, builtTo, builtTo + length, registry, rules, gen);
     for (const o of obstacles) {
       o.def = registry.obstacle[o.id];
       o.view = safeCall(`obstacle ${o.id} createView`, () => o.def.createView(gfx, o), null) ?? fallbackView();

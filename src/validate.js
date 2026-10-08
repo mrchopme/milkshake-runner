@@ -1,4 +1,4 @@
-import { RULE_RANGES, resolveRules } from './rules.js';
+import { RULE_RANGES, resolveRules, speedAt } from './rules.js';
 import { passable, ROW_GAP } from './generator.js';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -75,6 +75,7 @@ function checkSections(level, registry, rules, e) {
   if (!Array.isArray(sections)) return e.push('sections must be a list');
   const end = level.length_m ?? Infinity;
   let cursor = 0;
+  const allRows = [];
   sections.forEach((s, i) => {
     const path = `sections[${i}]`;
     if (!isObj(s)) return e.push(`${path} must be an object`);
@@ -100,7 +101,7 @@ function checkSections(level, registry, rules, e) {
       if (!['obstacle', 'pickup'].includes(p.kind)) return e.push(`${pp}.kind must be obstacle or pickup`);
       const def = registry[p.kind][p.id];
       if (!def) return e.push(`${pp}: unknown ${p.kind} "${p.id}"`);
-      if (p.kind === 'obstacle') placed.push({ at: p.at_m, lane: p.lane, def });
+      if (p.kind === 'obstacle') { placed.push({ at: p.at_m, lane: p.lane, def }); allRows.push(p.at_m); }
     });
     // Obstacles within half a row of each other are one row: three lanes with nothing to jump or slide is a wall.
     const walls = new Set();
@@ -110,6 +111,15 @@ function checkSections(level, registry, rules, e) {
     }
     for (const z of walls) e.push(`${path}: placements at ${z} m block every lane with nothing to jump or slide`);
   });
+  // Placed obstacle rows closer than the reaction floor at that point of the level fail: the author lowers rules.reaction or
+  // spreads them out. Validation uses the level's own ramp; a speed carried in from a previous level is not known here.
+  const rows = [...new Set(allRows)].sort((a, b) => a - b);
+  for (let i = 1; i < rows.length; i++) {
+    const gap = rows[i] - rows[i - 1];
+    if (gap <= ROW_GAP / 2) continue; // one row, the wall rule covers it
+    const floor = speedAt(level, rows[i], rules) * rules.reaction;
+    if (gap < floor) e.push(`placements at ${rows[i - 1]} m and ${rows[i]} m are ${gap} m apart, under the reaction floor of ${floor.toFixed(1)} m at that speed`);
+  }
 }
 
 // The single source of truth for "is this level OK?". Runs in the browser and in CI.
