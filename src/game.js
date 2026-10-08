@@ -56,7 +56,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
       unbind();
       document.removeEventListener('visibilitychange', onHide);
       hud.onPause(() => {});
-      engine.follow({ ...run, speed: 0 }, {}, Infinity); // defaults and no streaks before an ending runs
+      engine.follow(run, {}, Infinity); // overrides back to defaults and the streaks off before an ending runs; the felt speed stays, so the view does not narrow in the frame the ending starts on
       hud.show(false);
       hud.setPaused(false);
       resolve({ outcome, run, world, error }); // the caller disposes the world after any ending scene
