@@ -5,6 +5,7 @@ import {
   inReach, collect, updateObstacle, multiplier, MAX_DT, RULE_RANGES,
 } from '../src/rules.js';
 import { classifySwipe, KEYS } from '../src/input.js';
+import { cameraFor } from '../src/engine.js';
 
 const R = resolveRules();
 const COW = { height: 1.9, width: 1.0 };
@@ -354,4 +355,16 @@ test('the floor remembers the last row across chunks and rises with a carried sp
   const carried = { lastRow: -Infinity, speedFrom: 24 }; // default rules ramp 12→24 but the run arrived at 24: floor 14.4 m from the first metre
   const c = [...new Set(generate(normalizeLevel(lvl({ density: { start: 1, end: 1 } })), rng(5), 0, 1500, registry, R, carried).obstacles.map((o) => o.z))].sort((a, b) => a - b);
   for (let i = 1; i < c.length; i++) assert.ok(c[i] - c[i - 1] >= 24, `carried speed: rows at ${c[i - 1]} and ${c[i]}`);
+});
+
+test('the chase camera sits where it always did, takes a section override and widens with speed', () => {
+  const run = { x: 0, y: 0, z: 100 };
+  const c = cameraFor(run);
+  assert.deepEqual([c.x, c.y, c.z, c.lookX, c.lookY, c.lookZ, c.fov], [0, 3.6, 93.5, 0, 1.2, 112, 60]);
+  assert.equal(cameraFor(run, {}, 12).fov, 60, 'no widening up to the base speed');
+  assert.ok(Math.abs(cameraFor(run, {}, 24).fov - 67.2) < 1e-9, '0.6° per m/s over 12');
+  const low = cameraFor(run, { height: 2.2, distance: 5, fov: 65 }, 0);
+  assert.deepEqual([low.y, low.z, low.fov], [2.2, 95, 65]);
+  const lane0 = cameraFor({ x: 2.5, y: 1, z: 0 });
+  assert.deepEqual([lane0.x, lane0.y, lane0.lookX], [1.5, 3.9, 2]);
 });

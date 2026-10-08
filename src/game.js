@@ -35,7 +35,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
       const sky = world.skyAt(run.z), key = `${sky.sky}/${sky.fog}`;
       if (key !== skyKey) { skyKey = key; engine.setSky(sky); }
       character.update(run);
-      engine.follow(run);
+      engine.follow(run, {}, dt);
       hud.update(run, level, registry);
       if (run.over) end('dead');
       else if (level.length_m !== null && run.z >= level.length_m) end('complete');
@@ -56,6 +56,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
       unbind();
       document.removeEventListener('visibilitychange', onHide);
       hud.onPause(() => {});
+      engine.follow({ ...run, speed: 0 }, {}, Infinity); // defaults and no streaks before an ending runs
       hud.show(false);
       hud.setPaused(false);
       resolve({ outcome, run, world, error }); // the caller disposes the world after any ending scene
