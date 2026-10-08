@@ -1,4 +1,4 @@
-import { jumpHeight } from './rules.js';
+import { jumpHeight, speedAt } from './rules.js';
 
 export const ROW_GAP = 12;          // metres between generated obstacle rows
 export const START_CLEAR = 40;      // empty road at the start of every level
@@ -34,7 +34,7 @@ export function normalizeLevel(level) {
   const length = level.length_m;
   const end = length ?? Infinity;
   const levelSpan = [0, length ?? ENDLESS_RAMP_M];
-  const base = (from, to) => ({ from, to, obstacles: level.obstacles, density: level.density, densitySpan: levelSpan, jugs: level.jugs, theme: level.theme, generation: true, placements: [] });
+  const base = (from, to) => ({ from, to, obstacles: level.obstacles, density: level.density, densitySpan: levelSpan, jugs: level.jugs, theme: level.theme, curve: level.curve ?? null, camera: level.camera ?? null, props: level.props ?? null, generation: true, placements: [] });
   const sections = [];
   let cursor = 0;
   for (const s of level.sections ?? []) {
@@ -46,6 +46,9 @@ export function normalizeLevel(level) {
       densitySpan: s.density ? [s.from_m, s.to_m] : levelSpan,
       jugs: s.jugs ?? level.jugs,
       theme: s.theme ? { ...level.theme, ...s.theme } : level.theme,
+      curve: s.curve ?? level.curve ?? null,
+      camera: s.camera ? { ...(level.camera ?? {}), ...s.camera } : level.camera ?? null,
+      props: s.props ?? level.props ?? null,
       generation: s.generation !== false,
       placements: s.placements ?? [],
     });
@@ -56,11 +59,27 @@ export function normalizeLevel(level) {
 }
 
 export const sectionAt = (norm, z) => norm.sections.find((s) => z >= s.from && z < s.to) ?? norm.sections[norm.sections.length - 1];
+export const cameraAt = (norm, z) => sectionAt(norm, z).camera ?? {}; // the section's camera override, merged over the level's
 
 export function densityAt(section, z) {
   const [z0, z1] = section.densitySpan;
   const t = z1 > z0 ? Math.min(1, Math.max(0, (z - z0) / (z1 - z0))) : 1;
   return section.density.start + (section.density.end - section.density.start) * t;
+}
+
+export const RANDOM_CURVE_M = 240; // "random" curves pick a new target every this many metres
+export const FINISH_FADE_M = 120;  // a finite level straightens over its last metres so endings play on a straight street
+
+// The bend target at z: the section's curve (inherited from the level), a seeded pick per segment for "random", faded to 0 at a finite finish.
+export function curveAt(norm, z, seed = 0) {
+  let c = sectionAt(norm, z).curve;
+  if (c === 'random') {
+    const pick = rng((seed + 0x9e3779b9 * (Math.floor(z / RANDOM_CURVE_M) + 1)) >>> 0);
+    c = { turn: [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], hill: [-0.6, 0, 0.6][Math.floor(pick() * 3)] };
+  }
+  let turn = c?.turn ?? 0, hill = c?.hill ?? 0;
+  if (norm.length != null) { const fade = Math.max(0, Math.min(1, (norm.length - z) / FINISH_FADE_M)); turn = turn * fade + 0; hill = hill * fade + 0; } // `+ 0` turns a -0 into 0 and nothing else (`|| 0` would also hide a NaN)
+  return { turn, hill };
 }
 
 function pick(weights, r) {
@@ -79,15 +98,23 @@ function shuffledLanes(r) {
   return lanes;
 }
 
-// Obstacles and pickups for z in [fromZ, toZ). Call with consecutive ranges on one rng.
-export function generate(norm, r, fromZ, toZ, registry, rules) {
-  const obstacles = [], pickups = [];
+// Obstacles, pickups (and later props) for z in [fromZ, toZ). Call with consecutive ranges on one rng and one `state`:
+// state.lastRow remembers the previous generated row across chunks, state.speedFrom is the speed carried into the level.
+export function generate(norm, r, fromZ, toZ, registry, rules, state = { lastRow: -Infinity, speedFrom: rules.speed.start, propEnd: -Infinity }) {
+  const obstacles = [], pickups = [], props = [];
   const lastRow = norm.length == null ? Infinity : norm.length - END_CLEAR;
   const firstRow = Math.ceil(Math.max(fromZ, START_CLEAR) / ROW_GAP) * ROW_GAP;
+  const level = { length_m: norm.length ?? null };
+  const placedRows = norm.sections.flatMap((s) => s.placements.filter((p) => p.kind === 'obstacle').map((p) => p.at_m));
 
   for (let z = firstRow; z < Math.min(toZ, lastRow); z += ROW_GAP) {
     const s = sectionAt(norm, z);
     if (!s.generation || s.placements.some((p) => p.kind === 'obstacle' && Math.abs(p.at_m - z) < ROW_GAP)) continue; // placements own their row
+    // Reaction floor: at speed v a row never comes closer than v × reaction metres to the previous row (generated or placed)
+    // or to the next placed row ahead, which the generator cannot move.
+    const prev = Math.max(state.lastRow, ...placedRows.filter((a) => a < z)), next = Math.min(...placedRows.filter((a) => a > z));
+    if (z - prev < speedAt(level, z, rules, state.speedFrom) * rules.reaction) continue;
+    if (next - z < speedAt(level, next, rules, state.speedFrom) * rules.reaction) continue;
     if (r() >= densityAt(s, z)) continue;
     const ids = Object.keys(s.obstacles);
     if (!ids.length) continue;
@@ -108,12 +135,14 @@ export function generate(norm, r, fromZ, toZ, registry, rules) {
       }
       obstacles.push(o);
     });
+    state.lastRow = z;
   }
 
   for (const s of norm.sections) for (const p of s.placements) {
     if (p.at_m < fromZ || p.at_m >= toZ) continue;
     const item = { id: p.id, lane: p.lane, z: p.at_m, placed: true };
     if (p.kind === 'obstacle') { if (registry.obstacle[p.id].moves) item.moveTo = null; obstacles.push(item); }
+    else if (p.kind === 'prop') props.push({ id: p.id, z: p.at_m, length: registry.prop[p.id].length, placed: true });
     else pickups.push(item);
   }
 
@@ -134,5 +163,22 @@ export function generate(norm, r, fromZ, toZ, registry, rules) {
       pickups.push({ id, lane, z });
     }
   }
-  return { obstacles, pickups };
+
+  // Props: on a grid like jugs, by weight, never overlapping another prop (generated or placed), never past the level's end.
+  const placedProps = norm.sections.flatMap((s) => s.placements.filter((p) => p.kind === 'prop').map((p) => ({ z: p.at_m, end: p.at_m + registry.prop[p.id].length })));
+  let propEnd = state.propEnd ?? -Infinity;
+  for (const s of norm.sections) {
+    if (!s.props?.per_100m || !Object.keys(s.props.ids).length) continue;
+    const gap = 100 / s.props.per_100m;
+    const z0 = Math.max(fromZ, s.from, START_CLEAR), z1 = Math.min(toZ, s.to);
+    for (let k = Math.ceil(z0 / gap); k * gap < z1; k++) {
+      const z = k * gap, id = pick(s.props.ids, r), len = registry.prop[id].length;
+      if (z < propEnd || (norm.length != null && z + len > norm.length)) continue;
+      if (placedProps.some((pp) => z < pp.end && z + len > pp.z)) continue;
+      props.push({ id, z, length: len });
+      propEnd = z + len;
+    }
+  }
+  state.propEnd = propEnd;
+  return { obstacles, pickups, props };
 }

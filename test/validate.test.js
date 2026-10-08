@@ -55,6 +55,8 @@ test('rules are known and in range', () => {
   assert.match(errs({ rules: { friction: 1 } }), /unknown rule "friction"/);
   assert.match(errs({ rules: { gravity: -5 } }), /gravity must be -60 to -10/);
   assert.match(errs({ rules: { speed: { warp: 1 } } }), /unknown rule "warp"/);
+  assert.match(errs({ rules: { reaction: 2 } }), /reaction must be 0.2 to 1.5/);
+  assert.equal(errs({ rules: { reaction: 0.4 } }), '');
 });
 test('endings and their params', () => {
   assert.match(errs({ length_m: null, ending: { id: 'finish' } }), /cannot have an ending/);
@@ -99,4 +101,53 @@ test('campaign points at real levels', () => {
   assert.match(validateCampaign({ start: 'x', locked: { x: 'x' } }, ['x']).join(), /itself/);
   assert.match(validateCampaign({ start: 'x', locked: { y: 'x' } }, ['x']).join(), /"y"/);
   assert.match(validateCampaign({ start: 'x', extra: 1 }, ['x']).join(), /unknown key/);
+});
+
+test('placed obstacle rows closer than the reaction floor are rejected', () => {
+  const two = (gap, rules = { speed: { start: 30, end: 30 } }) => errs({ rules, sections: [{ from_m: 0, to_m: 600, placements: [
+    { at_m: 100, lane: 0, kind: 'obstacle', id: 'taxi' }, { at_m: 100 + gap, lane: 1, kind: 'obstacle', id: 'taxi' }] }] });
+  assert.match(two(12), /reaction floor/);
+  assert.equal(two(24), '');
+  assert.equal(two(3), '', 'placements within half a row are one row, checked by the wall rule instead');
+  assert.equal(two(12, { speed: { start: 30, end: 30 }, reaction: 0.3 }), '', 'a lower reaction rule allows it');
+});
+
+test('curve is turn and hill in -1..1, or "random"', () => {
+  assert.equal(errs({ curve: { turn: 0.5, hill: -1 } }), '');
+  assert.equal(errs({ curve: 'random' }), '');
+  assert.match(errs({ curve: { turn: 2 } }), /turn must be -1 to 1/);
+  assert.match(errs({ curve: { bend: 1 } }), /curve: unknown key "bend"/);
+  assert.match(errs({ curve: 'wobbly' }), /turn and hill/);
+  assert.equal(errs({ sections: [{ from_m: 0, to_m: 100, curve: { hill: -0.5 } }] }), '');
+  assert.match(errs({ sections: [{ from_m: 0, to_m: 100, curve: { hill: 3 } }] }), /sections\[0\]\.curve\.hill/);
+});
+
+test('camera overrides are known and in range', () => {
+  assert.equal(errs({ camera: { height: 5, distance: 8, fov: 70 } }), '');
+  assert.match(errs({ camera: { height: 9 } }), /camera\.height must be 1.5 to 8/);
+  assert.match(errs({ camera: { distance: 2 } }), /distance must be 3 to 12/);
+  assert.match(errs({ camera: { fov: 120 } }), /fov must be 45 to 100/);
+  assert.match(errs({ camera: { tilt: 1 } }), /unknown key "tilt"/);
+  assert.match(errs({ camera: 'low' }), /camera must be an object/);
+  assert.equal(errs({ sections: [{ from_m: 0, to_m: 100, camera: { fov: 65 } }] }), '');
+});
+
+test('props: weights, grid and placements', () => {
+  assert.equal(errs({ props: { per_100m: 1, ids: { overpass: 1, billboard: 2 } } }), '');
+  assert.match(errs({ props: { per_100m: 6, ids: {} } }), /per_100m must be 0 to 5/);
+  assert.match(errs({ props: { per_100m: 1, ids: { tree: 1 } } }), /unknown prop "tree"/);
+  assert.match(errs({ props: { per_100m: 1, ids: { overpass: 0 } } }), /above 0/);
+  assert.match(errs({ props: { per_100m: 1 } }), /ids must be an object/);
+  assert.match(errs({ props: { per_100m: 1, ids: {}, every: 3 } }), /unknown key "every"/);
+  const s = (placements) => errs({ sections: [{ from_m: 0, to_m: 600, placements }] });
+  assert.equal(s([{ at_m: 100, kind: 'prop', id: 'tunnel' }]), '');
+  assert.match(s([{ at_m: 100, lane: 1, kind: 'prop', id: 'tunnel' }]), /no lane/);
+  assert.match(s([{ at_m: 580, kind: 'prop', id: 'tunnel' }]), /past the end/);
+  assert.match(s([{ at_m: 100, kind: 'prop', id: 'gate' }]), /unknown prop "gate"/);
+  assert.match(s([{ at_m: 100, kind: 'obstacle', id: 'taxi' }]), /lane must be 0, 1 or 2/);
+  assert.equal(errs({ sections: [{ from_m: 0, to_m: 100, props: { per_100m: 2, ids: { billboard: 1 } } }] }), '');
+});
+
+test('shipped theme changes sit on 120 m chunk boundaries, where the street actually switches', () => {
+  for (const [id, lv] of Object.entries(shipped())) for (const s of lv.sections ?? []) if (s.theme) assert.ok(s.from_m % 120 === 0 && s.to_m % 120 === 0, `${id}: theme section ${s.from_m}–${s.to_m} m`);
 });

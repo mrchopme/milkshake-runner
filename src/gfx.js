@@ -6,14 +6,57 @@ import { PALETTE } from './palette.js';
 export const palette = PALETTE;
 export const three = THREE; // escape hatch for endings that need Vector3, Points and the like
 
+// World bend (spec v3 §1). Every material the helpers hand out bends its vertices in the vertex shader by one shared uniform:
+// uBend = (kx, ky, originZ, deadZone). For a vertex at world z, d = max(0, z - originZ - deadZone); x += kx·d², y += ky·d².
+// Collision never sees this: the street is straight for everything that plays.
+export const TURN_K = 0.005, HILL_K = 0.003, DEAD = 20; // calibration knobs: metres of offset per m² beyond the dead zone, and the dead zone
+export const bendUniform = { value: new THREE.Vector4(0, 0, 0, DEAD) };
+const BEND = `
+  vec4 bentWorld = modelMatrix * vec4( transformed, 1.0 );
+  float bendD = max( 0.0, bentWorld.z - uBend.z - uBend.w );
+  bentWorld.x += uBend.x * bendD * bendD;
+  bentWorld.y += uBend.y * bendD * bendD;
+  vec4 mvPosition = viewMatrix * bentWorld;
+  gl_Position = projectionMatrix * mvPosition;
+`;
+const BEND_SPRITE = `
+  vec4 bentWorld = modelMatrix[ 3 ];
+  float bendD = max( 0.0, bentWorld.z - uBend.z - uBend.w );
+  bentWorld.x += uBend.x * bendD * bendD;
+  bentWorld.y += uBend.y * bendD * bendD;
+  vec4 mvPosition = viewMatrix * bentWorld;
+`;
+function patch(shader) {
+  shader.uniforms.uBend = bendUniform;
+  shader.vertexShader = shader.vertexShader.replace('void main() {', 'uniform vec4 uBend;\nvoid main() {').replace('#include <project_vertex>', BEND);
+}
+function patchSprite(shader) { // a sprite places its centre from the model-view matrix; bend that centre in world space instead
+  shader.uniforms.uBend = bendUniform;
+  shader.vertexShader = shader.vertexShader.replace('void main() {', 'uniform vec4 uBend;\nvoid main() {').replace('vec4 mvPosition = modelViewMatrix[ 3 ];', BEND_SPRITE);
+}
+// Marks a material bendable, once. Materials a module builds itself get this when the engine adds the object (gfx.bend).
+// A hook the module set itself keeps running, first; the bend is patched in after it.
+export function bendable(material) {
+  if (!material || material.userData.bent) return material;
+  material.userData.bent = true;
+  const own = material.onBeforeCompile, bend = material.isSpriteMaterial ? patchSprite : patch;
+  material.onBeforeCompile = (shader, renderer) => { own.call(material, shader, renderer); bend(shader); };
+  material.customProgramCacheKey = () => own.toString() + bend.name; // three keys its program cache by onBeforeCompile.toString(), which is now the same wrapper for every material
+  material.needsUpdate = true;
+  return material;
+}
+export function bend(object) { object.traverse((n) => { for (const m of [].concat(n.material ?? [])) bendable(m); }); return object; } // a mesh may carry a material array
+export function setBend({ turn = 0, hill = 0, origin = 0 } = {}) { bendUniform.value.set(0 - turn * TURN_K, hill * HILL_K, origin, DEAD); } // 0 - …: a straight road is +0, never -0
+
 const mats = new Map();
 export function mat(color, opts = {}) {
   const key = color + JSON.stringify(opts);
-  if (!mats.has(key)) mats.set(key, new THREE.MeshToonMaterial({ color, ...opts }));
+  if (!mats.has(key)) mats.set(key, bendable(new THREE.MeshToonMaterial({ color, ...opts })));
   return mats.get(key);
 }
 const at = (mesh, x, y, z) => { mesh.position.set(x, y, z); return mesh; };
-export const box = (w, h, d, color, x = 0, y = h / 2, z = 0, opts) => at(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(color, opts)), x, y, z);
+// Boxes subdivide along z (one segment per 4 m) so a long road piece curves with the bend instead of staying a straight chord.
+export const box = (w, h, d, color, x = 0, y = h / 2, z = 0, opts) => at(new THREE.Mesh(new THREE.BoxGeometry(w, h, d, 1, 1, Math.max(1, Math.ceil(d / 4))), mat(color, opts)), x, y, z);
 export const roundedBox = (w, h, d, radius, color, x = 0, y = h / 2, z = 0) => at(new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 4, radius), mat(color)), x, y, z);
 export const cyl = (rTop, rBottom, h, color, x = 0, y = h / 2, z = 0, opts) => at(new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBottom, h, 20), mat(color, opts)), x, y, z);
 export const sphere = (r, color, x = 0, y = r, z = 0, opts) => at(new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat(color, opts)), x, y, z);
@@ -23,12 +66,12 @@ export function group(...children) { const g = new THREE.Group(); if (children.l
 
 // A soft round shadow on the ground: the cheapest way to show where something floating or jumping is.
 export function blobShadow(r = 0.6, opacity = 0.22) {
-  const m = new THREE.Mesh(new THREE.CircleGeometry(r, 24), new THREE.MeshBasicMaterial({ color: PALETTE.eye, transparent: true, opacity }));
+  const m = new THREE.Mesh(new THREE.CircleGeometry(r, 24), bendable(new THREE.MeshBasicMaterial({ color: PALETTE.eye, transparent: true, opacity })));
   m.rotation.x = -Math.PI / 2; m.position.y = 0.01; m.renderOrder = -1;
   return m;
 }
 export function glow(r, color, y = 0.9) {
-  return at(new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, depthWrite: false })), 0, y, 0);
+  return at(new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), bendable(new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, depthWrite: false }))), 0, y, 0);
 }
 
 export function textTexture(text, { w = 1024, h = 192, color = '#ffffff', font = '900 120px "Lilita One", system-ui, sans-serif' } = {}) {
@@ -49,7 +92,7 @@ export function glyphTexture(path, { stroke = false, color = '#ffffff' } = {}) {
 }
 export const labelTexture = (label) => textTexture(label, { w: 128, h: 128, font: '900 72px "Lilita One", system-ui, sans-serif' });
 export function sprite(texture, w, h) {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false }));
+  const s = new THREE.Sprite(bendable(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false })));
   s.scale.set(w, h, 1); return s;
 }
 

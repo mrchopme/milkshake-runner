@@ -6,17 +6,21 @@
   "seed": 42,
   "character": { "id": "demo/robot" },
   "theme": { "id": "demo/forest" },
-  "rules": { "gravity": -24, "speed": { "start": 10, "end": 18 } },
+  "rules": { "gravity": -24, "speed": { "start": 10, "end": 18 }, "reaction": 0.5 },
   "obstacles": { "demo/boulder": 2, "barrier_low": 2, "pigeons": 1 },
   "density": { "start": 0.3, "end": 0.6 },
   "jugs": { "per_100m": 15, "powerups": ["demo/triple", "magnet"] },
+  "props": { "per_100m": 1, "ids": { "demo/arch": 1 } },
+  "curve": { "turn": 0.5 },
+  "camera": { "height": 4.5 },
   "sections": [
     { "from_m": 0, "to_m": 150, "density": { "start": 0, "end": 0 } },
     { "from_m": 150, "to_m": 300, "generation": false, "placements": [
       { "at_m": 180, "lane": 1, "kind": "obstacle", "id": "barrier_low" },
       { "at_m": 210, "lane": 0, "kind": "obstacle", "id": "demo/boulder" },
       { "at_m": 210, "lane": 2, "kind": "obstacle", "id": "demo/boulder" },
-      { "at_m": 240, "lane": 1, "kind": "pickup", "id": "demo/triple" }
+      { "at_m": 240, "lane": 1, "kind": "pickup", "id": "demo/triple" },
+      { "at_m": 270, "kind": "prop", "id": "demo/arch" }
     ] }
   ],
   "ending": { "id": "demo/banner", "params": { "text": "CANAL STREET CLEARED" } }

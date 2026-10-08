@@ -10,7 +10,8 @@ test('every shipped content module registers', async () => {
   const reg = buildRegistry(await discover(CONTENT));
   assert.deepEqual(Object.keys(reg.obstacle).sort(), ['barrier_low', 'delivery_bike', 'hot_dog_cart', 'manhole_steam', 'pigeons', 'scaffold_beam', 'taxi']);
   assert.deepEqual(Object.keys(reg.pickup).sort(), ['jug', 'magnet', 'shield', 'x2']);
-  assert.deepEqual(Object.keys(reg.theme).sort(), ['downtown', 'midtown', 'uptown']);
+  assert.deepEqual(Object.keys(reg.prop).sort(), ['billboard', 'overpass', 'railings', 'tunnel']);
+  assert.deepEqual(Object.keys(reg.theme).sort(), ['bridge', 'downtown', 'midtown', 'uptown']);
   assert.deepEqual(Object.keys(reg.character), ['milkshake']);
   assert.deepEqual(Object.keys(reg.ending).sort(), ['arena_five', 'finish', 'transition']);
 });
@@ -45,6 +46,14 @@ test('metadata is checked per kind', () => {
   assert.match(checkModule({ kind: 'character', id: 'ari/bot', height: 2, width: 1 }).join(), /createView/);
   assert.match(checkModule({ kind: 'ending', id: 'ari/wave', params: { n: { type: 'bool' } }, run() {} }).join(), /type/);
   assert.match(checkModule({ kind: 'spell', id: 'x' }).join(), /kind/);
+  assert.match(checkModule({ kind: 'pickup', id: 'ari/gem', color: '#ffffff', value: 1, name: 'x'.repeat(25) }).join(), /name must be 1-24/);
+  assert.match(checkModule({ kind: 'pickup', id: 'ari/gem', color: '#ffffff', value: 1, blurb: 'x'.repeat(81) }).join(), /blurb must be 1-80/);
+  assert.equal(checkModule({ kind: 'pickup', id: 'ari/gem', color: '#ffffff', value: 1, name: 'GEM', blurb: 'Worth five jugs' }).length, 0);
+  assert.match(checkModule({ kind: 'prop', id: 'ari/arch', createView() {} }).join(), /length in metres/);
+  assert.match(checkModule({ kind: 'prop', id: 'ari/arch', length: 500, createView() {} }).join(), /length in metres/);
+  assert.match(checkModule({ kind: 'prop', id: 'ari/arch', length: 4 }).join(), /createView/);
+  assert.equal(checkModule({ kind: 'prop', id: 'ari/arch', length: 4, createView() {} }).length, 0);
+  assert.throws(() => buildRegistry(at('content/obstacles/ari/arch.js', { kind: 'prop', id: 'ari/arch', length: 4, createView() {} })), /wrong folder, expected content\/props\//);
   assert.equal(checkModule(ok).length, 0);
 });
 

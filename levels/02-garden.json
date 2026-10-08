@@ -7,5 +7,17 @@
   "obstacles": { "taxi": 3, "barrier_low": 2, "scaffold_beam": 2, "hot_dog_cart": 1, "manhole_steam": 1, "pigeons": 1, "delivery_bike": 1 },
   "density": { "start": 0.3, "end": 0.7 },
   "jugs": { "per_100m": 12, "powerups": ["magnet", "shield", "x2"] },
+  "props": { "per_100m": 0.8, "ids": { "billboard": 2, "overpass": 2 } },
+  "sections": [
+    { "from_m": 100, "to_m": 350, "curve": { "turn": -0.8 } },
+    { "from_m": 350, "to_m": 500, "camera": { "height": 2.4, "distance": 5, "fov": 65 }, "placements": [{ "at_m": 360, "kind": "prop", "id": "tunnel" }] },
+    { "from_m": 500, "to_m": 840, "curve": { "turn": 0.6, "hill": -0.5 } },
+    { "from_m": 840, "to_m": 1200, "curve": { "hill": 0.7 }, "camera": { "height": 5.5, "distance": 8.5 }, "theme": { "id": "bridge" }, "placements": [
+      { "at_m": 840, "kind": "prop", "id": "railings" }, { "at_m": 880, "kind": "prop", "id": "railings" }, { "at_m": 920, "kind": "prop", "id": "railings" },
+      { "at_m": 960, "kind": "prop", "id": "railings" }, { "at_m": 1000, "kind": "prop", "id": "railings" }, { "at_m": 1040, "kind": "prop", "id": "railings" },
+      { "at_m": 1080, "kind": "prop", "id": "railings" }, { "at_m": 1120, "kind": "prop", "id": "railings" }, { "at_m": 1160, "kind": "prop", "id": "railings" } ] },
+    { "from_m": 1200, "to_m": 1400, "curve": { "hill": -0.9 }, "placements": [{ "at_m": 1250, "kind": "prop", "id": "overpass" }] },
+    { "from_m": 1400, "to_m": 1650, "curve": { "turn": 0.8 } }
+  ],
   "ending": { "id": "arena_five" }
 }

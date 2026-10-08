@@ -1,5 +1,5 @@
 const KEY = 'milkshake-runner';
-const fresh = () => ({ best: {}, completed: [] });
+const fresh = () => ({ best: {}, completed: [], helpSeen: false });
 
 // Storage can be missing, blocked (private mode, blocked cookies: even reading `localStorage` throws) or corrupt:
 // the game must still play. The storage lookup therefore happens inside the try, not in a default parameter.
@@ -10,6 +10,7 @@ export function loadSave(storage) {
     const save = { ...fresh(), ...(data && typeof data === 'object' ? data : {}) };
     if (!Array.isArray(save.completed)) save.completed = [];
     if (!save.best || typeof save.best !== 'object') save.best = {};
+    if (typeof save.helpSeen !== 'boolean') save.helpSeen = false;
     return save;
   } catch {
     return fresh();

@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_RULES, resolveRules, laneX, jumpHeight, speedAt, createRun, act, step, playerBox, obstacleBox, overlaps, hit,
-  inReach, collect, updateObstacle, multiplier, MAX_DT,
+  inReach, collect, updateObstacle, multiplier, MAX_DT, RULE_RANGES, pulled, pull,
 } from '../src/rules.js';
 import { classifySwipe, KEYS } from '../src/input.js';
+import { cameraFor, easeCamera, CAMERA } from '../src/engine.js';
 
 const R = resolveRules();
 const COW = { height: 1.9, width: 1.0 };
@@ -88,18 +89,34 @@ test('a huge frame time is clamped (no teleport after a background tab)', () => 
   assert.ok(Math.abs(run.z - 12 * MAX_DT) < 1e-9);
 });
 
-test('speed rises across a level and caps in endless', () => {
+test('speed rises across a level, carries on from a previous level and caps', () => {
   assert.equal(speedAt({ length_m: 1000 }, 0, R), 12);
-  assert.equal(speedAt({ length_m: 1000 }, 1000, R), 20);
-  assert.equal(speedAt({ length_m: null }, 1e6, R), 28);
+  assert.equal(speedAt({ length_m: 1000 }, 1000, R), 24);
+  assert.equal(speedAt({ length_m: null }, 1e6, R), 30);
   assert.equal(speedAt({ length_m: 1000 }, 500, resolveRules({ speed: { start: 10, end: 30 } })), 20);
+  assert.equal(speedAt({ length_m: 1000 }, 0, R, 24), 24, 'a carried speed is the new start');
+  assert.equal(speedAt({ length_m: 1000 }, 1000, R, 24), 30, 'the ramp continues by the same amount, capped');
+});
+
+test('a run remembers its speed and where it started', () => {
+  const run = createRun(R, COW, 0, 24);
+  assert.equal(run.speedFrom, 24);
+  assert.equal(run.speed, 24, 'before the first step the speed is the start speed');
+  step(run, 1 / 60, 25);
+  assert.equal(run.speed, 25);
+  assert.equal(createRun(R, COW).speedFrom, 12);
+});
+
+test('reaction is a rule with a range', () => {
+  assert.equal(R.reaction, 0.6);
+  assert.deepEqual(RULE_RANGES.reaction, [0.2, 1.5]);
 });
 
 test('effects: reach, multiplier, timers and expiry', () => {
   const run = createRun(R, COW, 3);
   assert.equal(inReach(run, { z: 10, lane: 0 }), false);
   collect(run, MAGNET);
-  assert.equal(inReach(run, { z: 10, lane: 0 }), true);
+  assert.equal(pulled(run, { z: 10, lane: 0 }), true);
   assert.equal(inReach(run, { z: -5, lane: 1 }), false);
   collect(run, JUG); assert.equal(run.jugs, 4);
   collect(run, X2); collect(run, JUG); assert.equal(run.jugs, 6);
@@ -149,7 +166,8 @@ test('swipes and keys map to actions', () => {
 
 import { before } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { generate, normalizeLevel, densityAt, rng, passable, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
+import { generate, normalizeLevel, densityAt, rng, passable, curveAt, cameraAt, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
+import * as gfx from '../src/gfx.js';
 import { buildRegistry } from '../src/registry.js';
 import { discover } from './helpers.js';
 
@@ -260,10 +278,10 @@ const campaign = { start: 'a', locked: { b: 'a', endless: 'b' } };
 
 test('blocked storage never breaks the game', () => {
   const blocked = { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); } };
-  assert.deepEqual(loadSave(blocked), { best: {}, completed: [] });
-  assert.doesNotThrow(() => writeSave({ best: {}, completed: [] }, blocked));
-  assert.deepEqual(loadSave(undefined), { best: {}, completed: [] });
-  assert.deepEqual(loadSave({ getItem: () => 'not json' }), { best: {}, completed: [] });
+  assert.deepEqual(loadSave(blocked), { best: {}, completed: [], helpSeen: false });
+  assert.doesNotThrow(() => writeSave({ best: {}, completed: [], helpSeen: false }, blocked));
+  assert.deepEqual(loadSave(undefined), { best: {}, completed: [], helpSeen: false });
+  assert.deepEqual(loadSave({ getItem: () => 'not json' }), { best: {}, completed: [], helpSeen: false });
 });
 
 test('save round-trips and best only goes up', () => {
@@ -271,12 +289,13 @@ test('save round-trips and best only goes up', () => {
   const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
   const s = loadSave(storage);
   recordRun(s, 'a', 10); recordRun(s, 'a', 4); completeLevel(s, 'a'); completeLevel(s, 'a');
+  s.helpSeen = true;
   writeSave(s, storage);
-  assert.deepEqual(loadSave(storage), { best: { a: 10 }, completed: ['a'] });
+  assert.deepEqual(loadSave(storage), { best: { a: 10 }, completed: ['a'], helpSeen: true });
 });
 
 test('campaign locks come from the data, and community levels are open', () => {
-  const s = { best: {}, completed: [] };
+  const s = { best: {}, completed: [], helpSeen: false };
   assert.equal(isLocked(campaign, s, 'b'), true);
   assert.equal(isLocked(campaign, s, 'canal-street-dash'), false);
   completeLevel(s, 'a');
@@ -296,8 +315,8 @@ test('a storage getter that throws (blocked cookies) never breaks the game', () 
   const desc = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
   Object.defineProperty(globalThis, 'localStorage', { configurable: true, get() { throw new Error('SecurityError'); } });
   try {
-    assert.deepEqual(loadSave(), { best: {}, completed: [] });
-    assert.doesNotThrow(() => writeSave({ best: {}, completed: [] }));
+    assert.deepEqual(loadSave(), { best: {}, completed: [], helpSeen: false });
+    assert.doesNotThrow(() => writeSave({ best: {}, completed: [], helpSeen: false }));
   } finally {
     if (desc) Object.defineProperty(globalThis, 'localStorage', desc); else delete globalThis.localStorage;
   }
@@ -313,4 +332,162 @@ test('generated rows keep clear of placed obstacles in a generating section', ()
     assert.equal(placed.length, 3, `seed ${s}`);
     for (const o of obstacles.filter((o) => !o.placed)) for (const p of placed) assert.ok(Math.abs(o.z - p.z) >= ROW_GAP, `seed ${s}: generated ${o.id} at ${o.z} m next to a placement at ${p.z} m`);
   }
+});
+
+test('at speed, generated rows keep a reaction gap, after generated and placed rows alike', () => {
+  const fast = resolveRules({ speed: { start: 30, end: 30 } }); // floor 18 m on a 12 m grid: never two rows in a row
+  for (const s of seeds.slice(0, 50)) {
+    const zs = [...rowsOf(all(lvl({ density: { start: 1, end: 1 } }), s, fast).obstacles).keys()].sort((a, b) => a - b);
+    for (let i = 1; i < zs.length; i++) assert.ok(zs[i] - zs[i - 1] >= 18, `seed ${s}: rows at ${zs[i - 1]} and ${zs[i]}`);
+  }
+  const slow = resolveRules({ speed: { start: 12, end: 12 } }); // floor 7.2 m: every grid row is allowed
+  const zs = [...rowsOf(all(lvl({ density: { start: 1, end: 1 } }), 3, slow).obstacles).keys()].sort((a, b) => a - b);
+  assert.ok(zs.some((z, i) => i && z - zs[i - 1] === ROW_GAP), 'at 12 m/s consecutive rows still happen');
+  const placed = lvl({ density: { start: 1, end: 1 }, sections: [{ from_m: 100, to_m: 400, placements: [{ at_m: 200, lane: 0, kind: 'obstacle', id: 'taxi' }] }] });
+  for (const s of seeds.slice(0, 20)) for (const o of all(placed, s, fast).obstacles.filter((o) => !o.placed)) assert.ok(o.z <= 200 || o.z - 200 >= 18, `seed ${s}: generated row at ${o.z} right after the placement at 200`);
+});
+
+test('the floor remembers the last row across chunks and rises with a carried speed', () => {
+  const fast = resolveRules({ speed: { start: 30, end: 30 } });
+  const norm = normalizeLevel(lvl({ length_m: null, density: { start: 1, end: 1 } }));
+  const r = rng(5), state = { lastRow: -Infinity, speedFrom: 30 };
+  const zs = [...generate(norm, r, 0, 120, registry, fast, state).obstacles, ...generate(norm, r, 120, 240, registry, fast, state).obstacles].map((o) => o.z);
+  const rows = [...new Set(zs)].sort((a, b) => a - b);
+  for (let i = 1; i < rows.length; i++) assert.ok(rows[i] - rows[i - 1] >= 18, `rows at ${rows[i - 1]} and ${rows[i]} straddle the chunk seam`);
+  const carried = { lastRow: -Infinity, speedFrom: 24 }; // default rules ramp 12→24 but the run arrived at 24: floor 14.4 m from the first metre
+  const c = [...new Set(generate(normalizeLevel(lvl({ density: { start: 1, end: 1 } })), rng(5), 0, 1500, registry, R, carried).obstacles.map((o) => o.z))].sort((a, b) => a - b);
+  for (let i = 1; i < c.length; i++) assert.ok(c[i] - c[i - 1] >= 24, `carried speed: rows at ${c[i - 1]} and ${c[i]}`);
+});
+
+test('the chase camera sits where it always did, takes a section override and widens with speed', () => {
+  const run = { x: 0, y: 0, z: 100 };
+  const c = cameraFor(run);
+  assert.deepEqual([c.x, c.y, c.z, c.lookX, c.lookY, c.lookZ, c.fov], [0, 3.6, 93.5, 0, 1.2, 112, 60]);
+  assert.equal(cameraFor(run, {}, 12).fov, 60, 'no widening up to the base speed');
+  assert.ok(Math.abs(cameraFor(run, {}, 24).fov - 67.2) < 1e-9, '0.6° per m/s over 12');
+  const low = cameraFor(run, { height: 2.2, distance: 5, fov: 65 }, 0);
+  assert.deepEqual([low.y, low.z, low.fov], [2.2, 95, 65]);
+  const lane0 = cameraFor({ x: 2.5, y: 1, z: 0 });
+  assert.deepEqual([lane0.x, lane0.y, lane0.lookX], [1.5, 3.9, 2]);
+});
+
+test('a magnet pulls a jug in over a few frames instead of collecting it 15 m out', () => {
+  const run = createRun(R, COW);
+  collect(run, MAGNET);
+  const p = { id: 'jug', lane: 0, z: 10 };
+  assert.equal(pulled(run, p), true);
+  assert.equal(inReach(run, p), false, 'not collected the tick the pull starts');
+  let frames = 0;
+  while (!inReach(run, p) && frames < 120) { step(run, 1 / 60, 12); pull(run, p, 1 / 60); frames++; }
+  assert.ok(frames > 2 && frames < 60, `pulled in over ${frames} frames`);
+  assert.ok(Math.abs(p.x - run.x) < 1 && Math.abs(p.z - run.z) < 0.8);
+  const far = { id: 'jug', lane: 2, z: run.z + 20 };
+  assert.equal(pulled(run, far), false, 'beyond reach nothing moves');
+  pull(run, far, 1 / 60);
+  assert.equal(far.x, undefined);
+  const none = createRun(R, COW);
+  assert.equal(pulled(none, { lane: 1, z: 3 }), false, 'without a magnet nothing is pulled');
+  assert.equal(inReach(none, { lane: 1, z: 0.5 }), true, 'but a jug in your lane is still picked up');
+});
+
+test('curveAt follows sections, inherits the level, fades at the finish and is reproducible when random', () => {
+  const level = lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 300, to_m: 600, curve: { hill: -1 } }, { from_m: 600, to_m: 900, curve: 'random' }] });
+  const norm = normalizeLevel(level);
+  assert.deepEqual(curveAt(norm, 100), { turn: 1, hill: 0 }, 'the level curve applies outside sections');
+  assert.deepEqual(curveAt(norm, 400), { turn: 0, hill: -1 }, 'a section curve replaces it');
+  const r = curveAt(norm, 700, 7);
+  assert.deepEqual(r, curveAt(norm, 700, 7));
+  assert.ok(Math.abs(r.turn) <= 1 && Math.abs(r.hill) <= 1);
+  assert.deepEqual(curveAt(norm, 1500), { turn: 0, hill: 0 }, 'straight at the finish');
+  assert.deepEqual(curveAt(norm, 1440), { turn: 0.5, hill: 0 }, 'half way through the fade');
+  assert.deepEqual(curveAt(normalizeLevel(lvl()), 500), { turn: 0, hill: 0 }, 'no curve means straight');
+  const E = normalizeLevel(lvl({ length_m: null, curve: 'random' }));
+  const segs = Array.from({ length: 10 }, (_, i) => i * 240);
+  const a = segs.map((z) => curveAt(E, z, 7)), b = segs.map((z) => curveAt(E, z, 8));
+  assert.deepEqual(a, segs.map((z) => curveAt(E, z, 7)), 'random targets come from the seed');
+  assert.notDeepEqual(a, b);
+  assert.ok(a.some((c, i) => i && (c.turn !== a[i - 1].turn || c.hill !== a[i - 1].hill)), 'and change from segment to segment');
+  const F = normalizeLevel(lvl({ length_m: 480, curve: 'random' }));
+  assert.deepEqual(curveAt(F, 480, 7), { turn: 0, hill: 0 }, 'random still fades out at a finite finish');
+});
+
+test('gfx.box subdivides along z so long road pieces bend', () => {
+  assert.equal(gfx.box(1, 1, 120, '#ffffff').geometry.parameters.depthSegments, 30);
+  assert.equal(gfx.box(1, 1, 3, '#ffffff').geometry.parameters.depthSegments, 1);
+  assert.ok(gfx.box(1, 1, 1, '#ffffff').material.userData.bent, 'materials from the helpers are bendable');
+  gfx.setBend({ turn: 1, hill: -0.5, origin: 100 });
+  assert.deepEqual(gfx.bendUniform.value.toArray(), [-gfx.TURN_K, -0.5 * gfx.HILL_K, 100, gfx.DEAD], 'positive turn bends to screen-right (-x)');
+  gfx.setBend();
+  assert.deepEqual(gfx.bendUniform.value.toArray(), [0, 0, 0, gfx.DEAD]);
+});
+
+test('a section camera merges over the level camera', () => {
+  const norm = normalizeLevel(lvl({ camera: { height: 5 }, sections: [{ from_m: 100, to_m: 200, camera: { fov: 70 } }] }));
+  assert.deepEqual(cameraAt(norm, 50), { height: 5 });
+  assert.deepEqual(cameraAt(norm, 150), { height: 5, fov: 70 });
+  assert.deepEqual(cameraAt(normalizeLevel(lvl()), 50), {}, 'no camera means the defaults');
+});
+
+test('props land on their grid by weight, never overlap, never run past the end and keep out of placed ones', () => {
+  const arch = { kind: 'prop', id: 'arch', length: 2, createView() {} }, tube = { kind: 'prop', id: 'tube', length: 60, createView() {} };
+  const reg = { ...registry, prop: { arch, tube } };
+  const { props } = generate(normalizeLevel(lvl({ length_m: 600, props: { per_100m: 5, ids: { tube: 1 } } })), rng(1), 0, 600, reg, R);
+  assert.ok(props.length >= 2 && props.every((p) => p.id === 'tube' && p.length === 60));
+  for (let i = 1; i < props.length; i++) assert.ok(props[i].z >= props[i - 1].z + 60, 'no overlap');
+  assert.ok(props.every((p) => p.z + 60 <= 600 && p.z >= START_CLEAR));
+  const placed = lvl({ length_m: 600, props: { per_100m: 5, ids: { arch: 1 } }, sections: [{ from_m: 100, to_m: 300, placements: [{ at_m: 200, kind: 'prop', id: 'tube' }] }] });
+  const out = generate(normalizeLevel(placed), rng(1), 0, 600, reg, R).props;
+  assert.ok(out.some((p) => p.id === 'tube' && p.placed && p.z === 200));
+  assert.ok(out.filter((p) => p.id === 'arch').every((p) => p.z + 2 <= 200 || p.z >= 260), 'generated props keep out of the placed tunnel');
+  const state = { lastRow: -Infinity, speedFrom: 12, propEnd: -Infinity };
+  const norm = normalizeLevel(lvl({ length_m: null, props: { per_100m: 5, ids: { tube: 1 } } }));
+  const two = [...generate(norm, rng(2), 0, 120, reg, R, state).props, ...generate(norm, rng(3), 120, 240, reg, R, state).props];
+  for (let i = 1; i < two.length; i++) assert.ok(two[i].z >= two[i - 1].z + 60, 'the overlap guard remembers across chunks');
+  assert.deepEqual(generate(normalizeLevel(lvl()), rng(1), 0, 600, reg, R).props, [], 'no props key, no props');
+});
+
+test('a pulled jug one lane over and close ahead is not overtaken before it arrives', () => {
+  const run = createRun(R, COW);
+  collect(run, MAGNET);
+  const p = { id: 'jug', lane: 0, z: 3 }; // 2.5 m across at 12 m/s sideways takes 0.2 s; at 24 m/s the street moves 5 m in that time
+  let collected = false;
+  for (let i = 0; i < 60 && !collected; i++) { step(run, 1 / 60, 24); pull(run, p, 1 / 60); collected = inReach(run, p); }
+  assert.ok(collected, `the jug ended ${(p.z - run.z).toFixed(2)} m along and ${(p.x - run.x).toFixed(2)} m across, never collected`);
+});
+
+test('gfx.bend takes a mesh with a material array, as three.js allows', () => {
+  const mesh = new gfx.three.Mesh(new gfx.three.BoxGeometry(1, 1, 1), [new gfx.three.MeshBasicMaterial(), new gfx.three.MeshBasicMaterial()]);
+  assert.doesNotThrow(() => gfx.bend(mesh));
+  assert.ok(mesh.material.every((m) => m.userData.bent));
+});
+
+test('the reaction floor also holds before a placed row that sits on the grid', () => {
+  const fast = resolveRules({ speed: { start: 30, end: 30 } }); // floor 18 m
+  const placed = lvl({ density: { start: 1, end: 1 }, sections: [{ from_m: 100, to_m: 400, placements: [{ at_m: 204, lane: 0, kind: 'obstacle', id: 'taxi' }] }] });
+  for (const s of seeds.slice(0, 20)) for (const o of all(placed, s, fast).obstacles.filter((o) => !o.placed)) assert.ok(o.z >= 204 || 204 - o.z >= 18, `seed ${s}: generated row at ${o.z} right before the placement at 204`);
+});
+
+test('curveAt normalises -0 to 0 at the finish and does not hide a NaN', () => {
+  const F = normalizeLevel(lvl({ length_m: 480, curve: { turn: -1, hill: -1 } }));
+  assert.ok(Object.is(curveAt(F, 480).turn, 0) && Object.is(curveAt(F, 480).hill, 0), 'a faded negative curve is +0, not -0');
+  assert.ok(Number.isNaN(curveAt(normalizeLevel(lvl({ curve: { turn: NaN } })), 100).turn), 'a NaN surfaces instead of reading as straight');
+});
+
+test('gfx.bendable chains a material\'s own onBeforeCompile and keys the program cache by it', () => {
+  const calls = [];
+  const own = gfx.bendable(Object.assign(new gfx.three.MeshBasicMaterial(), { onBeforeCompile: (shader) => calls.push(shader) }));
+  const shader = { uniforms: {}, vertexShader: 'void main() {\n#include <project_vertex>\n}' };
+  own.onBeforeCompile(shader, null);
+  assert.equal(calls[0], shader, 'the module\'s own hook still runs');
+  assert.ok(shader.uniforms.uBend === gfx.bendUniform && shader.vertexShader.includes('uBend'), 'and the bend is patched in after it');
+  const plain = gfx.bendable(new gfx.three.MeshBasicMaterial());
+  assert.notEqual(own.customProgramCacheKey(), plain.customProgramCacheKey(), 'three caches programs by this key: different hooks, different programs');
+  assert.notEqual(plain.customProgramCacheKey(), new gfx.three.MeshBasicMaterial().customProgramCacheKey(), 'a bent material never shares a program with an unbent one');
+});
+
+test('the camera eases the speed that widens the view like its overrides, so a carried speed does not pop the first frame', () => {
+  const live = easeCamera({ ...CAMERA, speed: 0 }, {}, 24, 1 / 60); // level 2 opens at the 24 m/s level 1 ended with
+  assert.ok(live.speed > 0 && live.speed < 2.4, `one frame in, the eased speed has barely moved (${live.speed})`);
+  assert.ok(Math.abs(cameraFor({ x: 0, y: 0, z: 0 }, live, live.speed).fov - 60) < 1, 'so the view opens at the base field of view instead of popping to 67°');
+  assert.equal(easeCamera(live, {}, 24, Infinity).speed, 24, 'dt = Infinity snaps, as it does for the overrides');
 });

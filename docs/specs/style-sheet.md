@@ -35,6 +35,14 @@ them as `gfx.palette`. Patterns may have evolved since; check the Paper file and
 | jerseyA | `#ef7d22` | stand-in jerseys (odd), tip-off circle |
 | jerseyB | `#2a5caa` | stand-in jerseys (even) |
 
+**2026-10-08, v3 boards.** Five boards were added to the same Paper file for the playtest response and approved by
+Caedon the day they were drawn: 08 Turns, dips and hills · 09 Props that break the view · 10 Camera per section ·
+11 Speed you can feel · 12 Power-ups explained, magnet fixed. They reuse the phone frames of board 06 (the game's
+portrait camera) with new street drawings, so they show the framing the engine produces; the old boards' eyebrows now
+read "of 12". The build that follows them is `2026-10-08-milkshake-runner-plan-v3.md`. Snapshot, not a contract: the
+numbers on the boards (bend strengths, camera presets, speeds) are the plan's starting values and get tuned in the
+manual pass.
+
 Display font: Lilita One (SIL Open Font Licence, `public/fonts/OFL.txt`), self-hosted in `public/fonts/`.
 UI tokens in `src/style.css`: `--ink #1d1b26`, `--paper #ffffff`, `--accent #b9a6e8`.
 Jersey colours deliberately sit off the real team's `#f58426` / `#006bb6`.
