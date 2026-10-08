@@ -4,7 +4,7 @@ Everything after level 2 comes from the community, and the game is built so you 
 the engine. You can add two kinds of things:
 
 - a **level**: one JSON file in `levels/`
-- **content**: a one-file JavaScript module in `content/` (an obstacle, a pickup, a theme, a character or an ending)
+- **content**: a one-file JavaScript module in `content/` (an obstacle, a pickup, a prop, a theme, a character or an ending)
 
 Both go through a pull request. CI runs the same checks the game runs when it loads, so anything that
 would break the game cannot merge. Everything under `src/` is the engine; you should not need to edit it.
@@ -54,22 +54,25 @@ If you find you do, open an issue: that is a bug in the engine's modularity, not
 | `obstacles` | `{ id: weight }` from registered obstacles; weights above 0 |
 | `density` | `start` and `end` from 0 to 1: how busy the street is at each end (0 is allowed) |
 | `jugs` | `per_100m` 0 to 30; `powerups`: registered pickups that have an `effect` |
-| `sections` | optional, ordered, non-overlapping; each may override `obstacles`, `density`, `jugs`, `theme`, turn `generation` off, and list `placements` |
-| `placements` | `{ at_m, lane (0-2), kind (obstacle or pickup), id }` inside the section; a row may not block all three lanes with nothing to jump or slide |
+| `curve` | optional, level or section: `{ "turn": -1..1, "hill": -1..1 }` (positive turn bends to the right, negative hill is a dip) or `"random"`; nothing bends inside 20 m, and a finite level straightens over its last 120 m |
+| `camera` | optional, level or section: `height` 1.5–8 m, `distance` 3–12 m, `fov` 45–100; sections inherit the level's values and ease over half a second |
+| `props` | optional, level or section: `{ "per_100m": 0–5, "ids": { "overpass": 1 } }` from registered props, placed on a grid and never overlapping |
+| `sections` | optional, ordered, non-overlapping; each may override `obstacles`, `density`, `jugs`, `theme`, `curve`, `camera`, `props`, turn `generation` off, and list `placements` |
+| `placements` | `{ at_m, lane (0-2), kind (obstacle, pickup or prop), id }` inside the section; a prop has no lane and must fit inside the level; a row may not block all three lanes with nothing to jump or slide |
 | `ending` | optional; `id` of a registered ending plus its `params` |
 
 Unknown keys anywhere are rejected, so a typo fails loudly instead of silently doing nothing.
 
-Rules you can set (defaults in brackets): `laneWidth` 1.5–4 (2.5) · `laneTime` 0.05–0.5 (0.15) · `gravity` -60 to -10 (-30) · `jumpSpeed` 5–15 (9) · `fastFall` -40 to -5 (-15) · `slideTime` 0.3–2 (0.6) · `slideHeight` 0.4–1.5 (0.8) · `grace` 0–3 (1) · `speed.start` / `speed.end` 4–40 (12 / 20) · `speed.cap` 4–60 (28) · `speed.ramp` 0–0.05 (0.004). Fairness is checked against **your** rules: if you weaken the jump, barriers stop counting as jumpable.
+Rules you can set (defaults in brackets): `laneWidth` 1.5–4 (2.5) · `laneTime` 0.05–0.5 (0.15) · `gravity` -60 to -10 (-30) · `jumpSpeed` 5–15 (9) · `fastFall` -40 to -5 (-15) · `slideTime` 0.3–2 (0.6) · `slideHeight` 0.4–1.5 (0.8) · `grace` 0–3 (1) · `speed.start` / `speed.end` 4–40 (12 / 24) · `speed.cap` 4–60 (30) · `speed.ramp` 0–0.05 (0.006) · `reaction` 0.2–1.5 (0.6). Fairness is checked against **your** rules: if you weaken the jump, barriers stop counting as jumpable. Rows are generated at least speed × reaction metres apart and two placed rows closer than that fail validation at the speed the file ramps to (a speed carried in from a previous level can be higher: leave room).
 
 ## 2. Add content
 
 Content is a one-file ES module with a default export. Pick a handle (your GitHub name is good) and save the file at
 `content/<kind>s/<handle>/<name>.js` with `id: "<handle>/<name>"`. The registry rejects a wrong path, a duplicate id or missing fields, and tells you exactly what is wrong.
 
-Modules receive `gfx` when they draw: `gfx.box(w, h, d, color, x, y, z)`, `gfx.cyl`, `gfx.sphere`, `gfx.capsule`, `gfx.cone`, `gfx.roundedBox`, `gfx.group(...)`, `gfx.blobShadow(r)`, `gfx.glow(r, color)`, `gfx.sprite`, `gfx.textTexture`, `gfx.palette` (the game's colours) and `gfx.three` if you need Three.js itself. Do not import `three` at the top of your file; tests import your module in Node.
+Modules receive `gfx` when they draw: `gfx.box(w, h, d, color, x, y, z)`, `gfx.cyl`, `gfx.sphere`, `gfx.capsule`, `gfx.cone`, `gfx.roundedBox`, `gfx.group(...)`, `gfx.blobShadow(r)`, `gfx.glow(r, color)`, `gfx.sprite`, `gfx.textTexture`, `gfx.palette` (the game's colours) and `gfx.three` if you need Three.js itself. Do not import `three` at the top of your file; tests import your module in Node. The world bends in the distance (a level's `curve`); build long pieces with `gfx.box`, which subdivides along z, because raw geometry longer than about 6 m stays a straight chord.
 
-Complete, working examples live in `test/fixtures/content/` (a boulder, a 3× pickup, a forest theme that replaces the street, a robot character, a banner ending) and `test/fixtures/levels/`. Run `npm run dev` and open `http://localhost:5173/milkshake-runner/?fixtures` to play them.
+Complete, working examples live in `test/fixtures/content/` (a boulder, a 3× pickup, an arch prop, a forest theme that replaces the street, a robot character, a banner ending) and `test/fixtures/levels/`. Run `npm run dev` and open `http://localhost:5173/milkshake-runner/?fixtures` to play them.
 
 ### Obstacle
 
@@ -94,6 +97,7 @@ Jumpable means `box.h` fits under the level's jump height (1.35 m by default); s
 // content/pickups/ari/triple.js
 export default {
   kind: 'pickup', id: 'ari/triple', color: '#2fd67b',
+  name: 'TRIPLE', blurb: 'Every jug counts triple for 6 s', // shown when collected and on HOW TO PLAY (name 1-24, blurb 1-80 characters)
   duration: 6,                          // seconds, or 'untilHit', or leave out for an instant pickup
   effect: { multiplier: 3 },            // the engine knows reach (metres), multiplier and shield
   label: '3×',                          // or glyph: '<28x28 SVG path>' (+ stroke: true for an outline glyph)
@@ -101,6 +105,20 @@ export default {
 };
 ```
 Pickups without `createView` get the standard glowing orb with your glyph or label.
+
+### Prop
+
+```js
+// content/props/ari/arch.js
+export default {
+  kind: 'prop', id: 'ari/arch', length: 2,   // metres of street it occupies (1-100); the engine places it at the road's centre
+  createView(gfx, { z, length, lanes }) {    // lanes: { count, width, roadHalf }
+    const x = lanes.roadHalf + 0.5;
+    return { object: gfx.group(gfx.box(0.6, 6, 0.6, '#3f8a4c', -x, 3, 1), gfx.box(0.6, 6, 0.6, '#3f8a4c', x, 3, 1)) }; // optional update(p, run, dt), dispose()
+  },
+};
+```
+Props never collide. Levels place them by weight (`props`) or at an exact metre (`placements` with `kind: "prop"`).
 
 ### Theme
 
@@ -124,7 +142,7 @@ export default {
     return {
       object,
       update(run) { object.position.set(run.x, run.y, run.z); },   // called every frame
-      pose(time, { sliding, over, lean, airborne }) {},             // called during endings
+      pose(time, { sliding, over, lean, airborne, speed }) {},      // called during endings; speed is the run's m/s
       dispose() { gfx.dispose(object); },
     };
   },
