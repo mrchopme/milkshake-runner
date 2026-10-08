@@ -63,20 +63,25 @@ test('a pulled pickup moves its view toward Milkshake', () => {
   assert.equal(p.view.object.position.z, p.z, 'the view sits at the logical position');
 });
 
-test('the world eases the bend toward the section curve, carries the origin with Milkshake and resets on dispose', () => {
+test('the world hands the shader the bending stretches in view, 20 m ahead of Milkshake, and straightens on dispose', () => {
   const rock = { kind: 'obstacle', id: 'rock', avoid: 'lane', box: { w: 1, h: 1, d: 1 }, createView(gfx) { return { object: gfx.box(1, 1, 1, '#ffffff') }; } };
   const registry = { obstacle: { rock }, pickup: {}, theme: { t: theme }, character: {}, ending: {} };
-  const world = createWorld(new THREE.Scene(), { ...level, curve: { turn: 1 } }, { registry, rules, seed: 1, end: 600 });
+  const world = createWorld(new THREE.Scene(), { ...level, sections: [{ from_m: 150, to_m: 400, curve: { turn: 1 } }] }, { registry, rules, seed: 1, end: 600 });
   const run = createRun(rules, { height: 1.9, width: 1 });
-  run.speed = 20;
+  world.update(run, 0); // the view is [run.z, run.z + 200): a stretch starting at 150 is in it
+  assert.equal(gfx.bendStart.value, gfx.DEAD, 'the bend starts 20 m ahead of Milkshake');
+  assert.deepEqual(gfx.bendSegments.value[0].toArray(), [150, 400, -gfx.TURN_K, 0], 'the turn ahead is in the uniforms with its start and end lines');
+  assert.equal(gfx.bendOffset(100).x, 0, 'straight up to its start line');
+  assert.ok(gfx.bendOffset(300).x < 0, 'bent beyond it');
+  run.z = 300;
   world.update(run, 0);
-  assert.equal(gfx.bendUniform.value.x, 0, 'starts straight');
-  for (let i = 0; i < 120; i++) { run.z += 20 / 60; world.update(run, 1 / 60); } // 40 m at 20 m/s
-  assert.ok(gfx.bendUniform.value.x < -0.9 * gfx.TURN_K, 'most of the way into a right turn after 40 m');
-  assert.equal(gfx.bendUniform.value.z, run.z, 'the origin rides with Milkshake');
+  assert.equal(gfx.bendStart.value, 320, 'the start rides with Milkshake');
   assert.ok(world.live.obstacles.every((o) => o.view.object.material.userData.bent), 'everything the world adds is bendable');
+  run.z = 450;
+  world.update(run, 0);
+  assert.deepEqual(gfx.bendSegments.value[0].toArray(), [0, 0, 0, 0], 'a stretch behind Milkshake is dropped');
   world.dispose();
-  assert.equal(gfx.bendUniform.value.x, 0);
+  assert.deepEqual(gfx.bendSegments.value.map((v) => v.length()), [0, 0, 0, 0]);
 });
 
 test('props are built, streamed, dropped and bent like obstacles', () => {
@@ -100,8 +105,15 @@ test('a level-wide curve is fully straight at the finish line, not just aiming t
   const registry = { obstacle: { rock }, pickup: {}, theme: { t: theme }, character: {}, ending: {} };
   const world = createWorld(new THREE.Scene(), { ...level, curve: { turn: 1 } }, { registry, rules, seed: 1, end: 800 });
   const run = createRun(rules, { height: 1.9, width: 1 });
-  run.speed = 20;
-  while (run.z < 600) { run.z = Math.min(600, run.z + 20 / 60); world.update(run, 1 / 60); }
-  assert.equal(gfx.bendUniform.value.x, 0, 'the eased bend lags the faded target unless the fade also scales what is applied');
+  run.z = 300;
+  world.update(run, 0);
+  assert.ok(gfx.bendOffset(400).x < 0, 'bent in the middle of the level');
+  run.z = 500; // 100 m out: the last 120 m are straight by geometry
+  world.update(run, 0);
+  assert.deepEqual(gfx.bendOffset(600), { x: 0, y: 0 });
+  run.z = 600;
+  world.update(run, 0);
+  assert.deepEqual(gfx.bendSegments.value[0].toArray(), [0, 0, 0, 0], 'no stretch reaches the finish line');
+  assert.deepEqual(gfx.bendOffset(650), { x: 0, y: 0 }, 'the ending\'s street is straight');
   world.dispose();
 });

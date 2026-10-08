@@ -6,33 +6,48 @@ import { PALETTE } from './palette.js';
 export const palette = PALETTE;
 export const three = THREE; // escape hatch for endings that need Vector3, Points and the like
 
-// World bend (spec v3 §1). Every material the helpers hand out bends its vertices in the vertex shader by one shared uniform:
-// uBend = (kx, ky, originZ, deadZone). For a vertex at world z, d = max(0, z - originZ - deadZone); x += kx·d², y += ky·d².
+// World bend (spec v4 §1). Every material the helpers hand out bends its vertices in the vertex shader by shared uniforms:
+// uBendStart (run.z + DEAD: nothing bends closer than this) and uSeg[BEND_SEGMENTS], one (from, to, kx, ky) per bending
+// stretch of street in view. For a vertex at world z and each stretch: s = max(uBendStart, from), L = max(0, to - s),
+// u = clamp(z - s, 0, L); x += kx·(u² + 2·L·max(0, z - to)) (a turn keeps its heading past its end line), y += ky·u² (a hill
+// plateaus at its new height). The bend is anchored to the street: straight up to a start line, straight again at an end line.
 // Collision never sees this: the street is straight for everything that plays.
-export const TURN_K = 0.005, HILL_K = 0.003, DEAD = 20; // calibration knobs: metres of offset per m² beyond the dead zone, and the dead zone
-export const bendUniform = { value: new THREE.Vector4(0, 0, 0, DEAD) };
+export const TURN_K = 0.005, HILL_K = 0.003, DEAD = 20, BEND_SEGMENTS = 4; // calibration knobs: offset per m² of bend, the dead zone, stretches drawn at once
+export const bendStart = { value: DEAD };
+export const bendSegments = { value: Array.from({ length: BEND_SEGMENTS }, () => new THREE.Vector4()) };
+const BEND_FN = `
+uniform float uBendStart;
+uniform vec4 uSeg[${BEND_SEGMENTS}];
+vec3 bendOffset( float z ) {
+  vec3 o = vec3( 0.0 );
+  for ( int i = 0; i < ${BEND_SEGMENTS}; i ++ ) {
+    float s = max( uBendStart, uSeg[ i ].x );
+    float L = max( 0.0, uSeg[ i ].y - s );
+    float u = clamp( z - s, 0.0, L );
+    o.x += uSeg[ i ].z * ( u * u + 2.0 * L * max( 0.0, z - uSeg[ i ].y ) );
+    o.y += uSeg[ i ].w * u * u;
+  }
+  return o;
+}
+`;
 const BEND = `
   vec4 bentWorld = modelMatrix * vec4( transformed, 1.0 );
-  float bendD = max( 0.0, bentWorld.z - uBend.z - uBend.w );
-  bentWorld.x += uBend.x * bendD * bendD;
-  bentWorld.y += uBend.y * bendD * bendD;
+  bentWorld.xyz += bendOffset( bentWorld.z );
   vec4 mvPosition = viewMatrix * bentWorld;
   gl_Position = projectionMatrix * mvPosition;
 `;
 const BEND_SPRITE = `
   vec4 bentWorld = modelMatrix[ 3 ];
-  float bendD = max( 0.0, bentWorld.z - uBend.z - uBend.w );
-  bentWorld.x += uBend.x * bendD * bendD;
-  bentWorld.y += uBend.y * bendD * bendD;
+  bentWorld.xyz += bendOffset( bentWorld.z );
   vec4 mvPosition = viewMatrix * bentWorld;
 `;
 function patch(shader) {
-  shader.uniforms.uBend = bendUniform;
-  shader.vertexShader = shader.vertexShader.replace('void main() {', 'uniform vec4 uBend;\nvoid main() {').replace('#include <project_vertex>', BEND);
+  shader.uniforms.uBendStart = bendStart; shader.uniforms.uSeg = bendSegments;
+  shader.vertexShader = shader.vertexShader.replace('void main() {', `${BEND_FN}\nvoid main() {`).replace('#include <project_vertex>', BEND);
 }
 function patchSprite(shader) { // a sprite places its centre from the model-view matrix; bend that centre in world space instead
-  shader.uniforms.uBend = bendUniform;
-  shader.vertexShader = shader.vertexShader.replace('void main() {', 'uniform vec4 uBend;\nvoid main() {').replace('vec4 mvPosition = modelViewMatrix[ 3 ];', BEND_SPRITE);
+  shader.uniforms.uBendStart = bendStart; shader.uniforms.uSeg = bendSegments;
+  shader.vertexShader = shader.vertexShader.replace('void main() {', `${BEND_FN}\nvoid main() {`).replace('vec4 mvPosition = modelViewMatrix[ 3 ];', BEND_SPRITE);
 }
 // Marks a material bendable, once. Materials a module builds itself get this when the engine adds the object (gfx.bend).
 // A hook the module set itself keeps running, first; the bend is patched in after it.
@@ -46,7 +61,21 @@ export function bendable(material) {
   return material;
 }
 export function bend(object) { object.traverse((n) => { for (const m of [].concat(n.material ?? [])) bendable(m); }); return object; } // a mesh may carry a material array
-export function setBend({ turn = 0, hill = 0, origin = 0 } = {}) { bendUniform.value.set(0 - turn * TURN_K, hill * HILL_K, origin, DEAD); } // 0 - …: a straight road is +0, never -0
+// The stretches in view, nearest first, as { from, to, turn, hill } (metres, -1..1). No stretches straightens the street.
+export function setBend({ origin = 0, segments = [] } = {}) {
+  bendStart.value = origin + DEAD;
+  bendSegments.value.forEach((v, i) => { const s = segments[i]; if (s) v.set(s.from, s.to, 0 - s.turn * TURN_K, s.hill * HILL_K); else v.set(0, 0, 0, 0); }); // 0 - …: a straight road is +0, never -0
+}
+// The shader's formula in JavaScript over the same uniforms: what the tests exercise; the GLSL is checked by eye.
+export function bendOffset(z) {
+  let x = 0, y = 0;
+  for (const v of bendSegments.value) {
+    const s = Math.max(bendStart.value, v.x), L = Math.max(0, v.y - s), u = Math.min(L, Math.max(0, z - s));
+    x += v.z * (u * u + 2 * L * Math.max(0, z - v.y));
+    y += v.w * u * u;
+  }
+  return { x, y };
+}
 
 const mats = new Map();
 export function mat(color, opts = {}) {
