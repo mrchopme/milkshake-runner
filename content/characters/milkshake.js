@@ -1,5 +1,5 @@
 export default {
-  kind: 'character', id: 'milkshake', height: 1.9, width: 1.0, model: 'milkshake.glb', yaw: Math.PI, // the rigged export faces -z
+  kind: 'character', id: 'milkshake', height: 1.9, width: 1.0, model: 'milkshake.glb', yaw: -Math.PI / 2,
 
   async createView(gfx) {
     const P = gfx.palette;
@@ -7,27 +7,18 @@ export default {
     const shadow = root.children[0];
     const body = gfx.group();
     root.add(body);
-    let model, arms = [], legs = [], mixer = null, lastTime = 0;
+    let model, arms = [], legs = [];
     try {
       const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
       const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}${this.model}`);
       model = gltf.scene;
-      if (gltf.animations.length) {           // a rigged export: play its run clip at a rate tied to speed
-        // glTF inverse bind matrices take mesh-local vertices; the loader binds with the mesh's world matrix instead, which
-        // folds the body over when the mesh sits under the export's 0.01-scaled armature. Bind with the identity, as glTF says.
-        model.traverse((n) => { if (n.isSkinnedMesh) n.bind(n.skeleton, new gfx.three.Matrix4()); });
-        mixer = new gfx.three.AnimationMixer(model);
-        mixer.clipAction(gltf.animations[0]).play();
-      }
       // The generated GLB ships a metallic PBR material, which three.js renders near-black without an environment map;
       // the toon material with the same colour map matches the rest of the street.
       model.traverse((n) => { if (n.isMesh) n.material = new gfx.three.MeshToonMaterial({ map: n.material.map, color: n.material.color }); });
       model.rotation.y = this.yaw;
-      if (!mixer) { // an unrigged export is any size: fit it to the character's height and put its feet on the road. A rigged one is authored at height.
-        const size = new gfx.three.Box3().setFromObject(model).getSize(new gfx.three.Vector3());
-        model.scale.setScalar(this.height / size.y);
-        model.position.y -= new gfx.three.Box3().setFromObject(model).min.y;
-      }
+      const size = new gfx.three.Box3().setFromObject(model).getSize(new gfx.three.Vector3());
+      model.scale.setScalar(this.height / size.y);
+      model.position.y -= new gfx.three.Box3().setFromObject(model).min.y;
     } catch {
       ({ model, arms, legs } = shapeCow(gfx)); // no GLB yet, or a bad one: the shape-built cow
     }
@@ -46,7 +37,7 @@ export default {
     const pose = (time, { sliding = false, over = false, lean = 0, airborne = false, speed = BASE } = {}) => {
       const k = speed / BASE;                                       // 1 at the old pace, 2 at 24 m/s
       const stride = airborne || sliding || over ? 0 : Math.sin(time * 14 * k);
-      body.position.y = mixer ? 0 : Math.abs(stride) * Math.min(0.14, 0.08 * k); // the clip carries its own bounce
+      body.position.y = Math.abs(stride) * Math.min(0.14, 0.08 * k);
       body.scale.y = sliding ? 0.5 : 1;
       body.rotation.z = lean + stride * 0.03 * Math.max(0, k - 1);  // a little roll per stride once it is running hard
       body.rotation.x = over ? 0.9 : sliding ? -0.3 : Math.max(0, 0.1 * (k - 1)); // forward lean grows with speed
@@ -61,8 +52,6 @@ export default {
         root.position.set(run.x, run.y, run.z);
         shadow.position.y = -run.y + 0.01; // the shadow stays on the road while Milkshake jumps
         const stride = pose(run.time, { sliding: run.slideT > 0, over: run.over, lean: ((1 - run.lane) * run.rules.laneWidth - run.x) * 0.12, airborne: run.y > 0, speed: run.speed ?? BASE });
-        if (mixer) { mixer.timeScale = run.y > 0 || run.slideT > 0 || run.over ? 0 : (run.speed ?? BASE) / BASE; mixer.update(run.time - lastTime); }
-        lastTime = run.time;
         if (run.y === 0 && run.slideT === 0 && !run.over && stride !== 0 && Math.sign(stride) !== Math.sign(lastStride)) {
           const p = pool[nextPuff++ % pool.length];
           p.visible = true; p.userData.born = run.time; p.userData.z = run.z - 0.4;
