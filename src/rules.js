@@ -106,6 +106,7 @@ export function pull(run, p, dt) {
   const x = p.x ?? laneX(p.lane, run.rules), sx = PULL_ACROSS * dt, sz = PULL_ALONG * run.speed * dt;
   p.x = x + Math.max(-sx, Math.min(sx, run.x - x));
   p.z -= Math.min(sz, Math.max(0, p.z - run.z - 0.3));
+  if (p.z < run.z + 0.3) p.z = run.z + 0.3; // rides alongside until the sideways pull lands it; at speed the street would otherwise overtake it
 }
 export function inReach(run, p) {
   const dz = p.z - run.z, x = p.x ?? laneX(p.lane, run.rules);

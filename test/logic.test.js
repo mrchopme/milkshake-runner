@@ -445,3 +445,12 @@ test('props land on their grid by weight, never overlap, never run past the end 
   for (let i = 1; i < two.length; i++) assert.ok(two[i].z >= two[i - 1].z + 60, 'the overlap guard remembers across chunks');
   assert.deepEqual(generate(normalizeLevel(lvl()), rng(1), 0, 600, reg, R).props, [], 'no props key, no props');
 });
+
+test('a pulled jug one lane over and close ahead is not overtaken before it arrives', () => {
+  const run = createRun(R, COW);
+  collect(run, MAGNET);
+  const p = { id: 'jug', lane: 0, z: 3 }; // 2.5 m across at 12 m/s sideways takes 0.2 s; at 24 m/s the street moves 5 m in that time
+  let collected = false;
+  for (let i = 0; i < 60 && !collected; i++) { step(run, 1 / 60, 24); pull(run, p, 1 / 60); collected = inReach(run, p); }
+  assert.ok(collected, `the jug ended ${(p.z - run.z).toFixed(2)} m along and ${(p.x - run.x).toFixed(2)} m across, never collected`);
+});
