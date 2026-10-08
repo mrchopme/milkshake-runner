@@ -2,6 +2,8 @@
 export const MAX_DT = 0.05;          // longest frame the physics will accept (a backgrounded tab must not teleport)
 export const BIKE_TRIGGER = 30;      // metres ahead at which a moving obstacle starts to swerve
 export const BIKE_SPEED = 4;         // its lateral speed, m/s
+export const PULL_ACROSS = 12;       // m/s a pulled pickup slides sideways
+export const PULL_ALONG = 2;         // times the run speed a pulled pickup comes back along the street
 
 export const DEFAULT_RULES = {
   laneWidth: 2.5, laneTime: 0.15, gravity: -30, jumpSpeed: 9, fastFall: -15, slideTime: 0.6, slideHeight: 0.8, grace: 1,
@@ -96,10 +98,18 @@ export function hit(run) {
 export function multiplier(run) { let m = 1; for (const e of Object.values(run.effects)) if (e.multiplier) m *= e.multiplier; return m; }
 export function reach(run) { let r = 0; for (const e of Object.values(run.effects)) if (e.reach) r = Math.max(r, e.reach); return r; }
 
+// A pickup inside the magnet's reach is pulled, not collected: it slides toward Milkshake over a few frames and inReach
+// picks it up at arm's length. p.x is the pickup's logical x once a pull has moved it (lane centre until then).
+export function pulled(run, p) { const dz = p.z - run.z, r = reach(run); return r > 0 && dz > -1 && dz < r; }
+export function pull(run, p, dt) {
+  if (!pulled(run, p)) return;
+  const x = p.x ?? laneX(p.lane, run.rules), sx = PULL_ACROSS * dt, sz = PULL_ALONG * run.speed * dt;
+  p.x = x + Math.max(-sx, Math.min(sx, run.x - x));
+  p.z -= Math.min(sz, Math.max(0, p.z - run.z - 0.3));
+}
 export function inReach(run, p) {
-  const dz = p.z - run.z, r = reach(run);
-  if (r > 0 && dz > -1 && dz < r) return true;
-  return Math.abs(dz) < 0.8 && Math.abs(laneX(p.lane, run.rules) - run.x) < 1;
+  const dz = p.z - run.z, x = p.x ?? laneX(p.lane, run.rules);
+  return Math.abs(dz) < 0.8 && Math.abs(x - run.x) < 1;
 }
 
 // def is a pickup module: value adds jugs now; effect starts a timed (or until-hit) capability.

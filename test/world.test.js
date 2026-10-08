@@ -44,3 +44,21 @@ test('no building in a default chunk crosses the chunk seam', () => {
     }
   }
 });
+
+test('a pulled pickup moves its view toward Milkshake', () => {
+  const jug = { kind: 'pickup', id: 'jug', color: '#ffffff', value: 1 };
+  const registry = { obstacle: {}, pickup: { jug }, theme: { t: theme }, character: {}, ending: {} };
+  const lvl = { ...level, obstacles: {}, density: { start: 0, end: 0 }, jugs: { per_100m: 20, powerups: [] } };
+  const world = createWorld(new THREE.Scene(), lvl, { registry, rules, seed: 1, end: 600 });
+  const run = createRun(rules, { height: 1.9, width: 1 });
+  run.effects.magnet = { t: 8, reach: 15 };
+  run.z = 16; // pickups start at START_CLEAR / 2 = 20 m; from here the first ones are inside the magnet's reach
+  world.update(run, 0);
+  const p = world.live.pickups.find((p) => p.lane !== 1 && p.z - run.z > 2 && p.z - run.z < 15);
+  const before = Math.abs(p.view.object.position.x), zBefore = p.z;
+  for (let i = 0; i < 5; i++) world.update(run, 1 / 60);
+  assert.ok(Math.abs(p.view.object.position.x) < before, 'slides toward the centre lane');
+  assert.ok(p.z < zBefore, 'the logical pickup comes back along the street');
+  assert.equal(p.view.object.position.x, p.x, 'the view follows the logical x');
+  assert.equal(p.view.object.position.z, p.z, 'the view sits at the logical position');
+});

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_RULES, resolveRules, laneX, jumpHeight, speedAt, createRun, act, step, playerBox, obstacleBox, overlaps, hit,
-  inReach, collect, updateObstacle, multiplier, MAX_DT, RULE_RANGES,
+  inReach, collect, updateObstacle, multiplier, MAX_DT, RULE_RANGES, pulled, pull,
 } from '../src/rules.js';
 import { classifySwipe, KEYS } from '../src/input.js';
 import { cameraFor } from '../src/engine.js';
@@ -116,7 +116,7 @@ test('effects: reach, multiplier, timers and expiry', () => {
   const run = createRun(R, COW, 3);
   assert.equal(inReach(run, { z: 10, lane: 0 }), false);
   collect(run, MAGNET);
-  assert.equal(inReach(run, { z: 10, lane: 0 }), true);
+  assert.equal(pulled(run, { z: 10, lane: 0 }), true);
   assert.equal(inReach(run, { z: -5, lane: 1 }), false);
   collect(run, JUG); assert.equal(run.jugs, 4);
   collect(run, X2); collect(run, JUG); assert.equal(run.jugs, 6);
@@ -367,4 +367,23 @@ test('the chase camera sits where it always did, takes a section override and wi
   assert.deepEqual([low.y, low.z, low.fov], [2.2, 95, 65]);
   const lane0 = cameraFor({ x: 2.5, y: 1, z: 0 });
   assert.deepEqual([lane0.x, lane0.y, lane0.lookX], [1.5, 3.9, 2]);
+});
+
+test('a magnet pulls a jug in over a few frames instead of collecting it 15 m out', () => {
+  const run = createRun(R, COW);
+  collect(run, MAGNET);
+  const p = { id: 'jug', lane: 0, z: 10 };
+  assert.equal(pulled(run, p), true);
+  assert.equal(inReach(run, p), false, 'not collected the tick the pull starts');
+  let frames = 0;
+  while (!inReach(run, p) && frames < 120) { step(run, 1 / 60, 12); pull(run, p, 1 / 60); frames++; }
+  assert.ok(frames > 2 && frames < 60, `pulled in over ${frames} frames`);
+  assert.ok(Math.abs(p.x - run.x) < 1 && Math.abs(p.z - run.z) < 0.8);
+  const far = { id: 'jug', lane: 2, z: run.z + 20 };
+  assert.equal(pulled(run, far), false, 'beyond reach nothing moves');
+  pull(run, far, 1 / 60);
+  assert.equal(far.x, undefined);
+  const none = createRun(R, COW);
+  assert.equal(pulled(none, { lane: 1, z: 3 }), false, 'without a magnet nothing is pulled');
+  assert.equal(inReach(none, { lane: 1, z: 0.5 }), true, 'but a jug in your lane is still picked up');
 });

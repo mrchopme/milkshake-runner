@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import * as gfx from './gfx.js';
 import { generate, normalizeLevel, rng, sectionAt } from './generator.js';
-import { laneX, obstacleBox, updateObstacle, reach } from './rules.js';
+import { laneX, obstacleBox, updateObstacle, pull } from './rules.js';
 import { safeCall } from './registry.js';
 
 const CHUNK = 120;  // metres built at a time (a multiple of ROW_GAP)
@@ -80,10 +80,10 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
       const active = obstacleBox(o, o.def, run.time, rules) !== null;
       if (o.view.update) safeCall(`obstacle ${o.id} update`, () => o.view.update(o, run, dt, active));
     }
-    const pull = reach(run);
     for (const p of live.pickups) {
       p.view.object.rotation.y = run.time * 3;
-      if (pull > 0 && p.z - run.z < pull) p.view.object.position.x += (run.x - p.view.object.position.x) * 0.2;
+      pull(run, p, dt);
+      if (p.x !== undefined) p.view.object.position.set(p.x, 0, p.z);
       if (p.view.update) safeCall(`pickup ${p.id} update`, () => p.view.update(p, run, dt));
     }
   }
