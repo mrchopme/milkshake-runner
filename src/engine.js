@@ -16,6 +16,15 @@ export function cameraFor(run, cam = {}, speed = 0) {
   };
 }
 
+// Eases the live camera values toward a section's override, and the speed that widens the view toward the run's,
+// so a level that opens at a carried speed widens over half a second instead of popping on its first frame. Pass dt = Infinity to snap.
+export function easeCamera(live, cam = {}, speed = 0, dt = 1 / 60) {
+  const a = 1 - Math.exp(-dt / CAMERA_EASE);
+  for (const k of ['height', 'distance', 'fov']) live[k] += ((cam[k] ?? CAMERA[k]) - live[k]) * a;
+  live.speed += (speed - live.speed) * a;
+  return live;
+}
+
 export function createEngine(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -38,7 +47,7 @@ export function createEngine(canvas) {
   camera.add(streaks);
   scene.add(camera);
 
-  const live = { ...CAMERA }; // the eased camera values
+  const live = { ...CAMERA, speed: 0 }; // the eased camera values
   let portrait = false;
   const render = () => renderer.render(scene, camera);
   function resize() {
@@ -63,9 +72,7 @@ export function createEngine(canvas) {
     },
     // `cam` is the active section's override ({ height?, distance?, fov? }); dt eases toward it. Pass dt = Infinity to snap.
     follow(run, cam = {}, dt = 1 / 60) {
-      const a = 1 - Math.exp(-dt / CAMERA_EASE);
-      for (const k of ['height', 'distance', 'fov']) live[k] += ((cam[k] ?? CAMERA[k]) - live[k]) * a;
-      const speed = run.speed ?? 0;
+      const { speed } = easeCamera(live, cam, run.speed ?? 0, dt);
       const c = cameraFor(run, live, speed);
       camera.position.set(c.x, c.y, c.z);
       camera.lookAt(c.lookX, c.lookY, c.lookZ);

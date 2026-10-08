@@ -5,7 +5,7 @@ import {
   inReach, collect, updateObstacle, multiplier, MAX_DT, RULE_RANGES, pulled, pull,
 } from '../src/rules.js';
 import { classifySwipe, KEYS } from '../src/input.js';
-import { cameraFor } from '../src/engine.js';
+import { cameraFor, easeCamera, CAMERA } from '../src/engine.js';
 
 const R = resolveRules();
 const COW = { height: 1.9, width: 1.0 };
@@ -483,4 +483,11 @@ test('gfx.bendable chains a material\'s own onBeforeCompile and keys the program
   const plain = gfx.bendable(new gfx.three.MeshBasicMaterial());
   assert.notEqual(own.customProgramCacheKey(), plain.customProgramCacheKey(), 'three caches programs by this key: different hooks, different programs');
   assert.notEqual(plain.customProgramCacheKey(), new gfx.three.MeshBasicMaterial().customProgramCacheKey(), 'a bent material never shares a program with an unbent one');
+});
+
+test('the camera eases the speed that widens the view like its overrides, so a carried speed does not pop the first frame', () => {
+  const live = easeCamera({ ...CAMERA, speed: 0 }, {}, 24, 1 / 60); // level 2 opens at the 24 m/s level 1 ended with
+  assert.ok(live.speed > 0 && live.speed < 2.4, `one frame in, the eased speed has barely moved (${live.speed})`);
+  assert.ok(Math.abs(cameraFor({ x: 0, y: 0, z: 0 }, live, live.speed).fov - 60) < 1, 'so the view opens at the base field of view instead of popping to 67°');
+  assert.equal(easeCamera(live, {}, 24, Infinity).speed, 24, 'dt = Infinity snaps, as it does for the overrides');
 });
