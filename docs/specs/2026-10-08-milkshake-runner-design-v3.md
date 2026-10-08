@@ -1,11 +1,11 @@
 ---
-provenance: agent-generated
-last-verified: never
+provenance: human-approved
+last-verified: 2026-10-08
 ---
 
 # Milkshake Runner: design spec v3 (playtest response)
 
-**Date:** 2026-10-08 · **Status:** awaiting Caedon's review · **Builds on:** [spec v2](2026-10-07-milkshake-runner-design-v2.md), [plan v2](2026-10-07-milkshake-runner-plan-v2.md), [playtest feedback](2026-10-08-playtest-feedback.md) · **Builder:** Fable, inline
+**Date:** 2026-10-08 · **Status:** approved by Caedon on 2026-10-08, in chat; the Paper boards 08–12 drawn from it were approved the same day · **Builds on:** [spec v2](2026-10-07-milkshake-runner-design-v2.md), [plan v2](2026-10-07-milkshake-runner-plan-v2.md), [playtest feedback](2026-10-08-playtest-feedback.md) · **Builder:** Fable, inline
 
 > Point-in-time snapshot. Written on 2026-10-08 against the v1 build (`feat/v1` at 8a8d41e, PR #1 open) and
 > Caedon's first playtest. The decisions table records what Caedon chose in chat that day; everything else is
