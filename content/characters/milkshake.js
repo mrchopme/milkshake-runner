@@ -24,7 +24,7 @@ export default {
     }
     body.add(model);
 
-    // Dust: six puffs pooled under the hooves, one per footfall while on the ground. They stay on the road as Milkshake runs on.
+    // Dust: six puffs pooled under the hooves, one per footfall while on the ground. They hold their place on the road as Milkshake runs on, changes lane or jumps.
     const puffs = gfx.group();
     root.add(puffs);
     const pool = Array.from({ length: 6 }, () => {
@@ -54,14 +54,13 @@ export default {
         const stride = pose(run.time, { sliding: run.slideT > 0, over: run.over, lean: ((1 - run.lane) * run.rules.laneWidth - run.x) * 0.12, airborne: run.y > 0, speed: run.speed ?? BASE });
         if (run.y === 0 && run.slideT === 0 && !run.over && stride !== 0 && Math.sign(stride) !== Math.sign(lastStride)) {
           const p = pool[nextPuff++ % pool.length];
-          p.visible = true; p.userData.born = run.time; p.userData.z = run.z - 0.4;
-          p.position.set(nextPuff % 2 ? 0.18 : -0.18, 0.1, 0);
+          p.visible = true; p.userData.born = run.time; p.userData.x = run.x + (nextPuff % 2 ? 0.18 : -0.18); p.userData.z = run.z - 0.4; // where it landed, in world space
         }
         lastStride = stride;
         for (const p of pool) if (p.visible) {
           const age = run.time - p.userData.born;
           if (age > 0.35) { p.visible = false; continue; }
-          p.position.z = p.userData.z - run.z;
+          p.position.set(p.userData.x - run.x, 0.1 - run.y, p.userData.z - run.z); // a child of the root, so world x and y are held by countering the root
           p.scale.setScalar(0.6 + age * 3);
           p.material.opacity = 0.5 * (1 - age / 0.35);
         }
