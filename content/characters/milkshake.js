@@ -1,5 +1,5 @@
 export default {
-  kind: 'character', id: 'milkshake', height: 1.9, width: 1.0, model: 'milkshake.glb', yaw: 0,
+  kind: 'character', id: 'milkshake', height: 1.9, width: 1.0, model: 'milkshake.glb', yaw: -Math.PI / 2,
 
   async createView(gfx) {
     const P = gfx.palette;
@@ -12,6 +12,9 @@ export default {
       const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
       const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}${this.model}`);
       model = gltf.scene;
+      // The generated GLB ships a metallic PBR material, which three.js renders near-black without an environment map;
+      // the toon material with the same colour map matches the rest of the street.
+      model.traverse((n) => { if (n.isMesh) n.material = new gfx.three.MeshToonMaterial({ map: n.material.map, color: n.material.color }); });
       model.rotation.y = this.yaw;
       const size = new gfx.three.Box3().setFromObject(model).getSize(new gfx.three.Vector3());
       model.scale.setScalar(this.height / size.y);
