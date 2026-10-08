@@ -5,7 +5,7 @@ import {
   inReach, collect, updateObstacle, multiplier, MAX_DT, RULE_RANGES, pulled, pull,
 } from '../src/rules.js';
 import { classifySwipe, KEYS } from '../src/input.js';
-import { cameraFor, easeCamera, CAMERA } from '../src/engine.js';
+import { cameraFor, easeCamera, streakOpacity, CAMERA } from '../src/engine.js';
 
 const R = resolveRules();
 const COW = { height: 1.9, width: 1.0 };
@@ -490,4 +490,12 @@ test('the camera eases the speed that widens the view like its overrides, so a c
   assert.ok(live.speed > 0 && live.speed < 2.4, `one frame in, the eased speed has barely moved (${live.speed})`);
   assert.ok(Math.abs(cameraFor({ x: 0, y: 0, z: 0 }, live, live.speed).fov - 60) < 1, 'so the view opens at the base field of view instead of popping to 67°');
   assert.equal(easeCamera(live, {}, 24, Infinity).speed, 24, 'dt = Infinity snaps, as it does for the overrides');
+});
+
+test('a snap keeps the felt speed and switches the streaks off, so the frame a Bonk or an ending starts on is as wide as the last one', () => {
+  const live = easeCamera({ ...CAMERA, fov: 70, speed: 24 }, {}, 24, Infinity); // the end snap: the section override back to its default, the run's speed kept
+  assert.deepEqual([live.fov, live.speed], [60, 24]);
+  assert.ok(Math.abs(cameraFor({ x: 0, y: 0, z: 0 }, live, live.speed).fov - 67.2) < 1e-9, 'no 7° drop at 24 m/s');
+  assert.ok(Math.abs(streakOpacity(24) - (0.6 * 8) / 14) < 1e-9, 'a frame at 24 m/s draws the streaks');
+  assert.equal(streakOpacity(24, Infinity), 0, 'a snap is a still: no motion lines');
 });
