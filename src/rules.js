@@ -5,10 +5,12 @@ export const BIKE_SPEED = 4;         // its lateral speed, m/s
 
 export const DEFAULT_RULES = {
   laneWidth: 2.5, laneTime: 0.15, gravity: -30, jumpSpeed: 9, fastFall: -15, slideTime: 0.6, slideHeight: 0.8, grace: 1,
-  speed: { start: 12, end: 20, cap: 28, ramp: 0.004 },
+  reaction: 0.6,                                  // seconds: a row never comes closer than speed × reaction behind the previous one
+  speed: { start: 12, end: 24, cap: 30, ramp: 0.006 },
 };
 export const RULE_RANGES = {
   laneWidth: [1.5, 4], laneTime: [0.05, 0.5], gravity: [-60, -10], jumpSpeed: [5, 15], fastFall: [-40, -5], slideTime: [0.3, 2], slideHeight: [0.4, 1.5], grace: [0, 3],
+  reaction: [0.2, 1.5],
   speed: { start: [4, 40], end: [4, 40], cap: [4, 60], ramp: [0, 0.05] },
 };
 
@@ -20,16 +22,19 @@ export function resolveRules(overrides = {}) {
 export const laneX = (lane, rules) => (1 - lane) * rules.laneWidth;
 export const jumpHeight = (rules) => rules.jumpSpeed ** 2 / (2 * -rules.gravity);
 
-export function speedAt(level, z, rules) {
+// `from` is the speed carried in from the previous level (default: the start speed): a finite level ramps on from there by
+// the same amount its file asks for, so level 2 starts where level 1 finished. Everything is capped at speed.cap.
+export function speedAt(level, z, rules, from = rules.speed.start) {
   const s = rules.speed;
-  if (level.length_m === null) return Math.min(s.cap, s.start + z * s.ramp);
-  return s.start + (s.end - s.start) * Math.min(1, z / level.length_m);
+  if (level.length_m === null) return Math.min(s.cap, from + z * s.ramp);
+  return Math.min(s.cap, from + (s.end - s.start) * Math.min(1, z / level.length_m));
 }
 
-export function createRun(rules, character, jugs = 0) {
+export function createRun(rules, character, jugs = 0, speedFrom = rules.speed.start) {
   return {
     rules, dims: { height: character.height, width: character.width },
     lane: 1, x: 0, y: 0, vy: 0, slideT: 0, z: 0, time: 0, jugs, effects: {}, graceT: 0, over: false,
+    speed: speedFrom, speedFrom, // speed is what step() was last given; content reads it (stride, dust, streaks)
   };
 }
 
@@ -46,6 +51,7 @@ export function step(run, rawDt, speed) {
   const R = run.rules;
   const dt = Math.min(rawDt, MAX_DT);
   run.time += dt;
+  run.speed = speed;
   run.z += speed * dt;
   const maxMove = (R.laneWidth / R.laneTime) * dt;
   run.x += Math.max(-maxMove, Math.min(maxMove, laneX(run.lane, R) - run.x));

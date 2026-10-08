@@ -82,17 +82,17 @@ async function main() {
     show('select');
   }
 
-  async function startLevel(id, carry = 0) {
+  async function startLevel(id, carry = {}) {
     show(null);
     if (backdrop) { backdrop.dispose(); backdrop = null; }
     const level = levels[id];
     const view = await character(level);
     let result;
     try {
-      result = await playLevel({ engine, level, registry, hud, character: view, carryJugs: carry });
+      result = await playLevel({ engine, level, registry, hud, character: view, carryJugs: carry.jugs ?? 0, carrySpeed: carry.speed });
     } catch (error) {
       console.error(error);
-      result = { outcome: 'error', run: { jugs: carry }, world: null, error };
+      result = { outcome: 'error', run: { jugs: carry.jugs ?? 0 }, world: null, error };
     }
     const { outcome, run, world } = result;
     let flow = {};
@@ -103,7 +103,7 @@ async function main() {
     recordRun(save, id, run.jugs);
     writeSave(save);
     world?.dispose();
-    if (flow.next && levels[flow.next] && valid(flow.next)) return startLevel(flow.next, flow.carry ? run.jugs : 0);
+    if (flow.next && levels[flow.next] && valid(flow.next)) return startLevel(flow.next, flow.carry ? { jugs: run.jugs, speed: run.speed } : {});
 
     $('result-title').textContent = outcome === 'complete' ? `${level.title}: cleared!` : outcome === 'dead' ? 'Bonk!' : 'This level broke';
     $('result-jugs').textContent = outcome === 'error' ? `Something in "${level.title}" threw an error. The other levels still work.` : `${run.jugs} jugs · best ${save.best[id]}`;

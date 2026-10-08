@@ -3,11 +3,11 @@ import { createWorld } from './world.js';
 import { bindInput } from './input.js';
 
 // Runs one level to its end. A content hook that throws ends the run with outcome 'error' instead of freezing.
-export function playLevel({ engine, level, registry, hud, character, carryJugs = 0 }) {
+export function playLevel({ engine, level, registry, hud, character, carryJugs = 0, carrySpeed }) {
   return new Promise((resolve) => {
     const rules = resolveRules(level.rules ?? {});
     const charDef = registry.character[level.character?.id ?? 'milkshake'];
-    const run = createRun(rules, charDef, carryJugs);
+    const run = createRun(rules, charDef, carryJugs, carrySpeed);
     const streetAfter = level.ending ? (registry.ending[level.ending.id].streetAfter ?? 200) : 200;
     const world = createWorld(engine.scene, level, {
       registry, rules, seed: level.seed ?? ((Math.random() * 2 ** 32) >>> 0),
@@ -24,7 +24,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
     hud.show(true);
 
     function tick(rawDt) {
-      const dt = step(run, rawDt, speedAt(level, run.z, rules));
+      const dt = step(run, rawDt, speedAt(level, run.z, rules, run.speedFrom));
       world.update(run, dt);
       const me = playerBox(run);
       for (const o of world.live.obstacles) {

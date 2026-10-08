@@ -55,6 +55,8 @@ test('rules are known and in range', () => {
   assert.match(errs({ rules: { friction: 1 } }), /unknown rule "friction"/);
   assert.match(errs({ rules: { gravity: -5 } }), /gravity must be -60 to -10/);
   assert.match(errs({ rules: { speed: { warp: 1 } } }), /unknown rule "warp"/);
+  assert.match(errs({ rules: { reaction: 2 } }), /reaction must be 0.2 to 1.5/);
+  assert.equal(errs({ rules: { reaction: 0.4 } }), '');
 });
 test('endings and their params', () => {
   assert.match(errs({ length_m: null, ending: { id: 'finish' } }), /cannot have an ending/);

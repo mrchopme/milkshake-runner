@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_RULES, resolveRules, laneX, jumpHeight, speedAt, createRun, act, step, playerBox, obstacleBox, overlaps, hit,
-  inReach, collect, updateObstacle, multiplier, MAX_DT,
+  inReach, collect, updateObstacle, multiplier, MAX_DT, RULE_RANGES,
 } from '../src/rules.js';
 import { classifySwipe, KEYS } from '../src/input.js';
 
@@ -88,11 +88,27 @@ test('a huge frame time is clamped (no teleport after a background tab)', () => 
   assert.ok(Math.abs(run.z - 12 * MAX_DT) < 1e-9);
 });
 
-test('speed rises across a level and caps in endless', () => {
+test('speed rises across a level, carries on from a previous level and caps', () => {
   assert.equal(speedAt({ length_m: 1000 }, 0, R), 12);
-  assert.equal(speedAt({ length_m: 1000 }, 1000, R), 20);
-  assert.equal(speedAt({ length_m: null }, 1e6, R), 28);
+  assert.equal(speedAt({ length_m: 1000 }, 1000, R), 24);
+  assert.equal(speedAt({ length_m: null }, 1e6, R), 30);
   assert.equal(speedAt({ length_m: 1000 }, 500, resolveRules({ speed: { start: 10, end: 30 } })), 20);
+  assert.equal(speedAt({ length_m: 1000 }, 0, R, 24), 24, 'a carried speed is the new start');
+  assert.equal(speedAt({ length_m: 1000 }, 1000, R, 24), 30, 'the ramp continues by the same amount, capped');
+});
+
+test('a run remembers its speed and where it started', () => {
+  const run = createRun(R, COW, 0, 24);
+  assert.equal(run.speedFrom, 24);
+  assert.equal(run.speed, 24, 'before the first step the speed is the start speed');
+  step(run, 1 / 60, 25);
+  assert.equal(run.speed, 25);
+  assert.equal(createRun(R, COW).speedFrom, 12);
+});
+
+test('reaction is a rule with a range', () => {
+  assert.equal(R.reaction, 0.6);
+  assert.deepEqual(RULE_RANGES.reaction, [0.2, 1.5]);
 });
 
 test('effects: reach, multiplier, timers and expiry', () => {
