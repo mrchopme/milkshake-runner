@@ -147,3 +147,7 @@ test('props: weights, grid and placements', () => {
   assert.match(s([{ at_m: 100, kind: 'obstacle', id: 'taxi' }]), /lane must be 0, 1 or 2/);
   assert.equal(errs({ sections: [{ from_m: 0, to_m: 100, props: { per_100m: 2, ids: { billboard: 1 } } }] }), '');
 });
+
+test('shipped theme changes sit on 120 m chunk boundaries, where the street actually switches', () => {
+  for (const [id, lv] of Object.entries(shipped())) for (const s of lv.sections ?? []) if (s.theme) assert.ok(s.from_m % 120 === 0 && s.to_m % 120 === 0, `${id}: theme section ${s.from_m}–${s.to_m} m`);
+});

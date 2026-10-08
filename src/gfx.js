@@ -42,7 +42,7 @@ export function bendable(material) {
   material.needsUpdate = true;
   return material;
 }
-export function bend(object) { object.traverse((n) => { if (n.material) bendable(n.material); }); return object; }
+export function bend(object) { object.traverse((n) => { for (const m of [].concat(n.material ?? [])) bendable(m); }); return object; } // a mesh may carry a material array
 export function setBend({ turn = 0, hill = 0, origin = 0 } = {}) { bendUniform.value.set(0 - turn * TURN_K, hill * HILL_K, origin, DEAD); } // 0 - …: a straight road is +0, never -0
 
 const mats = new Map();

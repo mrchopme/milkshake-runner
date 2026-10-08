@@ -94,3 +94,14 @@ test('props are built, streamed, dropped and bent like obstacles', () => {
   assert.ok(world.live.props.every((p) => p.z + p.length >= 300 - 15), 'props are dropped once their far end is behind');
   assert.ok(disposed > 0);
 });
+
+test('a level-wide curve is fully straight at the finish line, not just aiming there', () => {
+  const rock = { kind: 'obstacle', id: 'rock', avoid: 'lane', box: { w: 1, h: 1, d: 1 }, createView(gfx) { return { object: gfx.box(1, 1, 1, '#ffffff') }; } };
+  const registry = { obstacle: { rock }, pickup: {}, theme: { t: theme }, character: {}, ending: {} };
+  const world = createWorld(new THREE.Scene(), { ...level, curve: { turn: 1 } }, { registry, rules, seed: 1, end: 800 });
+  const run = createRun(rules, { height: 1.9, width: 1 });
+  run.speed = 20;
+  while (run.z < 600) { run.z = Math.min(600, run.z + 20 / 60); world.update(run, 1 / 60); }
+  assert.equal(gfx.bendUniform.value.x, 0, 'the eased bend lags the faded target unless the fade also scales what is applied');
+  world.dispose();
+});

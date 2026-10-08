@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as gfx from './gfx.js';
-import { generate, normalizeLevel, rng, sectionAt, curveAt, cameraAt } from './generator.js';
+import { generate, normalizeLevel, rng, sectionAt, curveAt, cameraAt, FINISH_FADE_M } from './generator.js';
 import { laneX, obstacleBox, updateObstacle, pull } from './rules.js';
 import { safeCall } from './registry.js';
 
@@ -100,7 +100,9 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
     const a = 1 - Math.exp((-3 * (run.speed ?? 0) * dt) / BEND_EASE_M);
     bend.turn += (target.turn - bend.turn) * a;
     bend.hill += (target.hill - bend.hill) * a;
-    gfx.setBend({ turn: bend.turn, hill: bend.hill, origin: run.z });
+    // The eased value lags the faded target, so the applied bend is scaled by the same finish fade: exactly straight at the line.
+    const fade = norm.length == null ? 1 : Math.max(0, Math.min(1, (norm.length - run.z) / FINISH_FADE_M));
+    gfx.setBend({ turn: bend.turn * fade, hill: bend.hill * fade, origin: run.z });
   }
 
   const skyAt = (z) => {

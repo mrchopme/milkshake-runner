@@ -12,10 +12,10 @@
     { "from_m": 150, "to_m": 400, "curve": { "turn": 0.7 } },
     { "from_m": 400, "to_m": 600, "curve": { "hill": -0.8 }, "placements": [{ "at_m": 470, "kind": "prop", "id": "overpass" }] },
     { "from_m": 600, "to_m": 900, "curve": { "turn": -0.7 } },
-    { "from_m": 900, "to_m": 1050, "camera": { "height": 2.4, "distance": 5, "fov": 65 }, "placements": [{ "at_m": 905, "kind": "prop", "id": "tunnel" }] },
-    { "from_m": 1050, "to_m": 1300, "curve": { "hill": 0.6 }, "camera": { "height": 5.5, "distance": 8.5 }, "theme": { "id": "bridge" }, "placements": [
-      { "at_m": 1060, "kind": "prop", "id": "railings" }, { "at_m": 1100, "kind": "prop", "id": "railings" }, { "at_m": 1140, "kind": "prop", "id": "railings" },
-      { "at_m": 1180, "kind": "prop", "id": "railings" }, { "at_m": 1220, "kind": "prop", "id": "railings" } ] }
+    { "from_m": 900, "to_m": 1080, "camera": { "height": 2.4, "distance": 5, "fov": 65 }, "placements": [{ "at_m": 905, "kind": "prop", "id": "tunnel" }] },
+    { "from_m": 1080, "to_m": 1320, "curve": { "hill": 0.6 }, "camera": { "height": 5.5, "distance": 8.5 }, "theme": { "id": "bridge" }, "placements": [
+      { "at_m": 1080, "kind": "prop", "id": "railings" }, { "at_m": 1120, "kind": "prop", "id": "railings" }, { "at_m": 1160, "kind": "prop", "id": "railings" },
+      { "at_m": 1200, "kind": "prop", "id": "railings" }, { "at_m": 1240, "kind": "prop", "id": "railings" }, { "at_m": 1280, "kind": "prop", "id": "railings" } ] }
   ],
   "ending": { "id": "transition", "params": { "next": "02-garden" } }
 }

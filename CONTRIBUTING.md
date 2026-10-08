@@ -57,7 +57,7 @@ If you find you do, open an issue: that is a bug in the engine's modularity, not
 | `curve` | optional, level or section: `{ "turn": -1..1, "hill": -1..1 }` (positive turn bends to the right, negative hill is a dip) or `"random"`; nothing bends inside 20 m, and a finite level straightens over its last 120 m |
 | `camera` | optional, level or section: `height` 1.5–8 m, `distance` 3–12 m, `fov` 45–100; sections inherit the level's values and ease over half a second |
 | `props` | optional, level or section: `{ "per_100m": 0–5, "ids": { "overpass": 1 } }` from registered props, placed on a grid and never overlapping |
-| `sections` | optional, ordered, non-overlapping; each may override `obstacles`, `density`, `jugs`, `theme`, `curve`, `camera`, `props`, turn `generation` off, and list `placements` |
+| `sections` | optional, ordered, non-overlapping; each may override `obstacles`, `density`, `jugs`, `theme`, `curve`, `camera`, `props`, turn `generation` off, and list `placements`. The street is built in 120 m chunks, so a section `theme` switches at the next multiple of 120 m: start and end theme changes on those boundaries |
 | `placements` | `{ at_m, lane (0-2), kind (obstacle, pickup or prop), id }` inside the section; a prop has no lane and must fit inside the level; a row may not block all three lanes with nothing to jump or slide |
 | `ending` | optional; `id` of a registered ending plus its `params` |
 

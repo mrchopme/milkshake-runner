@@ -454,3 +454,15 @@ test('a pulled jug one lane over and close ahead is not overtaken before it arri
   for (let i = 0; i < 60 && !collected; i++) { step(run, 1 / 60, 24); pull(run, p, 1 / 60); collected = inReach(run, p); }
   assert.ok(collected, `the jug ended ${(p.z - run.z).toFixed(2)} m along and ${(p.x - run.x).toFixed(2)} m across, never collected`);
 });
+
+test('gfx.bend takes a mesh with a material array, as three.js allows', () => {
+  const mesh = new gfx.three.Mesh(new gfx.three.BoxGeometry(1, 1, 1), [new gfx.three.MeshBasicMaterial(), new gfx.three.MeshBasicMaterial()]);
+  assert.doesNotThrow(() => gfx.bend(mesh));
+  assert.ok(mesh.material.every((m) => m.userData.bent));
+});
+
+test('the reaction floor also holds before a placed row that sits on the grid', () => {
+  const fast = resolveRules({ speed: { start: 30, end: 30 } }); // floor 18 m
+  const placed = lvl({ density: { start: 1, end: 1 }, sections: [{ from_m: 100, to_m: 400, placements: [{ at_m: 204, lane: 0, kind: 'obstacle', id: 'taxi' }] }] });
+  for (const s of seeds.slice(0, 20)) for (const o of all(placed, s, fast).obstacles.filter((o) => !o.placed)) assert.ok(o.z >= 204 || 204 - o.z >= 18, `seed ${s}: generated row at ${o.z} right before the placement at 204`);
+});

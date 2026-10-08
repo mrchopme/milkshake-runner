@@ -110,9 +110,11 @@ export function generate(norm, r, fromZ, toZ, registry, rules, state = { lastRow
   for (let z = firstRow; z < Math.min(toZ, lastRow); z += ROW_GAP) {
     const s = sectionAt(norm, z);
     if (!s.generation || s.placements.some((p) => p.kind === 'obstacle' && Math.abs(p.at_m - z) < ROW_GAP)) continue; // placements own their row
-    // Reaction floor: at speed v a row never comes closer than v × reaction metres after the previous row, generated or placed.
-    const prev = Math.max(state.lastRow, ...placedRows.filter((a) => a < z));
+    // Reaction floor: at speed v a row never comes closer than v × reaction metres to the previous row (generated or placed)
+    // or to the next placed row ahead, which the generator cannot move.
+    const prev = Math.max(state.lastRow, ...placedRows.filter((a) => a < z)), next = Math.min(...placedRows.filter((a) => a > z));
     if (z - prev < speedAt(level, z, rules, state.speedFrom) * rules.reaction) continue;
+    if (next - z < speedAt(level, next, rules, state.speedFrom) * rules.reaction) continue;
     if (r() >= densityAt(s, z)) continue;
     const ids = Object.keys(s.obstacles);
     if (!ids.length) continue;
