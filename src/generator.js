@@ -34,7 +34,7 @@ export function normalizeLevel(level) {
   const length = level.length_m;
   const end = length ?? Infinity;
   const levelSpan = [0, length ?? ENDLESS_RAMP_M];
-  const base = (from, to) => ({ from, to, obstacles: level.obstacles, density: level.density, densitySpan: levelSpan, jugs: level.jugs, theme: level.theme, generation: true, placements: [] });
+  const base = (from, to) => ({ from, to, obstacles: level.obstacles, density: level.density, densitySpan: levelSpan, jugs: level.jugs, theme: level.theme, curve: level.curve ?? null, generation: true, placements: [] });
   const sections = [];
   let cursor = 0;
   for (const s of level.sections ?? []) {
@@ -46,6 +46,7 @@ export function normalizeLevel(level) {
       densitySpan: s.density ? [s.from_m, s.to_m] : levelSpan,
       jugs: s.jugs ?? level.jugs,
       theme: s.theme ? { ...level.theme, ...s.theme } : level.theme,
+      curve: s.curve ?? level.curve ?? null,
       generation: s.generation !== false,
       placements: s.placements ?? [],
     });
@@ -61,6 +62,21 @@ export function densityAt(section, z) {
   const [z0, z1] = section.densitySpan;
   const t = z1 > z0 ? Math.min(1, Math.max(0, (z - z0) / (z1 - z0))) : 1;
   return section.density.start + (section.density.end - section.density.start) * t;
+}
+
+export const RANDOM_CURVE_M = 240; // "random" curves pick a new target every this many metres
+export const FINISH_FADE_M = 120;  // a finite level straightens over its last metres so endings play on a straight street
+
+// The bend target at z: the section's curve (inherited from the level), a seeded pick per segment for "random", faded to 0 at a finite finish.
+export function curveAt(norm, z, seed = 0) {
+  let c = sectionAt(norm, z).curve;
+  if (c === 'random') {
+    const pick = rng((seed + 0x9e3779b9 * (Math.floor(z / RANDOM_CURVE_M) + 1)) >>> 0);
+    c = { turn: [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], hill: [-0.6, 0, 0.6][Math.floor(pick() * 3)] };
+  }
+  let turn = c?.turn ?? 0, hill = c?.hill ?? 0;
+  if (norm.length != null) { const fade = Math.max(0, Math.min(1, (norm.length - z) / FINISH_FADE_M)); turn = turn * fade || 0; hill = hill * fade || 0; } // `|| 0` turns a -0 into 0
+  return { turn, hill };
 }
 
 function pick(weights, r) {

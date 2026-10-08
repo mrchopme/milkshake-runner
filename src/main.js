@@ -1,4 +1,5 @@
 import './style.css';
+import * as gfx from './gfx.js';
 import { createEngine } from './engine.js';
 import { loadRegistry } from './registry.js';
 import { loadLevels } from './levels.js';
@@ -40,7 +41,7 @@ async function main() {
   const character = async (level) => {
     const view = await loadCharacter(registry.character[level.character?.id ?? 'milkshake']);
     for (const c of engine.scene.children.filter((c) => c.userData.character && c !== view.object)) engine.scene.remove(c);
-    if (!view.object.parent) { view.object.userData.character = true; engine.scene.add(view.object); }
+    if (!view.object.parent) { view.object.userData.character = true; engine.scene.add(gfx.bend(view.object)); } // the GLB's toon swap and the dust materials are the module's own
     return view;
   };
 

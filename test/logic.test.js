@@ -166,7 +166,8 @@ test('swipes and keys map to actions', () => {
 
 import { before } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { generate, normalizeLevel, densityAt, rng, passable, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
+import { generate, normalizeLevel, densityAt, rng, passable, curveAt, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
+import * as gfx from '../src/gfx.js';
 import { buildRegistry } from '../src/registry.js';
 import { discover } from './helpers.js';
 
@@ -387,4 +388,35 @@ test('a magnet pulls a jug in over a few frames instead of collecting it 15 m ou
   const none = createRun(R, COW);
   assert.equal(pulled(none, { lane: 1, z: 3 }), false, 'without a magnet nothing is pulled');
   assert.equal(inReach(none, { lane: 1, z: 0.5 }), true, 'but a jug in your lane is still picked up');
+});
+
+test('curveAt follows sections, inherits the level, fades at the finish and is reproducible when random', () => {
+  const level = lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 300, to_m: 600, curve: { hill: -1 } }, { from_m: 600, to_m: 900, curve: 'random' }] });
+  const norm = normalizeLevel(level);
+  assert.deepEqual(curveAt(norm, 100), { turn: 1, hill: 0 }, 'the level curve applies outside sections');
+  assert.deepEqual(curveAt(norm, 400), { turn: 0, hill: -1 }, 'a section curve replaces it');
+  const r = curveAt(norm, 700, 7);
+  assert.deepEqual(r, curveAt(norm, 700, 7));
+  assert.ok(Math.abs(r.turn) <= 1 && Math.abs(r.hill) <= 1);
+  assert.deepEqual(curveAt(norm, 1500), { turn: 0, hill: 0 }, 'straight at the finish');
+  assert.deepEqual(curveAt(norm, 1440), { turn: 0.5, hill: 0 }, 'half way through the fade');
+  assert.deepEqual(curveAt(normalizeLevel(lvl()), 500), { turn: 0, hill: 0 }, 'no curve means straight');
+  const E = normalizeLevel(lvl({ length_m: null, curve: 'random' }));
+  const segs = Array.from({ length: 10 }, (_, i) => i * 240);
+  const a = segs.map((z) => curveAt(E, z, 7)), b = segs.map((z) => curveAt(E, z, 8));
+  assert.deepEqual(a, segs.map((z) => curveAt(E, z, 7)), 'random targets come from the seed');
+  assert.notDeepEqual(a, b);
+  assert.ok(a.some((c, i) => i && (c.turn !== a[i - 1].turn || c.hill !== a[i - 1].hill)), 'and change from segment to segment');
+  const F = normalizeLevel(lvl({ length_m: 480, curve: 'random' }));
+  assert.deepEqual(curveAt(F, 480, 7), { turn: 0, hill: 0 }, 'random still fades out at a finite finish');
+});
+
+test('gfx.box subdivides along z so long road pieces bend', () => {
+  assert.equal(gfx.box(1, 1, 120, '#ffffff').geometry.parameters.depthSegments, 30);
+  assert.equal(gfx.box(1, 1, 3, '#ffffff').geometry.parameters.depthSegments, 1);
+  assert.ok(gfx.box(1, 1, 1, '#ffffff').material.userData.bent, 'materials from the helpers are bendable');
+  gfx.setBend({ turn: 1, hill: -0.5, origin: 100 });
+  assert.deepEqual(gfx.bendUniform.value.toArray(), [-gfx.TURN_K, -0.5 * gfx.HILL_K, 100, gfx.DEAD], 'positive turn bends to screen-right (-x)');
+  gfx.setBend();
+  assert.deepEqual(gfx.bendUniform.value.toArray(), [0, 0, 0, gfx.DEAD]);
 });

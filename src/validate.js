@@ -5,8 +5,8 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const inRange = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const isName = (v) => typeof v === 'string' && v.trim().length >= 1 && v.length <= 60;
 const HEX = /^#[0-9a-fA-F]{6}$/;
-const LEVEL_KEYS = ['id', 'title', 'author', 'length_m', 'seed', 'character', 'theme', 'rules', 'obstacles', 'density', 'jugs', 'sections', 'ending'];
-const SECTION_KEYS = ['from_m', 'to_m', 'obstacles', 'density', 'jugs', 'theme', 'generation', 'placements'];
+const LEVEL_KEYS = ['id', 'title', 'author', 'length_m', 'seed', 'character', 'theme', 'rules', 'obstacles', 'density', 'jugs', 'sections', 'ending', 'curve'];
+const SECTION_KEYS = ['from_m', 'to_m', 'obstacles', 'density', 'jugs', 'theme', 'generation', 'placements', 'curve'];
 
 // Every object is checked against an allow-list, so a typo can never pass as a working option.
 const keys = (obj, allowed, path, e) => { for (const k of Object.keys(obj)) if (!allowed.includes(k)) e.push(`${path}: unknown key "${k}"`); };
@@ -39,6 +39,12 @@ function checkTheme(t, path, registry, e, requireId) {
   if (requireId || t.id !== undefined) { if (!registry.theme[t.id]) e.push(`${path}.id: unknown theme "${t.id}" (known: ${Object.keys(registry.theme).join(', ')})`); }
   if (t.sky !== undefined && !HEX.test(t.sky)) e.push(`${path}.sky must be a hex colour like "#f4b26a"`);
   if (t.fog !== undefined && !inRange(t.fog, 0, 1)) e.push(`${path}.fog must be 0 to 1`);
+}
+function checkCurve(c, path, e) {
+  if (c === 'random') return;
+  if (!isObj(c)) return e.push(`${path} must be an object with turn and hill (-1 to 1), or "random"`);
+  keys(c, ['turn', 'hill'], path, e);
+  for (const k of ['turn', 'hill']) if (c[k] !== undefined && !inRange(c[k], -1, 1)) e.push(`${path}.${k} must be -1 to 1`);
 }
 function checkRules(r, path, e) {
   if (!isObj(r)) return e.push(`${path} must be an object`);
@@ -88,6 +94,7 @@ function checkSections(level, registry, rules, e) {
     if (s.density !== undefined) checkDensity(s.density, `${path}.density`, e);
     if (s.jugs !== undefined) checkJugs(s.jugs, `${path}.jugs`, registry, e);
     if (s.theme !== undefined) checkTheme(s.theme, `${path}.theme`, registry, e, false);
+    if (s.curve !== undefined) checkCurve(s.curve, `${path}.curve`, e);
     if (s.generation !== undefined && typeof s.generation !== 'boolean') e.push(`${path}.generation must be true or false`);
     if (s.placements === undefined) return;
     if (!Array.isArray(s.placements)) return e.push(`${path}.placements must be a list`);
@@ -141,6 +148,7 @@ export function validateLevel(level, { fileId, allIds, registry }) {
   }
   if (level.theme === undefined) e.push('theme is required'); else checkTheme(level.theme, 'theme', registry, e, true);
   if (level.rules !== undefined) checkRules(level.rules, 'rules', e);
+  if (level.curve !== undefined) checkCurve(level.curve, 'curve', e);
   if (!isObj(level.obstacles)) e.push('obstacles must be an object of {id: weight}'); else checkObstacles(level.obstacles, 'obstacles', registry, e);
   if (level.density === undefined) e.push('density is required'); else checkDensity(level.density, 'density', e);
   if (level.jugs === undefined) e.push('jugs is required'); else checkJugs(level.jugs, 'jugs', registry, e);

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as gfx from './gfx.js';
-import { generate, normalizeLevel, rng, sectionAt } from './generator.js';
+import { generate, normalizeLevel, rng, sectionAt, curveAt } from './generator.js';
 import { laneX, obstacleBox, updateObstacle, pull } from './rules.js';
 import { safeCall } from './registry.js';
 
@@ -30,6 +30,8 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
   const norm = normalizeLevel(level);
   const r = rng(seed), rs = rng(seed ^ 0x9e3779b9); // scenery has its own rng so it never shifts the street
   const gen = { lastRow: -Infinity, speedFrom };     // the generator's memory across chunks
+  const bend = { turn: 0, hill: 0 }; // eased toward curveAt; the uniform is shared by every bendable material
+  const BEND_EASE_M = 40;            // metres of travel to get 95% of the way to a new curve
   const root = new THREE.Group();
   scene.add(root);
   const live = { obstacles: [], pickups: [] };
@@ -47,14 +49,14 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
       o.def = registry.obstacle[o.id];
       o.view = safeCall(`obstacle ${o.id} createView`, () => o.def.createView(gfx, o), null) ?? fallbackView();
       o.view.object.position.set(laneX(o.lane, rules), 0, o.z);
-      root.add(o.view.object);
+      root.add(gfx.bend(o.view.object));
       live.obstacles.push(o);
     }
     for (const p of pickups) {
       p.def = registry.pickup[p.id];
       p.view = safeCall(`pickup ${p.id} createView`, () => (p.def.createView ? p.def.createView(gfx) : { object: gfx.orb(p.def) }), null) ?? fallbackView();
       p.view.object.position.set(laneX(p.lane, rules), 0, p.z);
-      root.add(p.view.object);
+      root.add(gfx.bend(p.view.object));
       live.pickups.push(p);
     }
     const section = sectionAt(norm, builtTo);
@@ -62,7 +64,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
     const theme = { ...themeDef, ...section.theme };
     const args = { z0: builtTo, length, lanes, rng: rs, theme };
     const g = safeCall(`theme ${theme.id} createChunk`, () => (themeDef.createChunk ? themeDef.createChunk(gfx, args) : defaultChunk(gfx, args)), null) ?? new THREE.Group();
-    root.add(g);
+    root.add(gfx.bend(g));
     chunks.push({ z: builtTo, g });
     builtTo += length;
   }
@@ -86,6 +88,11 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
       if (p.x !== undefined) p.view.object.position.set(p.x, 0, p.z);
       if (p.view.update) safeCall(`pickup ${p.id} update`, () => p.view.update(p, run, dt));
     }
+    const target = curveAt(norm, run.z, seed);
+    const a = 1 - Math.exp((-3 * (run.speed ?? 0) * dt) / BEND_EASE_M);
+    bend.turn += (target.turn - bend.turn) * a;
+    bend.hill += (target.hill - bend.hill) * a;
+    gfx.setBend({ turn: bend.turn, hill: bend.hill, origin: run.z });
   }
 
   const skyAt = (z) => {
@@ -94,6 +101,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
   };
   function removePickup(p) { live.pickups.splice(live.pickups.indexOf(p), 1); dropView(p, 'pickup'); }
   function dispose() {
+    gfx.setBend();
     for (const o of live.obstacles) if (o.view.dispose) safeCall(`obstacle ${o.id} dispose`, () => o.view.dispose());
     for (const p of live.pickups) if (p.view.dispose) safeCall(`pickup ${p.id} dispose`, () => p.view.dispose());
     scene.remove(root); gfx.dispose(root);

@@ -62,3 +62,19 @@ test('a pulled pickup moves its view toward Milkshake', () => {
   assert.equal(p.view.object.position.x, p.x, 'the view follows the logical x');
   assert.equal(p.view.object.position.z, p.z, 'the view sits at the logical position');
 });
+
+test('the world eases the bend toward the section curve, carries the origin with Milkshake and resets on dispose', () => {
+  const rock = { kind: 'obstacle', id: 'rock', avoid: 'lane', box: { w: 1, h: 1, d: 1 }, createView(gfx) { return { object: gfx.box(1, 1, 1, '#ffffff') }; } };
+  const registry = { obstacle: { rock }, pickup: {}, theme: { t: theme }, character: {}, ending: {} };
+  const world = createWorld(new THREE.Scene(), { ...level, curve: { turn: 1 } }, { registry, rules, seed: 1, end: 600 });
+  const run = createRun(rules, { height: 1.9, width: 1 });
+  run.speed = 20;
+  world.update(run, 0);
+  assert.equal(gfx.bendUniform.value.x, 0, 'starts straight');
+  for (let i = 0; i < 120; i++) { run.z += 20 / 60; world.update(run, 1 / 60); } // 40 m at 20 m/s
+  assert.ok(gfx.bendUniform.value.x < -0.9 * gfx.TURN_K, 'most of the way into a right turn after 40 m');
+  assert.equal(gfx.bendUniform.value.z, run.z, 'the origin rides with Milkshake');
+  assert.ok(world.live.obstacles.every((o) => o.view.object.material.userData.bent), 'everything the world adds is bendable');
+  world.dispose();
+  assert.equal(gfx.bendUniform.value.x, 0);
+});

@@ -111,3 +111,13 @@ test('placed obstacle rows closer than the reaction floor are rejected', () => {
   assert.equal(two(3), '', 'placements within half a row are one row, checked by the wall rule instead');
   assert.equal(two(12, { speed: { start: 30, end: 30 }, reaction: 0.3 }), '', 'a lower reaction rule allows it');
 });
+
+test('curve is turn and hill in -1..1, or "random"', () => {
+  assert.equal(errs({ curve: { turn: 0.5, hill: -1 } }), '');
+  assert.equal(errs({ curve: 'random' }), '');
+  assert.match(errs({ curve: { turn: 2 } }), /turn must be -1 to 1/);
+  assert.match(errs({ curve: { bend: 1 } }), /curve: unknown key "bend"/);
+  assert.match(errs({ curve: 'wobbly' }), /turn and hill/);
+  assert.equal(errs({ sections: [{ from_m: 0, to_m: 100, curve: { hill: -0.5 } }] }), '');
+  assert.match(errs({ sections: [{ from_m: 0, to_m: 100, curve: { hill: 3 } }] }), /sections\[0\]\.curve\.hill/);
+});
