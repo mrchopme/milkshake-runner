@@ -166,7 +166,7 @@ test('swipes and keys map to actions', () => {
 
 import { before } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { generate, normalizeLevel, densityAt, rng, passable, curveAt, cameraAt, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
+import { generate, normalizeLevel, densityAt, rng, passable, curveAt, curveSegments, FINISH_STRAIGHT_M, cameraAt, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
 import * as gfx from '../src/gfx.js';
 import { buildRegistry } from '../src/registry.js';
 import { discover } from './helpers.js';
@@ -409,6 +409,29 @@ test('curveAt follows sections, inherits the level, fades at the finish and is r
   assert.ok(a.some((c, i) => i && (c.turn !== a[i - 1].turn || c.hill !== a[i - 1].hill)), 'and change from segment to segment');
   const F = normalizeLevel(lvl({ length_m: 480, curve: 'random' }));
   assert.deepEqual(curveAt(F, 480, 7), { turn: 0, hill: 0 }, 'random still fades out at a finite finish');
+});
+
+test('curveSegments lists the bending stretches of street: sections, the inherited level curve, random picks, nothing in the last 120 m', () => {
+  const level = lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 300, to_m: 600, curve: { hill: -1 } }, { from_m: 600, to_m: 900, curve: 'random' }] });
+  const norm = normalizeLevel(level);
+  const segs = curveSegments(norm, 0, 1500, 7);
+  assert.deepEqual(segs[0], { from: 0, to: 300, turn: 1, hill: 0 }, 'the level curve applies outside sections');
+  assert.deepEqual(segs[1], { from: 300, to: 600, turn: 0, hill: -1 }, 'a section curve replaces it');
+  const random = segs.filter((s) => s.from >= 600 && s.from < 900);
+  assert.ok(random.length <= 2 && random.every((s) => s.to <= 900 && Math.abs(s.turn) <= 1 && Math.abs(s.hill) <= 1 && (s.turn || s.hill)), 'random stretches stay inside their section, carry a pick and skip the straight ones');
+  assert.deepEqual(random, curveSegments(norm, 0, 1500, 7).filter((s) => s.from >= 600 && s.from < 900), 'random picks come from the seed');
+  assert.deepEqual(segs.at(-1), { from: 900, to: 1500 - FINISH_STRAIGHT_M, turn: 1, hill: 0 }, 'the level curve resumes and stops 120 m before the finish');
+  assert.deepEqual(curveSegments(norm, 1380, 1500, 7), [], 'the last 120 m are straight');
+  assert.deepEqual(curveSegments(norm, 100, 200, 7), [{ from: 0, to: 300, turn: 1, hill: 0 }], 'only stretches overlapping the asked range, with their real ends');
+  assert.deepEqual(curveSegments(normalizeLevel(lvl()), 0, 1500), [], 'no curve means straight');
+  assert.deepEqual(curveSegments(normalizeLevel(lvl({ sections: [{ from_m: 100, to_m: 200, curve: { turn: 0 } }] })), 0, 1500), [], 'explicit zeros are a straight stretch');
+  assert.deepEqual(curveSegments(normalizeLevel(lvl({ length_m: 100, curve: { turn: 1 } })), 0, 100), [], 'a level shorter than the finish straight is straight');
+  const E = normalizeLevel(lvl({ length_m: null, curve: 'random' }));
+  const a = curveSegments(E, 0, 2400, 7), b = curveSegments(E, 0, 2400, 8);
+  assert.ok(a.length >= 5 && a.every((s) => s.to - s.from === 240 && s.from % 240 === 0), 'random is cut every 240 m');
+  assert.deepEqual(a, curveSegments(E, 0, 2400, 7));
+  assert.notDeepEqual(a, b, 'and differs between seeds');
+  assert.deepEqual(curveSegments(normalizeLevel(lvl({ length_m: 480, curve: 'random' })), 0, 480, 7).filter((s) => s.to > 360), [], 'random stops 120 m before a finite finish too');
 });
 
 test('gfx.box subdivides along z so long road pieces bend', () => {
