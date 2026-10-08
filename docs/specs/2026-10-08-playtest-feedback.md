@@ -105,7 +105,6 @@ Magnet pull invisible (FB-4), throwing `createChunk` leaves an empty street, fix
 hard-coded font path, no CI concurrency group for Pages, an error outcome recorded as a best, ENDLESS button ignoring
 level validity, no catch around `main()`, low-fps tunnelling at the endless cap, CONTRIBUTING's `model:` wording.
 
-## Still unanswered
+## Ezra's modularity asks
 
-Ezra's own modularity asks from his 2026-10-07 call were never captured; if they overlap with FB-3 (level design) or
-FB-4 (power-up definitions), fold them in together.
+Caedon ruled on 2026-10-08 that Ezra's asks from the 2026-10-07 call are already baked into v2 and are not to be raised again.

@@ -1,6 +1,6 @@
 ---
-provenance: agent-generated
-last-verified: never
+provenance: human-approved
+last-verified: 2026-10-08
 ---
 
 # Milkshake Runner v3 (playtest response) Implementation Plan
