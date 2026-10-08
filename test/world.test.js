@@ -78,3 +78,19 @@ test('the world eases the bend toward the section curve, carries the origin with
   world.dispose();
   assert.equal(gfx.bendUniform.value.x, 0);
 });
+
+test('props are built, streamed, dropped and bent like obstacles', () => {
+  let disposed = 0;
+  const arch = { kind: 'prop', id: 'arch', length: 2, createView(gfx, { lanes }) { return { object: gfx.box(lanes.roadHalf * 2, 1, 1, '#ffffff'), dispose() { disposed++; } }; } };
+  const registry = { obstacle: {}, pickup: {}, prop: { arch }, theme: { t: theme }, character: {}, ending: {} };
+  const lvl = { ...level, obstacles: {}, density: { start: 0, end: 0 }, props: { per_100m: 5, ids: { arch: 1 } } };
+  const world = createWorld(new THREE.Scene(), lvl, { registry, rules, seed: 1, end: 600 });
+  const run = createRun(rules, { height: 1.9, width: 1 });
+  world.update(run, 0);
+  assert.ok(world.live.props.length > 0);
+  assert.ok(world.live.props.every((p) => p.view.object.position.z === p.z && p.view.object.material.userData.bent));
+  run.z = 300;
+  world.update(run, 0);
+  assert.ok(world.live.props.every((p) => p.z + p.length >= 300 - 15), 'props are dropped once their far end is behind');
+  assert.ok(disposed > 0);
+});

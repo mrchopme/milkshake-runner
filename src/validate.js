@@ -5,8 +5,8 @@ const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const inRange = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const isName = (v) => typeof v === 'string' && v.trim().length >= 1 && v.length <= 60;
 const HEX = /^#[0-9a-fA-F]{6}$/;
-const LEVEL_KEYS = ['id', 'title', 'author', 'length_m', 'seed', 'character', 'theme', 'rules', 'obstacles', 'density', 'jugs', 'sections', 'ending', 'curve', 'camera'];
-const SECTION_KEYS = ['from_m', 'to_m', 'obstacles', 'density', 'jugs', 'theme', 'generation', 'placements', 'curve', 'camera'];
+const LEVEL_KEYS = ['id', 'title', 'author', 'length_m', 'seed', 'character', 'theme', 'rules', 'obstacles', 'density', 'jugs', 'sections', 'ending', 'curve', 'camera', 'props'];
+const SECTION_KEYS = ['from_m', 'to_m', 'obstacles', 'density', 'jugs', 'theme', 'generation', 'placements', 'curve', 'camera', 'props'];
 
 // Every object is checked against an allow-list, so a typo can never pass as a working option.
 const keys = (obj, allowed, path, e) => { for (const k of Object.keys(obj)) if (!allowed.includes(k)) e.push(`${path}: unknown key "${k}"`); };
@@ -51,6 +51,16 @@ function checkCamera(c, path, e) {
   if (!isObj(c)) return e.push(`${path} must be an object with height, distance and fov`);
   keys(c, Object.keys(CAMERA_RANGES), path, e);
   for (const [k, [lo, hi]] of Object.entries(CAMERA_RANGES)) if (c[k] !== undefined && !inRange(c[k], lo, hi)) e.push(`${path}.${k} must be ${lo} to ${hi}`);
+}
+function checkProps(p, path, registry, e) {
+  if (!isObj(p)) return e.push(`${path} must be an object with per_100m and ids`);
+  keys(p, ['per_100m', 'ids'], path, e);
+  if (!inRange(p.per_100m, 0, 5)) e.push(`${path}.per_100m must be 0 to 5`);
+  if (!isObj(p.ids)) return e.push(`${path}.ids must be an object of {id: weight}`);
+  for (const [id, w] of Object.entries(p.ids)) {
+    if (!registry.prop[id]) e.push(`${path}.ids: unknown prop "${id}" (known: ${Object.keys(registry.prop).join(', ')})`);
+    else if (!inRange(w, Number.MIN_VALUE, 1e6)) e.push(`${path}.ids: weight for "${id}" must be a number above 0`);
+  }
 }
 function checkRules(r, path, e) {
   if (!isObj(r)) return e.push(`${path} must be an object`);
@@ -102,6 +112,7 @@ function checkSections(level, registry, rules, e) {
     if (s.theme !== undefined) checkTheme(s.theme, `${path}.theme`, registry, e, false);
     if (s.curve !== undefined) checkCurve(s.curve, `${path}.curve`, e);
     if (s.camera !== undefined) checkCamera(s.camera, `${path}.camera`, e);
+    if (s.props !== undefined) checkProps(s.props, `${path}.props`, registry, e);
     if (s.generation !== undefined && typeof s.generation !== 'boolean') e.push(`${path}.generation must be true or false`);
     if (s.placements === undefined) return;
     if (!Array.isArray(s.placements)) return e.push(`${path}.placements must be a list`);
@@ -111,10 +122,12 @@ function checkSections(level, registry, rules, e) {
       if (!isObj(p)) return e.push(`${pp} must be an object`);
       keys(p, ['at_m', 'lane', 'kind', 'id'], pp, e);
       if (!inRange(p.at_m, s.from_m, s.to_m - 1e-9)) e.push(`${pp}.at_m must be inside its section (${s.from_m} to ${s.to_m} m)`);
-      if (![0, 1, 2].includes(p.lane)) e.push(`${pp}.lane must be 0, 1 or 2`);
-      if (!['obstacle', 'pickup'].includes(p.kind)) return e.push(`${pp}.kind must be obstacle or pickup`);
+      if (!['obstacle', 'pickup', 'prop'].includes(p.kind)) return e.push(`${pp}.kind must be obstacle, pickup or prop`);
+      if (p.kind === 'prop') { if (p.lane !== undefined) e.push(`${pp}: a prop spans the street and has no lane`); }
+      else if (![0, 1, 2].includes(p.lane)) e.push(`${pp}.lane must be 0, 1 or 2`);
       const def = registry[p.kind][p.id];
       if (!def) return e.push(`${pp}: unknown ${p.kind} "${p.id}"`);
+      if (p.kind === 'prop' && level.length_m !== null && p.at_m + def.length > level.length_m) e.push(`${pp}: the prop runs past the end of the level (${p.at_m} + ${def.length} m)`);
       if (p.kind === 'obstacle') { placed.push({ at: p.at_m, lane: p.lane, def }); allRows.push(p.at_m); }
     });
     // Obstacles within half a row of each other are one row: three lanes with nothing to jump or slide is a wall.
@@ -157,6 +170,7 @@ export function validateLevel(level, { fileId, allIds, registry }) {
   if (level.rules !== undefined) checkRules(level.rules, 'rules', e);
   if (level.curve !== undefined) checkCurve(level.curve, 'curve', e);
   if (level.camera !== undefined) checkCamera(level.camera, 'camera', e);
+  if (level.props !== undefined) checkProps(level.props, 'props', registry, e);
   if (!isObj(level.obstacles)) e.push('obstacles must be an object of {id: weight}'); else checkObstacles(level.obstacles, 'obstacles', registry, e);
   if (level.density === undefined) e.push('density is required'); else checkDensity(level.density, 'density', e);
   if (level.jugs === undefined) e.push('jugs is required'); else checkJugs(level.jugs, 'jugs', registry, e);

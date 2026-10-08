@@ -1,5 +1,5 @@
 // The one place that knows what a content module must look like. Pure: no three, no DOM.
-export const KIND_DIR = { obstacle: 'obstacles', pickup: 'pickups', theme: 'themes', character: 'characters', ending: 'endings' };
+export const KIND_DIR = { obstacle: 'obstacles', pickup: 'pickups', prop: 'props', theme: 'themes', character: 'characters', ending: 'endings' };
 const KINDS = Object.keys(KIND_DIR);
 const PLAIN = /^[a-z0-9_-]+$/, NAMESPACED = /^[a-z0-9_-]+\/[a-z0-9_-]+$/, HEX = /^#[0-9a-fA-F]{6}$/;
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -40,6 +40,13 @@ const CHECKS = {
     if (m.createView !== undefined && !fn(m.createView)) e.push('createView must be a function');
     if (m.name !== undefined && !(typeof m.name === 'string' && m.name.length >= 1 && m.name.length <= 24)) e.push('name must be 1-24 characters');
     if (m.blurb !== undefined && !(typeof m.blurb === 'string' && m.blurb.length >= 1 && m.blurb.length <= 80)) e.push('blurb must be 1-80 characters');
+    return e;
+  },
+  // Scenery without collision: the engine places it at the road's centre and drops it once its far end is behind.
+  prop(m) {
+    const e = [];
+    if (!num(m.length, 1, 100)) e.push('length in metres (1-100) is required');
+    if (!fn(m.createView)) e.push('createView(gfx, { z, length, lanes }) is required');
     return e;
   },
   theme(m) {

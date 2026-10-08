@@ -131,3 +131,19 @@ test('camera overrides are known and in range', () => {
   assert.match(errs({ camera: 'low' }), /camera must be an object/);
   assert.equal(errs({ sections: [{ from_m: 0, to_m: 100, camera: { fov: 65 } }] }), '');
 });
+
+test('props: weights, grid and placements', () => {
+  assert.equal(errs({ props: { per_100m: 1, ids: { overpass: 1, billboard: 2 } } }), '');
+  assert.match(errs({ props: { per_100m: 6, ids: {} } }), /per_100m must be 0 to 5/);
+  assert.match(errs({ props: { per_100m: 1, ids: { tree: 1 } } }), /unknown prop "tree"/);
+  assert.match(errs({ props: { per_100m: 1, ids: { overpass: 0 } } }), /above 0/);
+  assert.match(errs({ props: { per_100m: 1 } }), /ids must be an object/);
+  assert.match(errs({ props: { per_100m: 1, ids: {}, every: 3 } }), /unknown key "every"/);
+  const s = (placements) => errs({ sections: [{ from_m: 0, to_m: 600, placements }] });
+  assert.equal(s([{ at_m: 100, kind: 'prop', id: 'tunnel' }]), '');
+  assert.match(s([{ at_m: 100, lane: 1, kind: 'prop', id: 'tunnel' }]), /no lane/);
+  assert.match(s([{ at_m: 580, kind: 'prop', id: 'tunnel' }]), /past the end/);
+  assert.match(s([{ at_m: 100, kind: 'prop', id: 'gate' }]), /unknown prop "gate"/);
+  assert.match(s([{ at_m: 100, kind: 'obstacle', id: 'taxi' }]), /lane must be 0, 1 or 2/);
+  assert.equal(errs({ sections: [{ from_m: 0, to_m: 100, props: { per_100m: 2, ids: { billboard: 1 } } }] }), '');
+});

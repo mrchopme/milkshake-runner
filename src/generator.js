@@ -34,7 +34,7 @@ export function normalizeLevel(level) {
   const length = level.length_m;
   const end = length ?? Infinity;
   const levelSpan = [0, length ?? ENDLESS_RAMP_M];
-  const base = (from, to) => ({ from, to, obstacles: level.obstacles, density: level.density, densitySpan: levelSpan, jugs: level.jugs, theme: level.theme, curve: level.curve ?? null, camera: level.camera ?? null, generation: true, placements: [] });
+  const base = (from, to) => ({ from, to, obstacles: level.obstacles, density: level.density, densitySpan: levelSpan, jugs: level.jugs, theme: level.theme, curve: level.curve ?? null, camera: level.camera ?? null, props: level.props ?? null, generation: true, placements: [] });
   const sections = [];
   let cursor = 0;
   for (const s of level.sections ?? []) {
@@ -48,6 +48,7 @@ export function normalizeLevel(level) {
       theme: s.theme ? { ...level.theme, ...s.theme } : level.theme,
       curve: s.curve ?? level.curve ?? null,
       camera: s.camera ? { ...(level.camera ?? {}), ...s.camera } : level.camera ?? null,
+      props: s.props ?? level.props ?? null,
       generation: s.generation !== false,
       placements: s.placements ?? [],
     });
@@ -99,8 +100,8 @@ function shuffledLanes(r) {
 
 // Obstacles, pickups (and later props) for z in [fromZ, toZ). Call with consecutive ranges on one rng and one `state`:
 // state.lastRow remembers the previous generated row across chunks, state.speedFrom is the speed carried into the level.
-export function generate(norm, r, fromZ, toZ, registry, rules, state = { lastRow: -Infinity, speedFrom: rules.speed.start }) {
-  const obstacles = [], pickups = [];
+export function generate(norm, r, fromZ, toZ, registry, rules, state = { lastRow: -Infinity, speedFrom: rules.speed.start, propEnd: -Infinity }) {
+  const obstacles = [], pickups = [], props = [];
   const lastRow = norm.length == null ? Infinity : norm.length - END_CLEAR;
   const firstRow = Math.ceil(Math.max(fromZ, START_CLEAR) / ROW_GAP) * ROW_GAP;
   const level = { length_m: norm.length ?? null };
@@ -139,6 +140,7 @@ export function generate(norm, r, fromZ, toZ, registry, rules, state = { lastRow
     if (p.at_m < fromZ || p.at_m >= toZ) continue;
     const item = { id: p.id, lane: p.lane, z: p.at_m, placed: true };
     if (p.kind === 'obstacle') { if (registry.obstacle[p.id].moves) item.moveTo = null; obstacles.push(item); }
+    else if (p.kind === 'prop') props.push({ id: p.id, z: p.at_m, length: registry.prop[p.id].length, placed: true });
     else pickups.push(item);
   }
 
@@ -159,5 +161,22 @@ export function generate(norm, r, fromZ, toZ, registry, rules, state = { lastRow
       pickups.push({ id, lane, z });
     }
   }
-  return { obstacles, pickups };
+
+  // Props: on a grid like jugs, by weight, never overlapping another prop (generated or placed), never past the level's end.
+  const placedProps = norm.sections.flatMap((s) => s.placements.filter((p) => p.kind === 'prop').map((p) => ({ z: p.at_m, end: p.at_m + registry.prop[p.id].length })));
+  let propEnd = state.propEnd ?? -Infinity;
+  for (const s of norm.sections) {
+    if (!s.props?.per_100m || !Object.keys(s.props.ids).length) continue;
+    const gap = 100 / s.props.per_100m;
+    const z0 = Math.max(fromZ, s.from, START_CLEAR), z1 = Math.min(toZ, s.to);
+    for (let k = Math.ceil(z0 / gap); k * gap < z1; k++) {
+      const z = k * gap, id = pick(s.props.ids, r), len = registry.prop[id].length;
+      if (z < propEnd || (norm.length != null && z + len > norm.length)) continue;
+      if (placedProps.some((pp) => z < pp.end && z + len > pp.z)) continue;
+      props.push({ id, z, length: len });
+      propEnd = z + len;
+    }
+  }
+  state.propEnd = propEnd;
+  return { obstacles, pickups, props };
 }

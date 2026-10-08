@@ -29,12 +29,12 @@ export function defaultChunk(g, { z0, length, lanes, rng: r, theme }) {
 export function createWorld(scene, level, { registry, rules, seed, end, speedFrom = rules.speed.start }) {
   const norm = normalizeLevel(level);
   const r = rng(seed), rs = rng(seed ^ 0x9e3779b9); // scenery has its own rng so it never shifts the street
-  const gen = { lastRow: -Infinity, speedFrom };     // the generator's memory across chunks
+  const gen = { lastRow: -Infinity, speedFrom, propEnd: -Infinity }; // the generator's memory across chunks
   const bend = { turn: 0, hill: 0 }; // eased toward curveAt; the uniform is shared by every bendable material
   const BEND_EASE_M = 40;            // metres of travel to get 95% of the way to a new curve
   const root = new THREE.Group();
   scene.add(root);
-  const live = { obstacles: [], pickups: [] };
+  const live = { obstacles: [], pickups: [], props: [] };
   const chunks = [];
   const lanes = { count: 3, width: rules.laneWidth, roadHalf: ROAD_HALF };
   let builtTo = 0;
@@ -44,7 +44,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
 
   function build() {
     const length = Math.min(CHUNK, end - builtTo); // the last chunk stops exactly at `end`, so no street runs past the finish line
-    const { obstacles, pickups } = generate(norm, r, builtTo, builtTo + length, registry, rules, gen);
+    const { obstacles, pickups, props } = generate(norm, r, builtTo, builtTo + length, registry, rules, gen);
     for (const o of obstacles) {
       o.def = registry.obstacle[o.id];
       o.view = safeCall(`obstacle ${o.id} createView`, () => o.def.createView(gfx, o), null) ?? fallbackView();
@@ -59,6 +59,13 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
       root.add(gfx.bend(p.view.object));
       live.pickups.push(p);
     }
+    for (const p of props) {
+      p.def = registry.prop[p.id];
+      p.view = safeCall(`prop ${p.id} createView`, () => p.def.createView(gfx, { z: p.z, length: p.length, lanes }), null) ?? fallbackView();
+      p.view.object.position.set(0, 0, p.z);
+      root.add(gfx.bend(p.view.object));
+      live.props.push(p);
+    }
     const section = sectionAt(norm, builtTo);
     const themeDef = registry.theme[section.theme.id];
     const theme = { ...themeDef, ...section.theme };
@@ -72,8 +79,8 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
   function update(run, dt) {
     while (builtTo < Math.min(end, run.z + AHEAD)) build();
     const behind = run.z - BEHIND;
-    for (const list of [live.obstacles, live.pickups]) {
-      for (let i = list.length - 1; i >= 0; i--) if (list[i].z < behind) { dropView(list[i], list === live.obstacles ? 'obstacle' : 'pickup'); list.splice(i, 1); }
+    for (const list of [live.obstacles, live.pickups, live.props]) { // a prop stays until its far end is behind
+      for (let i = list.length - 1; i >= 0; i--) if (list[i].z + (list[i].length ?? 0) < behind) { dropView(list[i], list === live.obstacles ? 'obstacle' : list === live.pickups ? 'pickup' : 'prop'); list.splice(i, 1); }
     }
     while (chunks.length && chunks[0].z + CHUNK < behind) drop(chunks.shift().g);
     for (const o of live.obstacles) {
@@ -88,6 +95,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
       if (p.x !== undefined) p.view.object.position.set(p.x, 0, p.z);
       if (p.view.update) safeCall(`pickup ${p.id} update`, () => p.view.update(p, run, dt));
     }
+    for (const p of live.props) if (p.view.update) safeCall(`prop ${p.id} update`, () => p.view.update(p, run, dt));
     const target = curveAt(norm, run.z, seed);
     const a = 1 - Math.exp((-3 * (run.speed ?? 0) * dt) / BEND_EASE_M);
     bend.turn += (target.turn - bend.turn) * a;
@@ -104,6 +112,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
     gfx.setBend();
     for (const o of live.obstacles) if (o.view.dispose) safeCall(`obstacle ${o.id} dispose`, () => o.view.dispose());
     for (const p of live.pickups) if (p.view.dispose) safeCall(`pickup ${p.id} dispose`, () => p.view.dispose());
+    for (const p of live.props) if (p.view.dispose) safeCall(`prop ${p.id} dispose`, () => p.view.dispose());
     scene.remove(root); gfx.dispose(root);
   }
 

@@ -427,3 +427,21 @@ test('a section camera merges over the level camera', () => {
   assert.deepEqual(cameraAt(norm, 150), { height: 5, fov: 70 });
   assert.deepEqual(cameraAt(normalizeLevel(lvl()), 50), {}, 'no camera means the defaults');
 });
+
+test('props land on their grid by weight, never overlap, never run past the end and keep out of placed ones', () => {
+  const arch = { kind: 'prop', id: 'arch', length: 2, createView() {} }, tube = { kind: 'prop', id: 'tube', length: 60, createView() {} };
+  const reg = { ...registry, prop: { arch, tube } };
+  const { props } = generate(normalizeLevel(lvl({ length_m: 600, props: { per_100m: 5, ids: { tube: 1 } } })), rng(1), 0, 600, reg, R);
+  assert.ok(props.length >= 2 && props.every((p) => p.id === 'tube' && p.length === 60));
+  for (let i = 1; i < props.length; i++) assert.ok(props[i].z >= props[i - 1].z + 60, 'no overlap');
+  assert.ok(props.every((p) => p.z + 60 <= 600 && p.z >= START_CLEAR));
+  const placed = lvl({ length_m: 600, props: { per_100m: 5, ids: { arch: 1 } }, sections: [{ from_m: 100, to_m: 300, placements: [{ at_m: 200, kind: 'prop', id: 'tube' }] }] });
+  const out = generate(normalizeLevel(placed), rng(1), 0, 600, reg, R).props;
+  assert.ok(out.some((p) => p.id === 'tube' && p.placed && p.z === 200));
+  assert.ok(out.filter((p) => p.id === 'arch').every((p) => p.z + 2 <= 200 || p.z >= 260), 'generated props keep out of the placed tunnel');
+  const state = { lastRow: -Infinity, speedFrom: 12, propEnd: -Infinity };
+  const norm = normalizeLevel(lvl({ length_m: null, props: { per_100m: 5, ids: { tube: 1 } } }));
+  const two = [...generate(norm, rng(2), 0, 120, reg, R, state).props, ...generate(norm, rng(3), 120, 240, reg, R, state).props];
+  for (let i = 1; i < two.length; i++) assert.ok(two[i].z >= two[i - 1].z + 60, 'the overlap guard remembers across chunks');
+  assert.deepEqual(generate(normalizeLevel(lvl()), rng(1), 0, 600, reg, R).props, [], 'no props key, no props');
+});
