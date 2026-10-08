@@ -100,6 +100,7 @@ async function main() {
   }
 
   async function startLevel(id, carry = {}) {
+    if (!save.helpSeen) { save.helpSeen = true; writeSave(save); return help(() => startLevel(id, carry)); } // once per browser, before the first run however it starts (spec §4)
     show(null);
     if (backdrop) { backdrop.dispose(); backdrop = null; }
     const level = levels[id];
@@ -128,11 +129,7 @@ async function main() {
     show('results');
   }
 
-  $('play').onclick = () => {
-    if (save.helpSeen) return startLevel(campaign.start);
-    save.helpSeen = true; writeSave(save);           // once per browser, before the first run
-    help(() => startLevel(campaign.start));
-  };
+  $('play').onclick = () => startLevel(campaign.start);
   $('how').onclick = () => help(menu);
   $('levels').onclick = levelSelect;
   $('endless').onclick = () => startLevel('endless');
