@@ -2,9 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as gfx from '../src/gfx.js';
 import milkshake from '../content/characters/milkshake.js';
-import { createRun, resolveRules, step } from '../src/rules.js';
+import { createRun, resolveRules, step, jumpHeight } from '../src/rules.js';
 import { pickupName } from '../src/hud.js';
 import magnet from '../content/pickups/magnet.js';
+import barrier from '../content/obstacles/barrier_low.js';
+import beam from '../content/obstacles/scaffold_beam.js';
+import taxi from '../content/obstacles/taxi.js';
 
 // In Node there is no GLB loader, so createView falls back to the shape-built cow; the motion code is the same for both.
 test('Milkshake leans and strides harder with speed, and kicks up dust on the ground', async () => {
@@ -48,4 +51,12 @@ test('dust puffs hold their place on the road when Milkshake changes lane or jum
   assert.ok(Math.abs(now.x - born.x) < 1e-9, `the puff slid ${(now.x - born.x).toFixed(2)} m sideways with the lane change`);
   assert.ok(Math.abs(now.y - born.y) < 1e-9, `the puff rose ${(now.y - born.y).toFixed(2)} m with the jump`);
   assert.ok(Math.abs(now.z - born.z) < 1e-9, 'z is still held');
+});
+
+// Board 14: the silhouette says the move. The boxes must agree with it: a barrier you can jump, a beam you can slide under, a taxi you cannot jump.
+test('the shipped obstacle boxes match their moves', () => {
+  const R = resolveRules();
+  assert.ok(barrier.avoid === 'jump' && (barrier.box.y ?? 0) === 0 && barrier.box.h <= jumpHeight(R), 'the barrier is low and on the ground');
+  assert.ok(beam.avoid === 'slide' && beam.box.y >= R.slideHeight, 'the beam leaves room to slide under');
+  assert.ok(taxi.avoid === 'lane' && taxi.box.h >= jumpHeight(R) + 0.6, 'the taxi stands well above a jump\'s apex');
 });
