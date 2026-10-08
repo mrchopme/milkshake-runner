@@ -1,0 +1,11 @@
+{
+  "id": "01-broadway",
+  "title": "Up Broadway",
+  "author": "PulsePoint",
+  "length_m": 1500,
+  "theme": { "id": "downtown", "sky": "#9fd3f5", "fog": 0.3 },
+  "obstacles": { "taxi": 3, "barrier_low": 3, "scaffold_beam": 2, "hot_dog_cart": 2, "manhole_steam": 1 },
+  "density": { "start": 0.25, "end": 0.55 },
+  "jugs": { "per_100m": 14, "powerups": ["magnet", "shield"] },
+  "ending": { "id": "transition", "params": { "next": "02-garden" } }
+}

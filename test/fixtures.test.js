@@ -1,0 +1,40 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { buildRegistry } from '../src/registry.js';
+import { validateAll } from '../src/validate.js';
+import { generate, normalizeLevel, rng } from '../src/generator.js';
+import { resolveRules } from '../src/rules.js';
+import { discover } from './helpers.js';
+
+const here = (p) => new URL(p, import.meta.url);
+const read = (url) => JSON.parse(readFileSync(url, 'utf8'));
+const fullRegistry = async () => buildRegistry([...(await discover(fileURLToPath(here('../content/')))), ...(await discover(fileURLToPath(here('./fixtures/content/'))))]);
+
+// The acceptance test for v2: a complete community pack installs with no edit under src/.
+test('the fixtures pack registers alongside the shipped content', async () => {
+  const reg = await fullRegistry();
+  assert.ok(reg.obstacle['demo/boulder'] && reg.pickup['demo/triple'] && reg.theme['demo/forest'] && reg.character['demo/robot'] && reg.ending['demo/banner']);
+  assert.equal(Object.keys(reg.obstacle).length, 8);
+});
+
+test('the demo level validates next to the shipped ones and lands its placements', async () => {
+  const reg = await fullRegistry();
+  const levelsDir = here('../levels/');
+  const levels = Object.fromEntries(readdirSync(levelsDir).filter((f) => f.endsWith('.json') && !['index.json', 'campaign.json'].includes(f)).map((f) => [f.slice(0, -5), read(new URL(f, levelsDir))]));
+  levels['demo-canal-street-dash'] = read(here('./fixtures/levels/demo-canal-street-dash.json'));
+  assert.deepEqual(validateAll(levels, read(new URL('index.json', levelsDir)), reg), {});
+  const level = levels['demo-canal-street-dash'];
+  const { obstacles, pickups } = generate(normalizeLevel(level), rng(level.seed), 0, 900, reg, resolveRules(level.rules));
+  assert.ok(obstacles.every((o) => o.z >= 150), 'the quiet intro is quiet');
+  assert.ok(obstacles.some((o) => o.id === 'demo/boulder' && o.placed && o.z === 210));
+  assert.ok(pickups.some((p) => p.id === 'demo/triple' && p.placed && p.z === 240));
+});
+
+test('the engine never names content (defaults jug, milkshake and finish excepted)', () => {
+  const src = readdirSync(fileURLToPath(here('../src/'))).filter((f) => f.endsWith('.js')).map((f) => readFileSync(here(`../src/${f}`), 'utf8')).join('\n');
+  for (const id of ['taxi', 'barrier_low', 'scaffold_beam', 'hot_dog_cart', 'manhole_steam', 'pigeons', 'delivery_bike', 'magnet', 'x2', 'downtown', 'midtown', 'uptown', 'arena_five', 'transition', 'demo/']) {
+    assert.ok(!new RegExp(`['"\`]${id}['"\`]`).test(src), `src/ mentions "${id}"`);
+  }
+});

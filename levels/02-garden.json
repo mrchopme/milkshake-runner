@@ -1,0 +1,11 @@
+{
+  "id": "02-garden",
+  "title": "Road to the Garden",
+  "author": "PulsePoint",
+  "length_m": 1800,
+  "theme": { "id": "midtown", "sky": "#f4b26a", "fog": 0.4 },
+  "obstacles": { "taxi": 3, "barrier_low": 2, "scaffold_beam": 2, "hot_dog_cart": 1, "manhole_steam": 1, "pigeons": 1, "delivery_bike": 1 },
+  "density": { "start": 0.3, "end": 0.7 },
+  "jugs": { "per_100m": 12, "powerups": ["magnet", "shield", "x2"] },
+  "ending": { "id": "arena_five" }
+}
