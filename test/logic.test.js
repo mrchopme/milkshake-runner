@@ -146,3 +146,109 @@ test('swipes and keys map to actions', () => {
   assert.equal(KEYS.Space, 'jump');
   assert.equal(KEYS.Escape, 'pause');
 });
+
+import { before } from 'node:test';
+import { fileURLToPath } from 'node:url';
+import { generate, normalizeLevel, densityAt, rng, passable, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
+import { buildRegistry } from '../src/registry.js';
+import { discover } from './helpers.js';
+
+let registry;
+before(async () => { registry = buildRegistry(await discover(fileURLToPath(new URL('../content/', import.meta.url)))); });
+
+const lvl = (patch = {}) => ({
+  id: 't', length_m: 1500, theme: { id: 'downtown' },
+  density: { start: 0.5, end: 0.9 },
+  obstacles: { taxi: 3, barrier_low: 2, scaffold_beam: 2, delivery_bike: 1, manhole_steam: 1 },
+  jugs: { per_100m: 12, powerups: ['magnet', 'shield', 'x2'] },
+  ...patch,
+});
+const all = (level, seed, rules = R) => generate(normalizeLevel(level), rng(seed), 0, level.length_m ?? 3000, registry, rules);
+const rowsOf = (obstacles) => Map.groupBy(obstacles, (o) => o.z);
+const isPassable = (o, rules = R) => passable(registry.obstacle[o.id], rules);
+const seeds = Array.from({ length: 200 }, (_, i) => i + 1);
+
+test('same seed builds the same street', () => assert.deepEqual(all(lvl(), 7), all(lvl(), 7)));
+
+test('the road is clear at the start and before the end', () => {
+  for (const s of seeds.slice(0, 20)) for (const o of all(lvl(), s).obstacles) assert.ok(o.z >= START_CLEAR && o.z < 1500 - END_CLEAR, `obstacle at ${o.z}`);
+});
+
+test('a full row always has a jump or slide option under the default rules', () => {
+  for (const s of seeds) for (const row of rowsOf(all(lvl(), s).obstacles).values()) if (row.length === 3) assert.ok(row.some((o) => isPassable(o)), `seed ${s}`);
+});
+
+test('with nothing to jump or slide, a row never fills all three lanes', () => {
+  for (const s of seeds) for (const row of rowsOf(all(lvl({ obstacles: { taxi: 1 } }), s).obstacles).values()) assert.ok(row.length <= 2);
+});
+
+test('fairness follows the level rules: a weak jump makes the barrier a wall', () => {
+  const weak = resolveRules({ jumpSpeed: 5 });
+  assert.equal(passable(registry.obstacle.barrier_low, R), true);
+  assert.equal(passable(registry.obstacle.barrier_low, weak), false);
+  for (const s of seeds) for (const row of rowsOf(all(lvl({ obstacles: { taxi: 2, barrier_low: 2 } }), s, weak).obstacles).values()) assert.ok(row.length <= 2, `seed ${s}`);
+});
+
+test('pickups keep clear of obstacles in their lane', () => {
+  for (const s of seeds.slice(0, 50)) {
+    const { obstacles, pickups } = all(lvl(), s);
+    for (const p of pickups) assert.ok(!obstacles.some((o) => o.lane === p.lane && Math.abs(o.z - p.z) < JUG_CLEARANCE));
+  }
+});
+
+test('specials only come from the level list, everything else is a jug', () => {
+  const ids = new Set(seeds.slice(0, 10).flatMap((s) => all(lvl({ jugs: { per_100m: 30, powerups: ['x2'] } }), s).pickups.map((p) => p.id)));
+  assert.deepEqual([...ids].sort(), ['jug', 'x2']);
+  assert.ok(all(lvl({ jugs: { per_100m: 30, powerups: [] } }), 1).pickups.every((p) => p.id === 'jug'));
+});
+
+test('moving obstacles only move into a free neighbouring lane', () => {
+  for (const s of seeds) for (const row of rowsOf(all(lvl({ obstacles: { delivery_bike: 1, taxi: 1 } }), s).obstacles).values()) {
+    for (const o of row.filter((o) => o.id === 'delivery_bike')) {
+      if (o.moveTo === null) continue;
+      assert.equal(Math.abs(o.moveTo - o.lane), 1);
+      assert.ok(!row.some((other) => other.lane === o.moveTo));
+    }
+  }
+});
+
+test('density controls how busy the street is', () => {
+  const count = (d) => all(lvl({ density: { start: d, end: d } }), 3).obstacles.length;
+  assert.ok(count(1) > count(0.1) * 3);
+});
+
+test('chunked generation keeps rows on one grid', () => {
+  const r = rng(5), norm = normalizeLevel(lvl({ length_m: null }));
+  const zs = [...generate(norm, r, 0, 120, registry, R).obstacles, ...generate(norm, r, 120, 240, registry, R).obstacles].map((o) => o.z);
+  assert.ok(zs.every((z) => z % ROW_GAP === 0));
+});
+
+test('a quiet section has no obstacles and a density override interpolates inside it', () => {
+  const level = lvl({ sections: [{ from_m: 0, to_m: 600, density: { start: 0, end: 0 } }, { from_m: 600, to_m: 900, density: { start: 0, end: 1 } }] });
+  for (const s of seeds.slice(0, 20)) assert.ok(all(level, s).obstacles.every((o) => o.z >= 600));
+  const norm = normalizeLevel(level);
+  assert.equal(densityAt(norm.sections[1], 600), 0);
+  assert.equal(densityAt(norm.sections[1], 750), 0.5);
+  assert.equal(norm.sections.length, 3, 'the rest of the level is a base section');
+  assert.equal(norm.sections[2].densitySpan[1], 1500, 'base sections interpolate across the whole level');
+});
+
+test('placements land exactly where asked and a non-generating section has nothing else', () => {
+  const level = lvl({ sections: [{ from_m: 100, to_m: 400, generation: false, placements: [
+    { at_m: 150, lane: 1, kind: 'obstacle', id: 'barrier_low' },
+    { at_m: 150, lane: 0, kind: 'obstacle', id: 'delivery_bike' },
+    { at_m: 220, lane: 2, kind: 'pickup', id: 'shield' },
+  ] }] });
+  for (const s of seeds.slice(0, 10)) {
+    const { obstacles, pickups } = all(level, s);
+    const inSection = obstacles.filter((o) => o.z >= 100 && o.z < 400);
+    assert.deepEqual(inSection.map((o) => [o.id, o.lane, o.z, o.moveTo]).sort(), [['barrier_low', 1, 150, undefined], ['delivery_bike', 0, 150, null]].sort());
+    assert.ok(pickups.some((p) => p.id === 'shield' && p.lane === 2 && p.z === 220 && p.placed));
+  }
+});
+
+test('a section theme merges over the level theme', () => {
+  const norm = normalizeLevel(lvl({ theme: { id: 'downtown', sky: '#111111', fog: 0.2 }, sections: [{ from_m: 0, to_m: 100, theme: { sky: '#222222' } }] }));
+  assert.deepEqual(norm.sections[0].theme, { id: 'downtown', sky: '#222222', fog: 0.2 });
+  assert.deepEqual(norm.sections[1].theme, { id: 'downtown', sky: '#111111', fog: 0.2 });
+});
