@@ -51,7 +51,7 @@ async function main() {
     const idle = createRun(defaultRules, registry.character[level.character?.id ?? 'milkshake']);
     backdrop.update(idle, 0);
     engine.setSky(backdrop.skyAt(0));
-    engine.follow(idle);
+    engine.follow(idle, {}, Infinity); // a still: the felt speed of the last run does not carry into the menu
     engine.render();
     $('endless').hidden = !levels.endless || isLocked(campaign, save, 'endless');
     show('menu'); // the street and the buttons appear before the character model has downloaded

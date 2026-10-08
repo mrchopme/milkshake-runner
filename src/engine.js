@@ -25,6 +25,9 @@ export function easeCamera(live, cam = {}, speed = 0, dt = 1 / 60) {
   return live;
 }
 
+// The streaks' opacity for a frame at `speed`. A snap (dt = Infinity) is a still, and a still has no motion lines.
+export const streakOpacity = (speed, dt = 1 / 60) => Number.isFinite(dt) ? Math.max(0, Math.min(0.6, ((speed - STREAK_FROM) / (STREAK_FULL - STREAK_FROM)) * 0.6)) : 0;
+
 export function createEngine(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -55,7 +58,7 @@ export function createEngine(canvas) {
     renderer.setSize(w, h);
     camera.aspect = w / h;
     portrait = w < h; // portrait needs a wider view to see all 3 lanes
-    camera.fov = live.fov + (portrait ? 15 : 0);
+    camera.fov = cameraFor({ x: 0, y: 0, z: 0 }, live, live.speed).fov + (portrait ? 15 : 0); // the view follow() last set, so a resize after a run keeps its width
     camera.updateProjectionMatrix();
     render();
   }
@@ -70,7 +73,7 @@ export function createEngine(canvas) {
       const far = 260 - theme.fog * 160;
       scene.fog = new THREE.Fog(sky, far * 0.3, far);
     },
-    // `cam` is the active section's override ({ height?, distance?, fov? }); dt eases toward it. Pass dt = Infinity to snap.
+    // `cam` is the active section's override ({ height?, distance?, fov? }); dt eases toward it. Pass dt = Infinity to snap: the overrides land, the felt speed is the run's, the streaks go out.
     follow(run, cam = {}, dt = 1 / 60) {
       const { speed } = easeCamera(live, cam, run.speed ?? 0, dt);
       const c = cameraFor(run, live, speed);
@@ -80,8 +83,8 @@ export function createEngine(canvas) {
       if (Math.abs(fov - camera.fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
       sun.position.set(run.x - 6, 16, run.z - 12);
       sun.target.position.set(run.x, 0, run.z);
-      streakMat.opacity = Math.max(0, Math.min(0.6, ((speed - STREAK_FROM) / (STREAK_FULL - STREAK_FROM)) * 0.6));
-      if (streakMat.opacity > 0 && Number.isFinite(dt)) for (const s of streaks.children) { s.position.z += speed * dt * 2; if (s.position.z > -2) s.position.z = -18 - Math.random() * 4; }
+      streakMat.opacity = streakOpacity(speed, dt);
+      if (streakMat.opacity > 0) for (const s of streaks.children) { s.position.z += speed * dt * 2; if (s.position.z > -2) s.position.z = -18 - Math.random() * 4; }
     },
   };
 }
