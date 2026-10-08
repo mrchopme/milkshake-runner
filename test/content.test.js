@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as gfx from '../src/gfx.js';
-import milkshake from '../content/characters/milkshake.js';
+import milkshake, { SKIN, skinWeights } from '../content/characters/milkshake.js';
 import { createRun, resolveRules, step, jumpHeight } from '../src/rules.js';
 import { pickupName } from '../src/hud.js';
 import magnet from '../content/pickups/magnet.js';
@@ -59,4 +59,21 @@ test('the shipped obstacle boxes match their moves', () => {
   assert.ok(barrier.avoid === 'jump' && (barrier.box.y ?? 0) === 0 && barrier.box.h <= jumpHeight(R), 'the barrier is low and on the ground');
   assert.ok(beam.avoid === 'slide' && beam.box.y >= R.slideHeight, 'the beam leaves room to slide under');
   assert.ok(taxi.avoid === 'lane' && taxi.box.h >= jumpHeight(R) + 0.6, 'the taxi stands well above a jump\'s apex');
+});
+
+// The Tripo mesh is skinned at load from these weights (v4 spec §3); Node cannot load the GLB, so the rule is tested on its own.
+test('skinWeights gives each part of the Tripo mesh to its bone and blends at the joints', () => {
+  const [HIPS, HEAD, ARM_L, ARM_R, LEG_L, LEG_R] = [0, 1, 2, 3, 4, 5];
+  const at = (y, z) => { const w = skinWeights(y, z); assert.ok(Math.abs(w.reduce((s, v) => s + v, 0) - 1) < 1e-9, 'weights sum to 1'); assert.ok(w.filter((v) => v > 0).length <= 4, 'four weights at most'); return w; };
+  assert.equal(at(-0.49, 0.1)[LEG_L], 1, 'a foot is all one leg');
+  assert.equal(at(-0.49, 0.1)[LEG_R], 0, 'and never pulls on the other leg');
+  assert.equal(at(-0.49, -0.1)[LEG_R], 1);
+  assert.equal(at(0, 0.1)[HIPS], 1, 'the flank is all hips');
+  assert.equal(at(-0.1, 0.22)[ARM_L], 1, 'an outboard belly-height vertex is all arm');
+  assert.equal(at(-0.1, -0.22)[ARM_R], 1);
+  assert.equal(at(0.4, 0)[HEAD], 1, 'above the neck is all head');
+  const crotch = at(SKIN.crotch, 0.1);
+  assert.ok(crotch[LEG_L] > 0.4 && crotch[LEG_L] < 0.6 && crotch[HIPS] > 0.4, 'the crotch band blends leg into hips');
+  const shoulder = at(SKIN.shoulder + SKIN.shoulderBand / 2, 0.22);
+  assert.ok(shoulder[ARM_L] > 0.3 && shoulder[ARM_L] < 0.7 && shoulder[HIPS] > 0.3, 'the shoulder band blends arm into hips');
 });
