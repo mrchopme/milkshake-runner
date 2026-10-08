@@ -46,7 +46,16 @@ export function bendable(material) {
   material.needsUpdate = true;
   return material;
 }
-export function bend(object) { object.traverse((n) => { for (const m of [].concat(n.material ?? [])) bendable(m); }); return object; } // a mesh may carry a material array
+// Every object the engine adds goes through here once, so it also marks opaque meshes as shadow casters and receivers.
+// The flags do nothing while the shadow map is off (low-fi). Transparent glows, blob shadows and sprites stay out of it.
+export function bend(object) {
+  object.traverse((n) => {
+    const mats = [].concat(n.material ?? []); // a mesh may carry a material array
+    for (const m of mats) bendable(m);
+    if (n.isMesh) n.castShadow = n.receiveShadow = mats.every((m) => !m.transparent);
+  });
+  return object;
+}
 export function setBend({ turn = 0, hill = 0, origin = 0 } = {}) { bendUniform.value.set(0 - turn * TURN_K, hill * HILL_K, origin, DEAD); } // 0 - …: a straight road is +0, never -0
 
 const mats = new Map();

@@ -10,7 +10,8 @@
   if (!window.__rafShim) { window.requestAnimationFrame = (cb) => setTimeout(() => cb(performance.now()), 16); window.cancelAnimationFrame = clearTimeout; window.__rafShim = true; }
 
   // ponytail: calibration knob — the teaser's 9:16 framing (Paper board 01), tuned by eye; metres and degrees
-  const SHOT = { runZ: 62.5, runY: 1.8, camUp: 7.8, camBack: 14, lookAhead: 9, lookY: 0.8, fov: 52 };
+  // speed is pinned too: the character leans with it, and a run paused a few ms later is a little faster
+  const SHOT = { runZ: 62.5, runY: 1.8, speed: 12, camUp: 7.8, camBack: 14, lookAhead: 9, lookY: 0.8, fov: 52 };
 
   async function shotLevel() {
     let m = window.__milkshake;
@@ -33,7 +34,7 @@
   }
 
   function pose({ run, world, engine, character }) {
-    Object.assign(run, { x: 0, lane: 1, z: SHOT.runZ, y: SHOT.runY, time: 0 });
+    Object.assign(run, { x: 0, lane: 1, z: SHOT.runZ, y: SHOT.runY, speed: SHOT.speed, time: 0 });
     world.update(run, 0);             // streams the street to the spot; pickups spin with run.time, held at 0
     character.update(run);
     engine.follow(run, {}, Infinity); // snaps the sun, and in HiFi its shadow box, to the spot

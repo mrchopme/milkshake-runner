@@ -1,6 +1,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { existsSync } from 'node:fs';
 import { buildRegistry, applyPack, checkModule } from '../src/registry.js';
 import { discover } from './helpers.js';
 
@@ -61,4 +62,22 @@ test('no pack, no change', () => {
   assert.deepEqual(problems, []);
   for (const kind of Object.keys(shipped)) assert.deepEqual(Object.keys(registry[kind]), Object.keys(shipped[kind]));
   assert.equal(registry.obstacle.taxi, shipped.obstacle.taxi);
+});
+
+const PACK = fileURLToPath(new URL('../packs/hifi/', import.meta.url));
+
+test('the HiFi pack applies cleanly over the shipped content', async () => {
+  assert.deepEqual(applyPack(shipped, await discover(PACK, 'packs/hifi')).problems, []);
+});
+
+test('every shipped theme has a HiFi look, so a mid-level theme switch never drops to the low-fi renderer', async () => {
+  const { registry } = applyPack(shipped, await discover(PACK, 'packs/hifi'));
+  for (const id of Object.keys(shipped.theme)) assert.ok(registry.theme[id].look, `theme "${id}" has no look in packs/hifi/themes/`);
+});
+
+test('every file the HiFi pack lists is in public/', async () => {
+  const { registry } = applyPack(shipped, await discover(PACK, 'packs/hifi'));
+  for (const byId of Object.values(registry)) for (const m of Object.values(byId)) for (const a of m.assets ?? []) {
+    assert.ok(existsSync(new URL(`../public/${a}`, import.meta.url)), `${m.kind} "${m.id}" lists ${a}, which is not in public/`);
+  }
 });

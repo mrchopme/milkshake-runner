@@ -3,6 +3,7 @@ export const KIND_DIR = { obstacle: 'obstacles', pickup: 'pickups', prop: 'props
 const KINDS = Object.keys(KIND_DIR);
 const PLAIN = /^[a-z0-9_-]+$/, NAMESPACED = /^[a-z0-9_-]+\/[a-z0-9_-]+$/, HEX = /^#[0-9a-fA-F]{6}$/;
 const ASSET = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.glb$/; // a .glb under public/: lowercase, no leading slash, no ..
+const LOOK_RANGES = { exposure: [0.2, 3], ambient: [0, 3], env: [0, 3] };
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const fn = (v) => typeof v === 'function';
@@ -57,6 +58,7 @@ const CHECKS = {
     const b = m.buildings;
     if (!isObj(b) || !Array.isArray(b.colors) || !b.colors.length || !b.colors.every((c) => HEX.test(c)) || !num(b.minH, 1, 200) || !num(b.maxH, b.minH, 300)) e.push('buildings needs colors[] (hex), minH, maxH');
     if (m.createChunk !== undefined && !fn(m.createChunk)) e.push('createChunk must be a function');
+    if (m.look !== undefined) e.push(...checkLook(m.look));
     return e;
   },
   character(m) {
@@ -77,6 +79,27 @@ const CHECKS = {
     return e;
   },
 };
+
+// A theme's HiFi look (spec §4), every field optional. Used only when the engine has a look pipeline (src/look.js).
+export function checkLook(l) {
+  if (!isObj(l)) return ['look must be an object'];
+  const e = [];
+  for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'bloom'].includes(k)) e.push(`look: unknown key "${k}"`);
+  for (const [k, [lo, hi]] of Object.entries(LOOK_RANGES)) if (l[k] !== undefined && !num(l[k], lo, hi)) e.push(`look.${k} must be ${lo} to ${hi}`);
+  if (l.skyTop !== undefined && !HEX.test(l.skyTop)) e.push('look.skyTop must be a hex colour');
+  if (l.sun !== undefined) {
+    if (!isObj(l.sun) || Object.keys(l.sun).some((k) => !['color', 'intensity'].includes(k))) e.push('look.sun may only set color and intensity');
+    else {
+      if (l.sun.color !== undefined && !HEX.test(l.sun.color)) e.push('look.sun.color must be a hex colour');
+      if (l.sun.intensity !== undefined && !num(l.sun.intensity, 0, 10)) e.push('look.sun.intensity must be 0 to 10');
+    }
+  }
+  if (l.bloom !== undefined) {
+    if (!isObj(l.bloom) || Object.keys(l.bloom).some((k) => !['strength', 'threshold', 'radius'].includes(k))) e.push('look.bloom may only set strength, threshold and radius');
+    else for (const [k, hi] of [['strength', 3], ['threshold', 1], ['radius', 1]]) if (l.bloom[k] !== undefined && !num(l.bloom[k], 0, hi)) e.push(`look.bloom.${k} must be 0 to ${hi}`);
+  }
+  return e;
+}
 
 export function checkModule(m) {
   if (!isObj(m)) return ['the default export must be an object'];

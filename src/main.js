@@ -31,6 +31,7 @@ const quality = params.has('hifi') ? 'hifi' : params.has('lofi') ? 'lofi' : matc
 
 async function main() {
   const engine = createEngine($('game'));
+  if (quality === 'hifi') engine.useLook((await import('./look.js')).createLook(engine)); // the look's code loads only for HiFi
   const hud = createHud();
   const save = loadSave();
   const fixtures = import.meta.env.DEV && location.search.includes('fixtures');

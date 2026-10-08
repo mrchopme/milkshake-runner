@@ -134,6 +134,10 @@ export default {
 };
 ```
 
+A theme may also carry a `look`, used only in HiFi: `{ exposure, sun: { color, intensity }, ambient, env, skyTop,
+bloom: { strength, threshold, radius } }`, every field optional and range-checked like the rest. `skyTop` is the top of
+the sky gradient; the horizon is the level's sky colour. Low-fi ignores it.
+
 ### Character
 
 ```js

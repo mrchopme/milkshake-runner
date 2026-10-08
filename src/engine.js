@@ -5,6 +5,11 @@ export const SPEED_BASE = 12;    // m/s below which the view does not widen
 export const FOV_PER_MS = 0.6;   // degrees of extra field of view per m/s over SPEED_BASE
 const CAMERA_EASE = 0.2;         // seconds; overrides are 92% of the way in half a second
 const STREAKS = 14, STREAK_FROM = 16, STREAK_FULL = 30; // streaks fade in between these speeds (m/s)
+const SUN = 2.2, HEMI = 1.2;     // the low-fi light; a HiFi look sets its own, and setSky puts these back first
+// Sun from above, behind the camera and a little to the right, so faces toward the camera are lit and side faces take
+// the one shade tone the style sheet shows. It sits far back along that line and aims ahead of the run, so a HiFi shadow
+// box covers the street ahead and the tallest buildings; the direction, and so the low-fi shading, is unchanged.
+const SUN_DIR = new THREE.Vector3(6, -16, 12).normalize(), SUN_BACK = 120, SUN_AHEAD = 25;
 
 // Where the chase camera sits for a run. Pure, so it is testable: `cam` is a section's override, `speed` widens the view.
 export function cameraFor(run, cam = {}, speed = 0) {
@@ -33,10 +38,9 @@ export function createEngine(canvas) {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400);
-  // Sun from above, behind the camera and a little to the right, so faces toward the camera are lit
-  // and side faces take the one shade tone the style sheet shows.
-  const sun = new THREE.DirectionalLight('#ffffff', 2.2);
-  scene.add(sun, sun.target, new THREE.HemisphereLight('#ffffff', '#55556a', 1.2));
+  const sun = new THREE.DirectionalLight('#ffffff', SUN);
+  const hemi = new THREE.HemisphereLight('#ffffff', '#55556a', HEMI);
+  scene.add(sun, sun.target, hemi);
 
   // Speed streaks: thin bars parented to the camera, above and beside the lanes, fading in with speed.
   const streakMat = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0, depthWrite: false });
@@ -52,10 +56,12 @@ export function createEngine(canvas) {
 
   const live = { ...CAMERA, speed: 0 }; // the eased camera values
   let portrait = false;
-  const render = () => renderer.render(scene, camera);
+  let look = null; // the HiFi look (src/look.js), set by useLook; null keeps the low-fi renderer path
+  const render = () => (look?.active ? look.render() : renderer.render(scene, camera));
   // Fits the canvas to the window, or to an explicit size (scripts/hifi-shot.js renders stills at 2160x3840).
   function resize(w = innerWidth, h = innerHeight) {
     renderer.setSize(w, h);
+    look?.resize(w, h);
     camera.aspect = w / h;
     portrait = w < h; // portrait needs a wider view to see all 3 lanes
     camera.fov = cameraFor({ x: 0, y: 0, z: 0 }, live, live.speed).fov + (portrait ? 15 : 0); // the view follow() last set, so a resize after a run keeps its width
@@ -66,12 +72,15 @@ export function createEngine(canvas) {
   resize();
 
   return {
-    scene, camera, renderer, render, resize,
+    scene, camera, renderer, sun, hemi, render, resize,
+    useLook(l) { look = l; resize(); },
     setSky(theme) {
       const sky = new THREE.Color(theme.sky);
       scene.background = sky;
       const far = 260 - theme.fog * 160;
       scene.fog = new THREE.Fog(sky, far * 0.3, far);
+      sun.color.set('#ffffff'); sun.intensity = SUN; hemi.intensity = HEMI; // the low-fi light; a look may change it next
+      look?.apply(theme);
     },
     // `cam` is the active section's override ({ height?, distance?, fov? }); dt eases toward it. Pass dt = Infinity to snap: the overrides land, the felt speed is the run's, the streaks go out.
     follow(run, cam = {}, dt = 1 / 60) {
@@ -81,8 +90,8 @@ export function createEngine(canvas) {
       camera.lookAt(c.lookX, c.lookY, c.lookZ);
       const fov = c.fov + (portrait ? 15 : 0);
       if (Math.abs(fov - camera.fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
-      sun.position.set(run.x - 6, 16, run.z - 12);
-      sun.target.position.set(run.x, 0, run.z);
+      sun.target.position.set(run.x, 0, run.z + SUN_AHEAD);
+      sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, -SUN_BACK);
       streakMat.opacity = streakOpacity(speed, dt);
       if (streakMat.opacity > 0) for (const s of streaks.children) { s.position.z += speed * dt * 2; if (s.position.z > -2) s.position.z = -18 - Math.random() * 4; }
     },

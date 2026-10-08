@@ -107,7 +107,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
 
   const skyAt = (z) => {
     const s = sectionAt(norm, z), t = registry.theme[s.theme.id];
-    return { sky: s.theme.sky ?? t.sky, fog: s.theme.fog ?? t.fog };
+    return { id: s.theme.id, sky: s.theme.sky ?? t.sky, fog: s.theme.fog ?? t.fog, look: t.look }; // look: a HiFi theme's, or undefined
   };
   function removePickup(p) { live.pickups.splice(live.pickups.indexOf(p), 1); dropView(p, 'pickup'); }
   function dispose() {

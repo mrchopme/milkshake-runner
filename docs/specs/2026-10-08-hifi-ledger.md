@@ -19,6 +19,13 @@ last-verified: never
 | 4 | `src/assets.js` (new) | `adopt`, `preload` (never rejects, dedupes, skips cached), `asset` (a clone sharing geometry and materials, every node flagged `userData.shared`) | Generated GLBs in synchronous views | Generic hook | No: obstacle, pickup and prop views are sync-only (spec finding 4) |
 | 4 | `src/gfx.js` | Re-exports `asset`; `dispose` skips nodes flagged `userData.shared` | Dropping one copy must not free the next one's geometry | Generic hook | No: `dispose` freed any material with a map (spec finding 3) |
 | 4 | `src/main.js` | Preloads every listed asset at boot; RUN reads LOADING… until it settles; `startLevel` awaits it | A view needs its files before the street is built | Generic hook | No |
+| 5 | `src/look.js` (new) | `lookState` (pure) and `createLook`: RoomEnvironment reflections, a camera-centred gradient sky dome, PCF soft sun shadows (4096 map), an EffectComposer on a half-float 4× MSAA target with bloom and output passes | The HiFi look | HiFi-only file, loaded on demand | No: the look was hard-coded in `src/engine.js` (spec finding 1) |
+| 5 | `src/engine.js` | `useLook`; `sun` and `hemi` on the returned object; `setSky` resets the low-fi light, then `look?.apply`; `render` and `resize` go through the look when active; the sun aims 25 m ahead along the same direction | One hook that a look plugs into; shadows cover the street ahead | Generic hook | No |
+| 5 | `src/gfx.js` | `bend` marks opaque meshes as shadow casters and receivers | Every object the engine adds passes through it once | Generic hook | No |
+| 5 | `src/world.js` | `skyAt` returns the section theme's id and `look` | The look follows a mid-level theme switch | Generic hook | No |
+| 5 | `src/game.js` | The sky-change key includes the theme id | A theme switch under the same sky colour still re-applies the look | Generic hook | No |
+| 5 | `src/registry.js` | `checkLook`; the theme check validates an optional `look` | A look is data, range-checked like the rest of a theme | Generic hook | No |
+| 5 | `src/main.js` | In HiFi, `engine.useLook(createLook(engine))` from a lazy `import('./look.js')` | Low-fi never downloads the look code | Generic hook | No |
 
 ## Credits
 
@@ -37,7 +44,9 @@ Budget for sub-project 1: 40. Balance at the start: 3,000 (Ultra, 2026-10-08).
 
 | Task | Still or probe | Query | Result | SHA-256 |
 |---|---|---|---|---|
-| 2 | `baseline-lofi.png`, 2160×3840 | `?fixtures` (before the quality switch, so low-fi) | 466,912 bytes. `SHOT` tuned by eye against board 01's 9:16 keyframe (Paper F-0): taxi at 68–92% of the height (reference 69–92%), vanishing point near 23% (reference 22%). Milkshake reads about half the reference's size, a stylisation of the teaser art | aa94a1946d1738ec4f94713187dcac7ec0166f28e668d01e20bd199fa615abcf |
+| 2 | `baseline-lofi.png`, 2160×3840 | `?fixtures` (before the quality switch, so low-fi) | 466,912 bytes. `SHOT` tuned by eye against board 01's 9:16 keyframe (Paper F-0): taxi at 68–92% of the height (reference 69–92%), vanishing point near 23% (reference 22%). Milkshake reads about half the reference's size, a stylisation of the teaser art. **Superseded in Task 5:** this hash depended on the run's speed at the pause | aa94a1946d1738ec4f94713187dcac7ec0166f28e668d01e20bd199fa615abcf |
+| 5 | `baseline-lofi.png`, 2160×3840, re-shot | `?fixtures` on the Task 2 code (d3301fa, served from a temporary worktree, since removed), with the speed-pinned script | 467,324 bytes | c97c809eeb061cf5c1e6f49316c79183aa99d11789c67c678a13dd086d0c19fc |
+| 5 | `lofi-task5.png`, 2160×3840 | `?fixtures&lofi` on the Task 5 tree, fresh page load | 467,324 bytes, byte-identical to the re-shot baseline: low-fi unchanged | c97c809eeb061cf5c1e6f49316c79183aa99d11789c67c678a13dd086d0c19fc |
 
 ## Rulings
 
@@ -50,6 +59,10 @@ Budget for sub-project 1: 40. Balance at the start: 3,000 (Ultra, 2026-10-08).
 - Before Task 2: Ruling: merged `origin/feat/v1` (4a145c7, the merge of PR #3) into `hi-fi-test` as a7d951e, bringing camera fix 4ecd1a7 (`streakOpacity`, `resize()` derived like `follow()`, the end and menu snaps). Flagged by the planning session, verified with git (feat/v3-feedback = e3742bc + 4ecd1a7, same tree as origin/feat/v1), approved by Caedon in chat because his brief said never merge. Consequences: the plan's full-file `src/engine.js`, `src/game.js` and `src/main.js` blocks are applied as edits on top of the merged files, keeping the fix; the suite baseline is 86, so the plan's counts shift by one (106 → 107); the Task 8 draft PR would target `feat/v1` (asked then) — cost if wrong: `git reset --hard 6d0b4e2` before anything is built on it.
 - Task 2: Ruling: Step 5's `resize` body sets `camera.fov` from `live.fov`; the merged file sets it from `cameraFor(…, live, live.speed).fov` (4ecd1a7). Kept the fix's line and applied only the size parameters, the comment, the wrapped listener and `resize` on the returned object — the plan predates the fix — cost if wrong: none; the line is the fix's.
 - Task 2, Step 11 (as planned, not a deviation): the plan's first-guess `SHOT` (camUp 5.4, camBack 10.5, lookAhead 16) cropped the taxi at the bottom and put the vanishing point at 35%; retuned to `{ runZ: 62.5, runY: 1.8, camUp: 7.8, camBack: 14, lookAhead: 9 }` after two low-resolution passes with a throwaway in-page helper.
+- Task 5: Ruling: Step 5's full-file `src/engine.js` applied as edits on the merged file; a diff against the plan's block shows exactly 4ecd1a7's lines (the `streakOpacity` export, the `cameraFor`-derived `resize` fov, the snap comment, `streakOpacity` in `follow`) — the plan predates the fix — cost if wrong: none; those lines are the fix's.
+- Task 5: Ruling: tuned the look knobs (Step 12 allows it): downtown and bridge sun 3 → 2.4 and ambient 0.5 → 2.0; midtown sun 2.6 → 2.1, ambient 0.45 → 1.8; uptown sun 2.2 → 1.8, ambient 0.55 → 2.2. Every shipped material is `MeshToonMaterial`, which ignores `scene.environment`, so in the buildings' shadow (which covers most of the road) only the hemisphere light reaches it; at 0.5 the road went near-black, about 7× darker than low-fi. Downtown checked by eye at 1280×720, bridge after the mid-run switch, midtown and uptown spot-checked with their level skies. `env` changes nothing visible until a standard or physical material arrives (the Task 7 taxi) — cost if wrong: knob values only.
+- Task 5: Ruling: `scripts/hifi-shot.js` now pins `run.speed` (`SHOT.speed = 12`), a plan defect Step 13 exposed. Milkshake leans forward with speed, and a run paused a few ms later is a little faster, so stills differed between page loads (31 pixels on the character, found by a pixel diff; varying only the speed reproduced it, and the old sun formula and the shadow flags were ruled out). The Task 2 hash could not be reproduced, so the baseline was re-shot from d3301fa with the pinned script: byte-identical to Task 5's low-fi — cost if wrong: none; stills are dev artefacts.
+- Task 5, Step 14: `?hifi` at the mobile preset (375×812 CSS, 750×1624 buffer) fills the portrait canvas, not stretched; after resetting to desktop and a resize event the frame follows the 1024×768 canvas.
 
 ## Progress
 
@@ -62,3 +75,6 @@ Budget for sub-project 1: 40. Balance at the start: 3,000 (Ultra, 2026-10-08).
 - Task 1, Step 1: baseline at f5a1025: `npm test` 85 pass, 0 fail; `npm run build` succeeds.
 - Task 1: complete (commits f5a1025..6d0b4e2, tests: npm test → 85 pass)
 - Merge a7d951e: `npm test` 86 pass, 0 fail.
+- Task 2: complete (commits a7d951e..d3301fa, tests: npm test → 87 pass)
+- Task 3: complete (commits d3301fa..907179d, tests: npm test → 94 pass)
+- Task 4: complete (commits 907179d..847c4e5, tests: npm test → 98 pass)
