@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PALETTE } from './palette.js';
+export { asset } from './assets.js'; // a preloaded GLB as a synchronous copy (src/assets.js)
 
 // Toon primitives for content modules. Materials are cached and shared; dispose() never touches them.
 export const palette = PALETTE;
@@ -104,9 +105,11 @@ export function orb(def) {
   return g;
 }
 
-// Frees geometry and per-object textures. Shared toon materials from mat() stay alive on purpose.
+// Frees geometry and per-object textures. Shared toon materials from mat() stay alive on purpose, and so does anything
+// flagged userData.shared: a preloaded asset's meshes, which every copy of it uses.
 export function dispose(object) {
   object.traverse((n) => {
+    if (n.userData.shared) return;
     n.geometry?.dispose();
     if (n.isSprite || n.isPoints || n.material?.map) { n.material.map?.dispose(); n.material.dispose(); }
   });

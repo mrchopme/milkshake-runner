@@ -2,6 +2,7 @@ import './style.css';
 import * as gfx from './gfx.js';
 import { createEngine } from './engine.js';
 import { loadRegistry, applyPack, loadPack } from './registry.js';
+import { preload } from './assets.js';
 import { loadLevels } from './levels.js';
 import { loadCharacter } from './character.js';
 import { createHud, pickupIcon, pickupName } from './hud.js';
@@ -40,6 +41,10 @@ async function main() {
     problems = [...problems, ...pack.problems];
   }
   if (problems.length) console.warn('Some content files are disabled:', problems);
+  // Every file the registered modules list (low-fi lists none). ponytail: all at boot; per level once a pack passes ~30 MB.
+  const paths = Object.values(registry).flatMap((byId) => Object.values(byId).flatMap((m) => m.assets ?? []));
+  const ready = preload(paths);
+  if (paths.length) { $('play').textContent = 'LOADING…'; ready.then(() => ($('play').textContent = 'RUN')); }
   const { levels, campaign, order, errors, valid } = loadLevels(registry, { fixtures });
   if (errors['campaign.json'] || errors['index.json'] || !valid(campaign.start)) return showErrors(errors);
   if (Object.keys(errors).length) console.warn('Some levels are disabled:', errors);
@@ -109,6 +114,7 @@ async function main() {
   }
 
   async function startLevel(id, carry = {}) {
+    await ready; // a view needs its files before the street is built
     if (!save.helpSeen) { save.helpSeen = true; writeSave(save); return help(() => startLevel(id, carry)); } // once per browser, before the first run however it starts (spec §4)
     show(null);
     if (backdrop) { backdrop.dispose(); backdrop = null; }

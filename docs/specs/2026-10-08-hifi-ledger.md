@@ -16,6 +16,9 @@ last-verified: never
 | 2 | `src/game.js` | The dev hook adds `character` | `scripts/hifi-shot.js` poses the character for stills | Dev only (stripped from builds) | No: the hook is the only handle on a running level |
 | 3 | `src/registry.js` | `applyPack`, `SKIN_FIELDS`, `loadPack`; `checkModule` validates an optional `assets` list for every kind | Packs re-skin registered modules with looks-only fields | Generic hook | No: before this a module could not re-skin another module (spec finding 6, look and gameplay fused per id) |
 | 3 | `src/main.js` | Quality switch (`?hifi`, `?lofi`, else `pointer: fine`) and the lazy `hifi` pack load merged over the registry | HiFi on mouse and trackpad, low-fi on touch | Generic hook | No |
+| 4 | `src/assets.js` (new) | `adopt`, `preload` (never rejects, dedupes, skips cached), `asset` (a clone sharing geometry and materials, every node flagged `userData.shared`) | Generated GLBs in synchronous views | Generic hook | No: obstacle, pickup and prop views are sync-only (spec finding 4) |
+| 4 | `src/gfx.js` | Re-exports `asset`; `dispose` skips nodes flagged `userData.shared` | Dropping one copy must not free the next one's geometry | Generic hook | No: `dispose` freed any material with a map (spec finding 3) |
+| 4 | `src/main.js` | Preloads every listed asset at boot; RUN reads LOADING… until it settles; `startLevel` awaits it | A view needs its files before the street is built | Generic hook | No |
 
 ## Credits
 
