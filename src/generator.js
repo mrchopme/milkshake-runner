@@ -78,7 +78,7 @@ export function curveAt(norm, z, seed = 0) {
     c = { turn: [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], hill: [-0.6, 0, 0.6][Math.floor(pick() * 3)] };
   }
   let turn = c?.turn ?? 0, hill = c?.hill ?? 0;
-  if (norm.length != null) { const fade = Math.max(0, Math.min(1, (norm.length - z) / FINISH_FADE_M)); turn = turn * fade || 0; hill = hill * fade || 0; } // `|| 0` turns a -0 into 0
+  if (norm.length != null) { const fade = Math.max(0, Math.min(1, (norm.length - z) / FINISH_FADE_M)); turn = turn * fade + 0; hill = hill * fade + 0; } // `+ 0` turns a -0 into 0 and nothing else (`|| 0` would also hide a NaN)
   return { turn, hill };
 }
 

@@ -466,3 +466,9 @@ test('the reaction floor also holds before a placed row that sits on the grid', 
   const placed = lvl({ density: { start: 1, end: 1 }, sections: [{ from_m: 100, to_m: 400, placements: [{ at_m: 204, lane: 0, kind: 'obstacle', id: 'taxi' }] }] });
   for (const s of seeds.slice(0, 20)) for (const o of all(placed, s, fast).obstacles.filter((o) => !o.placed)) assert.ok(o.z >= 204 || 204 - o.z >= 18, `seed ${s}: generated row at ${o.z} right before the placement at 204`);
 });
+
+test('curveAt normalises -0 to 0 at the finish and does not hide a NaN', () => {
+  const F = normalizeLevel(lvl({ length_m: 480, curve: { turn: -1, hill: -1 } }));
+  assert.ok(Object.is(curveAt(F, 480).turn, 0) && Object.is(curveAt(F, 480).hill, 0), 'a faded negative curve is +0, not -0');
+  assert.ok(Number.isNaN(curveAt(normalizeLevel(lvl({ curve: { turn: NaN } })), 100).turn), 'a NaN surfaces instead of reading as straight');
+});
