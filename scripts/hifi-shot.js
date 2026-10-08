@@ -10,7 +10,7 @@
   if (!window.__rafShim) { window.requestAnimationFrame = (cb) => setTimeout(() => cb(performance.now()), 16); window.cancelAnimationFrame = clearTimeout; window.__rafShim = true; }
 
   // ponytail: calibration knob — the teaser's 9:16 framing (Paper board 01), tuned by eye; metres and degrees
-  const SHOT = { runZ: 61.2, runY: 1.5, camUp: 5.4, camBack: 10.5, lookAhead: 16, lookY: 0.8, fov: 52 };
+  const SHOT = { runZ: 62.5, runY: 1.8, camUp: 7.8, camBack: 14, lookAhead: 9, lookY: 0.8, fov: 52 };
 
   async function shotLevel() {
     let m = window.__milkshake;

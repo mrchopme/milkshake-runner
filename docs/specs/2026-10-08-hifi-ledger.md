@@ -12,6 +12,8 @@ last-verified: never
 
 | Task | File | Change | Why | Generic hook or HiFi-only | Could a module have done it without this? |
 |---|---|---|---|---|---|
+| 2 | `src/engine.js` | `resize(w = innerWidth, h = innerHeight)` takes an explicit size and is on the returned object; the listener wraps it so the event is not read as the width | Stills render at 2160×3840 without resizing the window | Generic hook | No: the renderer and camera live inside `createEngine` |
+| 2 | `src/game.js` | The dev hook adds `character` | `scripts/hifi-shot.js` poses the character for stills | Dev only (stripped from builds) | No: the hook is the only handle on a running level |
 
 ## Credits
 
@@ -30,6 +32,7 @@ Budget for sub-project 1: 40. Balance at the start: 3,000 (Ultra, 2026-10-08).
 
 | Task | Still or probe | Query | Result | SHA-256 |
 |---|---|---|---|---|
+| 2 | `baseline-lofi.png`, 2160×3840 | `?fixtures` (before the quality switch, so low-fi) | 466,912 bytes. `SHOT` tuned by eye against board 01's 9:16 keyframe (Paper F-0): taxi at 68–92% of the height (reference 69–92%), vanishing point near 23% (reference 22%). Milkshake reads about half the reference's size, a stylisation of the teaser art | aa94a1946d1738ec4f94713187dcac7ec0166f28e668d01e20bd199fa615abcf |
 
 ## Rulings
 
@@ -40,6 +43,8 @@ Budget for sub-project 1: 40. Balance at the start: 3,000 (Ultra, 2026-10-08).
 - Task 1: Ruling: the live `get_cost` quote (Step 6) was blocked by Claude Code's auto-mode classifier as a real-world transaction; Caedon approved the spend against the spec's 2026-10-08 quote (0.25 each) and the charge was read back from the balance (1 credit) — cost if wrong: none here; later quotes may need Caedon to allow `get_cost` or approve from the spec's prices.
 - Task 1: Caedon's concept pick (in chat, 2026-10-08): **3**, job 6263aa35-5102-4af4-a2c2-041571bdf43f. Task 6 builds from it.
 - Before Task 2: Ruling: merged `origin/feat/v1` (4a145c7, the merge of PR #3) into `hi-fi-test` as a7d951e, bringing camera fix 4ecd1a7 (`streakOpacity`, `resize()` derived like `follow()`, the end and menu snaps). Flagged by the planning session, verified with git (feat/v3-feedback = e3742bc + 4ecd1a7, same tree as origin/feat/v1), approved by Caedon in chat because his brief said never merge. Consequences: the plan's full-file `src/engine.js`, `src/game.js` and `src/main.js` blocks are applied as edits on top of the merged files, keeping the fix; the suite baseline is 86, so the plan's counts shift by one (106 → 107); the Task 8 draft PR would target `feat/v1` (asked then) — cost if wrong: `git reset --hard 6d0b4e2` before anything is built on it.
+- Task 2: Ruling: Step 5's `resize` body sets `camera.fov` from `live.fov`; the merged file sets it from `cameraFor(…, live, live.speed).fov` (4ecd1a7). Kept the fix's line and applied only the size parameters, the comment, the wrapped listener and `resize` on the returned object — the plan predates the fix — cost if wrong: none; the line is the fix's.
+- Task 2, Step 11 (as planned, not a deviation): the plan's first-guess `SHOT` (camUp 5.4, camBack 10.5, lookAhead 16) cropped the taxi at the bottom and put the vanishing point at 35%; retuned to `{ runZ: 62.5, runY: 1.8, camUp: 7.8, camBack: 14, lookAhead: 9 }` after two low-resolution passes with a throwaway in-page helper.
 
 ## Progress
 
