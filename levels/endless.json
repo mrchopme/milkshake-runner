@@ -1,0 +1,10 @@
+{
+  "id": "endless",
+  "title": "Endless Manhattan",
+  "author": "PulsePoint",
+  "length_m": null,
+  "theme": { "id": "uptown", "sky": "#c98bd8", "fog": 0.35 },
+  "obstacles": { "taxi": 3, "barrier_low": 2, "scaffold_beam": 2, "hot_dog_cart": 1, "manhole_steam": 1, "pigeons": 1, "delivery_bike": 2 },
+  "density": { "start": 0.4, "end": 0.8 },
+  "jugs": { "per_100m": 12, "powerups": ["magnet", "shield", "x2"] }
+}
