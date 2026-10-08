@@ -35,10 +35,13 @@ function patchSprite(shader) { // a sprite places its centre from the model-view
   shader.vertexShader = shader.vertexShader.replace('void main() {', 'uniform vec4 uBend;\nvoid main() {').replace('vec4 mvPosition = modelViewMatrix[ 3 ];', BEND_SPRITE);
 }
 // Marks a material bendable, once. Materials a module builds itself get this when the engine adds the object (gfx.bend).
+// A hook the module set itself keeps running, first; the bend is patched in after it.
 export function bendable(material) {
   if (!material || material.userData.bent) return material;
   material.userData.bent = true;
-  material.onBeforeCompile = material.isSpriteMaterial ? patchSprite : patch;
+  const own = material.onBeforeCompile, bend = material.isSpriteMaterial ? patchSprite : patch;
+  material.onBeforeCompile = (shader, renderer) => { own.call(material, shader, renderer); bend(shader); };
+  material.customProgramCacheKey = () => own.toString() + bend.name; // three keys its program cache by onBeforeCompile.toString(), which is now the same wrapper for every material
   material.needsUpdate = true;
   return material;
 }

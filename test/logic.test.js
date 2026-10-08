@@ -472,3 +472,15 @@ test('curveAt normalises -0 to 0 at the finish and does not hide a NaN', () => {
   assert.ok(Object.is(curveAt(F, 480).turn, 0) && Object.is(curveAt(F, 480).hill, 0), 'a faded negative curve is +0, not -0');
   assert.ok(Number.isNaN(curveAt(normalizeLevel(lvl({ curve: { turn: NaN } })), 100).turn), 'a NaN surfaces instead of reading as straight');
 });
+
+test('gfx.bendable chains a material\'s own onBeforeCompile and keys the program cache by it', () => {
+  const calls = [];
+  const own = gfx.bendable(Object.assign(new gfx.three.MeshBasicMaterial(), { onBeforeCompile: (shader) => calls.push(shader) }));
+  const shader = { uniforms: {}, vertexShader: 'void main() {\n#include <project_vertex>\n}' };
+  own.onBeforeCompile(shader, null);
+  assert.equal(calls[0], shader, 'the module\'s own hook still runs');
+  assert.ok(shader.uniforms.uBend === gfx.bendUniform && shader.vertexShader.includes('uBend'), 'and the bend is patched in after it');
+  const plain = gfx.bendable(new gfx.three.MeshBasicMaterial());
+  assert.notEqual(own.customProgramCacheKey(), plain.customProgramCacheKey(), 'three caches programs by this key: different hooks, different programs');
+  assert.notEqual(plain.customProgramCacheKey(), new gfx.three.MeshBasicMaterial().customProgramCacheKey(), 'a bent material never shares a program with an unbent one');
+});
