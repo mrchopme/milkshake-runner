@@ -16,7 +16,10 @@ export function defaultChunk(g, { z0, length, lanes, rng: r, theme }) {
   for (let z = z0; z < z0 + length; z += 6) for (const x of [lanes.width / 2, -lanes.width / 2]) grp.add(g.box(0.12, 0.02, 3, g.palette.lane, x, 0.01, z + 1.5));
   const b = theme.buildings;
   for (const side of [-1, 1]) for (let z = z0; z < z0 + length;) {
-    const depth = 8 + r() * 6, h = b.minH + r() * (b.maxH - b.minH);
+    // The last block stops at the chunk end: a block running past the seam overlapped the next chunk's first block and the
+    // shared faces z-fought as the camera moved (the "brown band" flicker). A remainder under 3 m is left empty.
+    const depth = Math.min(8 + r() * 6, z0 + length - z), h = b.minH + r() * (b.maxH - b.minH);
+    if (depth < 3) break;
     grp.add(g.box(10, h, depth - 0.5, b.colors[Math.floor(r() * b.colors.length)], side * (ROAD_HALF + 8), h / 2, z + depth / 2));
     z += depth;
   }

@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { createWorld } from '../src/world.js';
+import * as gfx from '../src/gfx.js';
+import { createWorld, defaultChunk } from '../src/world.js';
+import { rng } from '../src/generator.js';
 import { createRun, resolveRules } from '../src/rules.js';
 
 // world.js needs three but not the DOM, so Node can drive its streaming with a view that counts its own disposal.
@@ -25,4 +27,20 @@ test('a view\'s dispose() runs when its obstacle is dropped behind and when the 
   const before = disposed, live = world.live.obstacles.length;
   world.dispose();
   assert.equal(disposed, before + live, 'disposing the world disposes every live view');
+});
+
+test('no building in a default chunk crosses the chunk seam', () => {
+  const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
+  const buildings = { colors: ['#a3714f', '#8a8f9c'], minH: 18, maxH: 70 };
+  for (let seed = 1; seed <= 50; seed++) {
+    const r = rng(seed);
+    for (const z0 of [0, 120, 240]) {
+      const g = defaultChunk(gfx, { z0, length: 120, lanes, rng: r, theme: { buildings } });
+      for (const m of g.children) {
+        const { height, depth } = m.geometry.parameters;
+        if (height < 1) continue; // road, sidewalks and lane dashes
+        assert.ok(m.position.z - depth / 2 >= z0 - 1e-9 && m.position.z + depth / 2 <= z0 + 120 + 1e-9, `seed ${seed}: building at ${m.position.z} ± ${depth / 2} leaves chunk ${z0}`);
+      }
+    }
+  }
 });
