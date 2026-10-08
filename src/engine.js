@@ -53,8 +53,8 @@ export function createEngine(canvas) {
   const live = { ...CAMERA, speed: 0 }; // the eased camera values
   let portrait = false;
   const render = () => renderer.render(scene, camera);
-  function resize() {
-    const w = innerWidth, h = innerHeight;
+  // Fits the canvas to the window, or to an explicit size (scripts/hifi-shot.js renders stills at 2160x3840).
+  function resize(w = innerWidth, h = innerHeight) {
     renderer.setSize(w, h);
     camera.aspect = w / h;
     portrait = w < h; // portrait needs a wider view to see all 3 lanes
@@ -62,11 +62,11 @@ export function createEngine(canvas) {
     camera.updateProjectionMatrix();
     render();
   }
-  addEventListener('resize', resize);
+  addEventListener('resize', () => resize()); // not addEventListener('resize', resize): the event would arrive as the width
   resize();
 
   return {
-    scene, camera, renderer, render,
+    scene, camera, renderer, render, resize,
     setSky(theme) {
       const sky = new THREE.Color(theme.sky);
       scene.background = sky;

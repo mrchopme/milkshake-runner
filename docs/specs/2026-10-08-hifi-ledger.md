@@ -38,6 +38,8 @@ Budget for sub-project 1: 40. Balance at the start: 3,000 (Ultra, 2026-10-08).
 - Task 1: Ruling: this file also carries the executor's pre-flight and per-task completion lines (Progress, below), mirrored from executing-plans' scratch `progress.md` — Caedon asked for one ledger, and the scratch copy is deleted at the end — cost if wrong: one section to delete.
 - Reference: 16:9 keyframe is job ed480a6e-19ce-48ff-8cf1-df1f86e16abd (2752×1536), 9:16 is job 854c98cf-81b2-40f4-8022-ac87b5a89a06 (1536×2752); both nano_banana_2 with the Milkshake-3D element. Higgsfield preference `auto_create_project: false`, so generations carry no folder_id.
 - Task 1: Ruling: the live `get_cost` quote (Step 6) was blocked by Claude Code's auto-mode classifier as a real-world transaction; Caedon approved the spend against the spec's 2026-10-08 quote (0.25 each) and the charge was read back from the balance (1 credit) — cost if wrong: none here; later quotes may need Caedon to allow `get_cost` or approve from the spec's prices.
+- Task 1: Caedon's concept pick (in chat, 2026-10-08): **3**, job 6263aa35-5102-4af4-a2c2-041571bdf43f. Task 6 builds from it.
+- Before Task 2: Ruling: merged `origin/feat/v1` (4a145c7, the merge of PR #3) into `hi-fi-test` as a7d951e, bringing camera fix 4ecd1a7 (`streakOpacity`, `resize()` derived like `follow()`, the end and menu snaps). Flagged by the planning session, verified with git (feat/v3-feedback = e3742bc + 4ecd1a7, same tree as origin/feat/v1), approved by Caedon in chat because his brief said never merge. Consequences: the plan's full-file `src/engine.js`, `src/game.js` and `src/main.js` blocks are applied as edits on top of the merged files, keeping the fix; the suite baseline is 86, so the plan's counts shift by one (106 → 107); the Task 8 draft PR would target `feat/v1` (asked then) — cost if wrong: `git reset --hard 6d0b4e2` before anything is built on it.
 
 ## Progress
 
@@ -48,3 +50,5 @@ Budget for sub-project 1: 40. Balance at the start: 3,000 (Ultra, 2026-10-08).
 - Pre-flight T6 ← T1: the concept pick (a Higgsfield job id). Clean.
 - Pre-flight T7 ← T4 `gfx.asset`, `adopt`; T3 `applyPack`; T6 `public/hifi/taxi.glb`. `assets: ['hifi/taxi.glb']` passes T3's check. Clean.
 - Task 1, Step 1: baseline at f5a1025: `npm test` 85 pass, 0 fail; `npm run build` succeeds.
+- Task 1: complete (commits f5a1025..6d0b4e2, tests: npm test → 85 pass)
+- Merge a7d951e: `npm test` 86 pass, 0 fail.

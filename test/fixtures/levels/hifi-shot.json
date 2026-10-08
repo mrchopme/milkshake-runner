@@ -1,0 +1,31 @@
+{
+  "id": "hifi-shot",
+  "title": "HiFi shot (dev)",
+  "author": "hifi-test",
+  "length_m": 300,
+  "seed": 7,
+  "character": { "id": "milkshake" },
+  "theme": { "id": "downtown", "sky": "#9fd3f5", "fog": 0.3 },
+  "obstacles": { "taxi": 1 },
+  "density": { "start": 0, "end": 0 },
+  "jugs": { "per_100m": 0, "powerups": [] },
+  "sections": [
+    { "from_m": 0, "to_m": 200, "generation": false, "placements": [
+      { "at_m": 60, "lane": 1, "kind": "obstacle", "id": "taxi" },
+      { "at_m": 30, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 30, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 36, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 36, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 42, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 42, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 48, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 48, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 54, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 54, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 60, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 60, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 66, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 66, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 72, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 72, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 78, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 78, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 84, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 84, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 90, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 90, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 96, "lane": 0, "kind": "pickup", "id": "jug" }, { "at_m": 96, "lane": 2, "kind": "pickup", "id": "jug" },
+      { "at_m": 72, "lane": 1, "kind": "pickup", "id": "jug" }, { "at_m": 78, "lane": 1, "kind": "pickup", "id": "jug" },
+      { "at_m": 84, "lane": 1, "kind": "pickup", "id": "jug" }, { "at_m": 90, "lane": 1, "kind": "pickup", "id": "jug" }
+    ] }
+  ]
+}

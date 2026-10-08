@@ -13,7 +13,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
       registry, rules, seed: level.seed ?? ((Math.random() * 2 ** 32) >>> 0),
       end: level.length_m === null ? Infinity : level.length_m + streetAfter, speedFrom: run.speedFrom,
     });
-    if (import.meta.env.DEV) window.__milkshake = { run, world, level, engine }; // dev-only hook for the manual pass; stripped from builds
+    if (import.meta.env.DEV) window.__milkshake = { run, world, level, engine, character }; // dev-only hook for the manual pass and scripts/hifi-shot.js; stripped from builds
     let paused = false, last = performance.now(), raf = 0, skyKey = '';
 
     const setPaused = (p) => { paused = p; hud.setPaused(p); last = performance.now(); };
