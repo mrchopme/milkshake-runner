@@ -33,16 +33,7 @@ export default {
     try {
       const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
       const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}${this.model}`);
-      model = gltf.scene;
-      const mesh = model.getObjectByProperty('isMesh', true);
-      if (mesh) { ({ arms, legs, head } = skin(gfx.three, mesh)); limbAxis = 'z'; } // the bones swing about the GLB's left-right axis
-      // The generated GLB ships a metallic PBR material, which three.js renders near-black without an environment map;
-      // the toon material with the same colour map matches the rest of the street.
-      model.traverse((n) => { if (n.isMesh) n.material = new gfx.three.MeshToonMaterial({ map: n.material.map, color: n.material.color }); });
-      model.rotation.y = this.yaw;
-      const size = new gfx.three.Box3().setFromObject(model).getSize(new gfx.three.Vector3());
-      model.scale.setScalar(this.height / size.y);
-      model.position.y -= new gfx.three.Box3().setFromObject(model).min.y;
+      ({ model, arms, legs, head, limbAxis } = fitModel(gfx.three, gltf.scene, this)); // one assignment: a model that breaks half way leaves nothing behind
     } catch {
       ({ model, arms, legs } = shapeCow(gfx)); // no GLB yet, or a bad one: the shape-built cow
     }
@@ -95,6 +86,22 @@ export default {
   },
 };
 
+// Skins the loaded scene's mesh, swaps its material for the toon one, yaws it and fits it to the character's height. It returns
+// what createView needs, or throws, so a scene that breaks half way is thrown away whole; exported so Node can test the GLB path.
+export function fitModel(THREE, model, def) {
+  let arms = [], legs = [], head = null, limbAxis = 'x';
+  const mesh = model.getObjectByProperty('isMesh', true);
+  if (mesh) { ({ arms, legs, head } = skin(THREE, mesh)); limbAxis = 'z'; } // the bones swing about the GLB's left-right axis
+  // The generated GLB ships a metallic PBR material, which three.js renders near-black without an environment map;
+  // the toon material with the same colour map matches the rest of the street.
+  model.traverse((n) => { if (n.isMesh) n.material = new THREE.MeshToonMaterial({ map: n.material.map, color: n.material.color }); });
+  model.rotation.y = def.yaw;
+  const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
+  model.scale.setScalar(def.height / size.y);
+  model.position.y -= new THREE.Box3().setFromObject(model).min.y;
+  return { model, arms, legs, head, limbAxis };
+}
+
 // Six bones placed from the mesh's shape (BONES) and weights from skinWeights; a SkinnedMesh takes the mesh's place in its parent.
 // The bones are children of the skinned mesh, so three.js's attached bind mode keeps the skin on the model wherever the root moves.
 function skin(THREE, mesh) {
@@ -110,7 +117,7 @@ function skin(THREE, mesh) {
   const hips = new THREE.Bone(); hips.position.fromArray(BONES.hips);
   const child = (p) => { const b = new THREE.Bone(); b.position.fromArray(p).sub(hips.position); hips.add(b); return b; };
   const head = child(BONES.head), armL = child(BONES.armL), armR = child(BONES.armR), legL = child(BONES.legL), legR = child(BONES.legR);
-  const skinned = new THREE.SkinnedMesh(g, mesh.material);
+  const skinned = new THREE.SkinnedMesh(g, mesh.material); // deliberately without the node's own transform: the bones and weights live in geometry space, and the shipped GLB's node carries only a 19.5° yaw (v3's three-quarter stance)
   skinned.add(hips);
   skinned.bind(new THREE.Skeleton([hips, head, armL, armR, legL, legR]));
   mesh.parent.add(skinned); mesh.parent.remove(mesh);

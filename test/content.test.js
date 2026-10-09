@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as gfx from '../src/gfx.js';
-import milkshake, { SKIN, skinWeights } from '../content/characters/milkshake.js';
+import milkshake, { SKIN, skinWeights, fitModel } from '../content/characters/milkshake.js';
 import { createRun, resolveRules, step, jumpHeight } from '../src/rules.js';
 import { pickupName } from '../src/hud.js';
 import magnet from '../content/pickups/magnet.js';
@@ -76,4 +76,38 @@ test('skinWeights gives each part of the Tripo mesh to its bone and blends at th
   assert.ok(crotch[LEG_L] > 0.4 && crotch[LEG_L] < 0.6 && crotch[HIPS] > 0.4, 'the crotch band blends leg into hips');
   const shoulder = at(SKIN.shoulder + SKIN.shoulderBand / 2, 0.22);
   assert.ok(shoulder[ARM_L] > 0.3 && shoulder[ARM_L] < 0.7 && shoulder[HIPS] > 0.3, 'the shoulder band blends arm into hips');
+});
+
+// The GLB path, in Node: a synthetic scene with one mesh in the Tripo export's frame (y -0.5..0.5, +x the muzzle, z left-right).
+test('fitModel skins the loaded mesh in place: six bones under the hips under the mesh, weights that sum to 1, the swing axis z, the model fitted to its height', () => {
+  const THREE = gfx.three;
+  const verts = [[0, -0.49, 0.1], [0, -0.49, -0.1], [0, 0, 0.1], [-0.1, -0.1, 0.22], [-0.1, -0.1, -0.22], [-0.05, 0.4, 0], [0.24, 0.5, 0.3], [-0.24, -0.5, -0.3]]; // a foot each side, the flank, an arm nub each side, the head, the extents
+  const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(verts.flat(), 3));
+  const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: '#ffffff' }));
+  const scene = new THREE.Group(); scene.add(mesh);
+  const { model, arms, legs, head, limbAxis } = fitModel(THREE, scene, milkshake);
+  assert.equal(model, scene);
+  const skinned = scene.children[0];
+  assert.ok(skinned.isSkinnedMesh && !scene.children.includes(mesh), 'the skinned mesh takes the mesh\'s place in its parent');
+  assert.ok(skinned.material.isMeshToonMaterial, 'with the toon material');
+  assert.equal(skinned.bindMode, 'attached');
+  const hips = skinned.skeleton.bones[0];
+  assert.ok(skinned.skeleton.bones.length === 6 && hips.parent === skinned && [head, ...arms, ...legs].every((b) => b.parent === hips), 'six bones: the hips under the mesh, the rest under the hips');
+  assert.equal(limbAxis, 'z');
+  const w = g.attributes.skinWeight, j = g.attributes.skinIndex;
+  for (let i = 0; i < verts.length; i++) assert.ok(Math.abs(w.getX(i) + w.getY(i) + w.getZ(i) + w.getW(i) - 1) < 1e-6, `vertex ${i} weights sum to 1`);
+  assert.deepEqual([j.getX(0), j.getX(1), j.getX(2), j.getX(3), j.getX(4), j.getX(5)], [4, 5, 0, 2, 3, 1], 'feet on the legs, the flank on the hips, nubs on the arms, the head on the head bone');
+  const box = new THREE.Box3().setFromObject(scene);
+  assert.ok(Math.abs(box.max.y - box.min.y - milkshake.height) < 1e-6 && Math.abs(box.min.y) < 1e-6, 'fitted to 1.9 m and standing on the ground');
+});
+
+test('a model that breaks after skinning is thrown away whole, so the fallback cow keeps its own limb axis', async () => {
+  const THREE = gfx.three;
+  const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 1, 0, 1, 0, 0], 3));
+  const scene = new THREE.Group(); scene.add(new THREE.Mesh(g, null)); // the skinning succeeds, the material swap throws
+  assert.throws(() => fitModel(THREE, scene, milkshake), TypeError);
+  const view = await milkshake.createView(gfx); // in Node the loader fails: the same catch installs the shape cow
+  view.pose(0.11); // a stride near its peak
+  const pivots = view.object.children[1].children[0].children.filter((c) => c.isGroup);
+  assert.ok(pivots.length === 4 && pivots.every((p) => p.rotation.x !== 0 && p.rotation.z === 0), 'the shape cow swings its capsule limbs about x');
 });
