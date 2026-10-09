@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { buildRegistry, applyPack, checkModule } from '../src/registry.js';
 import { discover } from './helpers.js';
+import * as gfx from '../src/gfx.js';
+import { adopt } from '../src/assets.js';
 
 const CONTENT = fileURLToPath(new URL('../content/', import.meta.url));
 let shipped;
@@ -80,4 +82,34 @@ test('every file the HiFi pack lists is in public/', async () => {
   for (const byId of Object.values(registry)) for (const m of Object.values(byId)) for (const a of m.assets ?? []) {
     assert.ok(existsSync(new URL(`../public/${a}`, import.meta.url)), `${m.kind} "${m.id}" lists ${a}, which is not in public/`);
   }
+});
+
+test('the HiFi taxi fits the shipped taxi footprint, sits on the road, and every taxi shares one glossy paint', async () => {
+  const T = gfx.three;
+  // A stand-in for the generated GLB: 1.1 x 0.9 x 2.6 units, off-centre and below the origin, as generators leave them.
+  const raw = new T.Group(), body = new T.Mesh(new T.BoxGeometry(1.1, 0.9, 2.6), new T.MeshStandardMaterial());
+  body.position.set(0.3, -0.2, 0.5);
+  raw.add(body);
+  adopt('hifi/taxi.glb', raw);
+  const { default: hifiTaxi } = await import('../packs/hifi/obstacles/taxi.js');
+  const a = hifiTaxi.createView(gfx).object, b = hifiTaxi.createView(gfx).object;
+  a.updateMatrixWorld(true);
+  const box = new T.Box3().setFromObject(a.children[0]), size = box.getSize(new T.Vector3()); // the model, without the light plates
+  const { w, d } = shipped.obstacle.taxi.box;
+  assert.ok(size.x <= w + 1e-6 && size.z <= d + 1e-6, `footprint ${size.x.toFixed(2)} x ${size.z.toFixed(2)} m`);
+  assert.ok(Math.abs(size.x - w) < 1e-6 || Math.abs(size.z - d) < 1e-6, 'fills the footprint along one side');
+  assert.ok(Math.abs(box.min.y) < 1e-6, 'wheels on the road');
+  assert.ok(Math.abs(box.min.x + box.max.x) < 1e-6 && Math.abs(box.min.z + box.max.z) < 1e-6, 'centred on its lane');
+  const paint = (o) => { let p; o.traverse((n) => { if (n.isMesh && n.material.isMeshPhysicalMaterial) p = n.material; }); return p; };
+  assert.ok(paint(a)?.clearcoat > 0, 'glossy clearcoat paint');
+  assert.equal(paint(a), paint(b), 'every taxi shares one paint material');
+});
+
+test('the HiFi taxi lights its own red tail lamps instead of laying boxes over them', async () => {
+  const { default: hifiTaxi, lampMask } = await import('../packs/hifi/obstacles/taxi.js');
+  // a red lamp, yellow paint, a white bumper and an orange shadow in the paint: only the lamp may glow
+  const px = new Uint8ClampedArray([220, 40, 40, 255, 245, 200, 30, 255, 250, 250, 250, 255, 180, 120, 40, 255]);
+  assert.deepEqual([...lampMask(px)], [220, 40, 40, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255]);
+  const red = (n) => n.isMesh && n.material.emissive && n.material.emissive.r > 0.9 && n.material.emissive.g < 0.5;
+  assert.ok(!hifiTaxi.createView(gfx).object.children.some(red), 'no red plates over the lamps');
 });
