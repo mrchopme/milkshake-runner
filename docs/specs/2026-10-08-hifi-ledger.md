@@ -34,11 +34,17 @@ Budget for sub-project 1: 40. Balance at the start: 3,000 (Ultra, 2026-10-08).
 | Task | Job id | Model | What | Credits |
 |---|---|---|---|---|
 | 1 | db0e7dc4-31d6-4389-84ce-4fe6365707a9, cd75593a-36a1-4537-9145-4d2694791e4b, 6263aa35-5102-4af4-a2c2-041571bdf43f, 0d4f4acc-f345-4290-81fb-b7e9af1ed764 | gpt_image_2_5 (1024², quality low) | 4 taxi concept variants | 1 (balance 3,000 → 2,999) |
+| 6 | 9c73c650-3f05-4f0c-b6cf-17b24adff2aa (discarded: drifted to a rear view), 91e501a8-0e07-4250-9e0f-7f7e0fecb097 (left), 83f26e66-5282-4d67-9566-36dc5991e121 (rear), 2ee67aed-1339-47e2-8ec7-b51c0bb5a6b1 (right), b8a0bef5-24b2-4ba4-af30-d95d2aec8bae (front, regenerated) | gpt_image_2_5 | Views of concept 3 for the multi-view model | 1.25 |
+| 6 | 99cb188a-9fa2-4d91-b4d5-3e53ea2cecec | tripo_h3_1_multiview_to_3d (detailed geometry and texture, PBR, face_limit 20000; views front, left, rear, right) | The taxi model; Caedon judged it in the 3D viewer and approved the download, so the retry was not used | 18 (balance 2,999 → 2,979.75 with the views) |
+
+Sub-project 1 total so far: 20.25 of 40.
 
 ## Downloads and dependencies
 
 | Task | What | Source | Size | Approved by Caedon |
 |---|---|---|---|---|
+| 6 | `taxi_raw.glb` into the session scratchpad, not committed (SHA-256 31d749053aaa978a32390faea96906d1c07efc34d8199225197947027452fd07): one mesh, 19,307 triangles, 4096² colour, ORM and normal textures, long axis along x | d8j0ntlcm91z4.cloudfront.net (Higgsfield CDN, job 99cb188a) | 8,057,164 bytes | Yes, in chat, 2026-10-09 |
+| 6 | `@gltf-transform/cli` 4.5.1 (MIT), devDependency; brings sharp 0.35.5, meshoptimizer and gltf-validator | npm registry | 440 KB unpacked (the package alone) | Yes, in chat, 2026-10-09 |
 
 ## Stills and measurements
 
@@ -47,6 +53,7 @@ Budget for sub-project 1: 40. Balance at the start: 3,000 (Ultra, 2026-10-08).
 | 2 | `baseline-lofi.png`, 2160×3840 | `?fixtures` (before the quality switch, so low-fi) | 466,912 bytes. `SHOT` tuned by eye against board 01's 9:16 keyframe (Paper F-0): taxi at 68–92% of the height (reference 69–92%), vanishing point near 23% (reference 22%). Milkshake reads about half the reference's size, a stylisation of the teaser art. **Superseded in Task 5:** this hash depended on the run's speed at the pause | aa94a1946d1738ec4f94713187dcac7ec0166f28e668d01e20bd199fa615abcf |
 | 5 | `baseline-lofi.png`, 2160×3840, re-shot | `?fixtures` on the Task 2 code (d3301fa, served from a temporary worktree, since removed), with the speed-pinned script | 467,324 bytes | c97c809eeb061cf5c1e6f49316c79183aa99d11789c67c678a13dd086d0c19fc |
 | 5 | `lofi-task5.png`, 2160×3840 | `?fixtures&lofi` on the Task 5 tree, fresh page load | 467,324 bytes, byte-identical to the re-shot baseline: low-fi unchanged | c97c809eeb061cf5c1e6f49316c79183aa99d11789c67c678a13dd086d0c19fc |
+| 6 | `public/hifi/taxi.glb` | `npm run assets:optimize` then `gltf-transform inspect` | 523,352 bytes (raw 8.06 MB); EXT_meshopt_compression, EXT_texture_webp, KHR_mesh_quantization; 19,157 triangles; three 2048² WebP textures (206, 90 and 84 KB) | 7c12f1272c8e400f0ea94d65f4a70123eda7ffcc8dd0153f6bb54e4f48d53efb |
 
 ## Rulings
 
