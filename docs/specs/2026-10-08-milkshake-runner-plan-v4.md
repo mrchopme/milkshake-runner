@@ -782,3 +782,27 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - **Test counts** are expectations, not contracts: 81 at the start, +1 (T1) +0 (T2: −1 `curveAt`, +1 `bendOffset`) +1 (T3) +1 (T4) = 84.
 - **Review Focus:** 1 and 5 pinned in Task 2's `bendOffset` test; 2 and 3 in Task 1's `curveSegments` test; 4 by hand in Task 5.
 - **Placeholder scan:** every code step carries its code; the manual pass lists its frames; no "similar to", no "add handling".
+
+## Addendum (2026-10-09, after the build)
+
+> Agent-drafted by Fable on 2026-10-09 and pending Caedon's approval; the frontmatter's `human-approved` covers the plan as
+> executed and confirmed at the close-out, not this note. Point-in-time snapshot written against `feat/v4-feedback` after
+> 3950926 (92 tests); the code is the truth.
+
+The plan ran as written (ledger table, Tasks 1–5, 84 tests) and the landed code then moved in four places: the fix pass of
+2026-10-08 and the live tuning of 2026-10-09, each by Caedon's decision and under a test, recorded in the ledger's Fix pass and
+Live tuning sections and stated against the spec in the design spec's addendum of the same date. Where a fenced code block
+above differs from the file, the file is right:
+
+- Task 2, `src/gfx.js`: `s = max(uBendStart, from − BEND_LEAD)` with `BEND_LEAD` = 40 m, in the GLSL and in `bendOffset`
+  (3950926; spec addendum 1).
+- Task 2, `src/world.js`: `curveSegments(norm, run.z, builtTo, seed)`, not `run.z + AHEAD` (62ee1ea; spec addendum 2).
+- Task 1, `src/generator.js`: `push` extends the last stretch when the next one touches it with the same `turn` and `hill`,
+  `"random"` picks included, so the step's assertion that every random stretch is exactly 240 m reads "cut on a 240 m line, a
+  multiple of 240 m long" (d9679b5; spec addendum 3).
+- Task 4, `content/characters/milkshake.js`: the skinning, the toon swap, the yaw and the fit run inside the exported
+  `fitModel(THREE, scene, def)`, assigned to `createView`'s state in one statement and tested in Node; the `SkinnedMesh` call
+  says it drops the node's 19.5° yaw on purpose (b509fe0; spec addendum 4).
+
+The suite is 92: 84 at Task 5, 88 after the rebase onto 4ecd1a7 (the minors' tests came with it), 92 after the fix pass,
+unchanged by the tuning.
