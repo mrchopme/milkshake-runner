@@ -1,6 +1,6 @@
 ---
-provenance: agent-generated
-last-verified: never
+provenance: human-approved
+last-verified: 2026-10-09
 ---
 
 # Milkshake Runner HiFi test, round 2 (the city, Milkshake, the hero assets) Implementation Plan
@@ -10,6 +10,8 @@ last-verified: never
 > Tasks marked **[Main]** are the coordinating session's own work (gates, Higgsfield, downloads, the browser pane, Paper);
 > never hand them to a subagent.
 
+> Approved by Caedon in chat on 2026-10-09 ("approved"), to run in a fresh session.
+>
 > Point-in-time snapshot, written 2026-10-09 against `hi-fi-city` at ed73799 (9132bae plus the approved spec). Read the
 > current code before trusting a line number here; knobs marked `ponytail:` are first guesses meant to be tuned by eye.
 
