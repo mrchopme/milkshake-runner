@@ -53,6 +53,10 @@ Sub-project 1 total so far: 20.25 of 40.
 | 2 | `baseline-lofi.png`, 2160×3840 | `?fixtures` (before the quality switch, so low-fi) | 466,912 bytes. `SHOT` tuned by eye against board 01's 9:16 keyframe (Paper F-0): taxi at 68–92% of the height (reference 69–92%), vanishing point near 23% (reference 22%). Milkshake reads about half the reference's size, a stylisation of the teaser art. **Superseded in Task 5:** this hash depended on the run's speed at the pause | aa94a1946d1738ec4f94713187dcac7ec0166f28e668d01e20bd199fa615abcf |
 | 5 | `baseline-lofi.png`, 2160×3840, re-shot | `?fixtures` on the Task 2 code (d3301fa, served from a temporary worktree, since removed), with the speed-pinned script | 467,324 bytes | c97c809eeb061cf5c1e6f49316c79183aa99d11789c67c678a13dd086d0c19fc |
 | 5 | `lofi-task5.png`, 2160×3840 | `?fixtures&lofi` on the Task 5 tree, fresh page load | 467,324 bytes, byte-identical to the re-shot baseline: low-fi unchanged | c97c809eeb061cf5c1e6f49316c79183aa99d11789c67c678a13dd086d0c19fc |
+| 8 | `hifi-taxi.png`, 2160×3840 | `?fixtures&hifi` | 1,582,642 bytes | d61b5469569c59b0185c08c12561fef62c9d0d51d114f6163f78fb8b2d6ea50e |
+| 8 | `lofi-final.png`, 2160×3840 | `?fixtures&lofi` | 467,324 bytes, byte-identical to the baseline: low-fi unchanged at the end of the sub-project | c97c809eeb061cf5c1e6f49316c79183aa99d11789c67c678a13dd086d0c19fc |
+| 8 | `hifiProbe()`, HiFi | `?fixtures&hifi`, 300 back-to-back frames at 3024×1964 (1512×982 at dpr 2), `gl.finish()` each, in the desktop app's browser pane | mean 6.73 ms, p95 10.9 ms (bar 16.7 ms); 442 draw calls, 181,820 triangles across all passes, shadow map included | — |
+| 8 | `hifiProbe()`, low-fi | `?fixtures&lofi`, same | mean 1.66 ms, p95 4.4 ms; 287 draw calls, 75,798 triangles | — |
 | 6 | `public/hifi/taxi.glb` | `npm run assets:optimize` then `gltf-transform inspect` | 523,352 bytes (raw 8.06 MB); EXT_meshopt_compression, EXT_texture_webp, KHR_mesh_quantization; 19,157 triangles; three 2048² WebP textures (206, 90 and 84 KB) | 7c12f1272c8e400f0ea94d65f4a70123eda7ffcc8dd0153f6bb54e4f48d53efb |
 
 ## Rulings
@@ -93,3 +97,42 @@ Sub-project 1 total so far: 20.25 of 40.
 - Task 4: complete (commits 907179d..847c4e5, tests: npm test → 98 pass)
 - Task 5: complete (commits 847c4e5..1d2ff4f, tests: npm test → 106 pass)
 - Task 6: complete (commits 1d2ff4f..1613a43, tests: npm test → 106 pass)
+- Task 7: complete (commits 1613a43..63be053, tests: npm test → 108 pass)
+
+## Gap to the reference (board 01's 9:16 keyframe against `hifi-taxi.png`)
+
+Already reads like the teaser:
+- The taxi: a glossy toy cab with chunky proportions, the TAXI roof sign lit, round red tail lamps glowing in their own shape, a white bumper, clearcoat highlights.
+- The light: tone-mapped colours that keep the palette, soft sun shadows from buildings and railings, a sky that deepens overhead, bloom on lamps and lane lines.
+- The framing: the taxi in the lower third of the middle lane, jug columns either side, the street running to a vanishing point near the top.
+
+Still to come:
+- The city (sub-project 2): the street is a canyon of plain blocks with no windows, storefronts or billboards. Their shadows keep most of the road in shade, where the teaser has a sunlit avenue. No skyline or horizon layer.
+- Milkshake (sub-project 3): the low-fi grey model, about half the teaser's size and not glossy; no mid-jump pose.
+- The other assets (sub-project 4): low-fi jugs (lavender bubbles, not glowing milk bottles), the other obstacles, pickups and props, the shield bubble.
+- Endings and finish (sub-project 5): sparkle trails, steam, LED screens.
+
+## Close-out (sub-project 1)
+
+`git diff --stat e3742bc..HEAD -- src/` (as planned; it includes the merged camera fix 4ecd1a7, about 11 lines in `engine.js`, `game.js` and `main.js`):
+
+```
+ src/assets.js   |  31 +++++++++++++++++
+ src/engine.js   |  42 ++++++++++++++---------
+ src/game.js     |   6 ++--
+ src/gfx.js      |  16 +++++++--
+ src/look.js     | 102 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/main.js     |  22 ++++++++++--
+ src/registry.js |  64 ++++++++++++++++++++++++++++++++++-
+ src/world.js    |   2 +-
+ 8 files changed, 260 insertions(+), 25 deletions(-)
+```
+
+HiFi work alone (`a7d951e..HEAD -- src/`, after the merge): 8 files, 251 insertions, 19 deletions; `src/look.js` (102 lines) and `src/assets.js` (31 lines) are new.
+
+- Engine changes: 14 ledger rows. 12 are generic hooks (packs and the quality switch, the asset loader and the shared-safe dispose, `resize(w, h)`, the look hook, `skyAt`'s id and look, the sky key, shadow flags in `bend`, `checkLook`), 1 is HiFi-only (`src/look.js`, loaded on demand), and 1 is dev-only (the hook's `character`).
+- The asset itself, the taxi, needed **no** `src/` change: one pack file and one GLB.
+- Credits: 20.25 of the 40 budget (concepts 1, views 1.25, model 18; no retry). Balance 3,000 → 2,979.75.
+- Tests: 108 (85 at the start, plus 1 from the merged fix, plus 22 new). Build: the look, the loader, the meshopt decoder and each pack file are separate on-demand chunks, so low-fi downloads none of them.
+
+The modularity read: once the hooks existed, a single pack file could re-skin a shipped obstacle with a generated, PBR-painted, glowing model, and re-light every theme, without touching the engine or changing how anything plays. Low-fi stayed byte-identical throughout. What a module still cannot do: draw instanced geometry under the bend (`gfx.bend` drops `instanceMatrix`), live at the horizon (chunks scroll and drop), give a power-up a worn look, load assets per level, or restyle the camera and HUD. And the shipped toon materials ignore the environment map, so a HiFi look leans on a high ambient until the content itself moves to PBR (sub-projects 2 to 4).
