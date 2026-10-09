@@ -8,11 +8,13 @@ export const three = THREE; // escape hatch for endings that need Vector3, Point
 
 // World bend (spec v4 §1). Every material the helpers hand out bends its vertices in the vertex shader by shared uniforms:
 // uBendStart (run.z + DEAD: nothing bends closer than this) and uSeg[BEND_SEGMENTS], one (from, to, kx, ky) per bending
-// stretch of street in view. For a vertex at world z and each stretch: s = max(uBendStart, from), L = max(0, to - s),
+// stretch of street in view. For a vertex at world z and each stretch: s = max(uBendStart, from - BEND_LEAD), L = max(0, to - s),
 // u = clamp(z - s, 0, L); x += kx·(u² + 2·L·max(0, z - to)) (a turn keeps its heading past its end line), y += ky·u² (a hill
-// plateaus at its new height). The bend is anchored to the street: straight up to a start line, straight again at an end line.
+// plateaus at its new height). The bend is anchored to the street: straight up to BEND_LEAD before a start line (a parabola is flat
+// where it starts, so the lead-in is what lets a corner read from far off), straight again at an end line.
 // Collision never sees this: the street is straight for everything that plays.
 export const TURN_K = 0.005, HILL_K = 0.003, DEAD = 20, BEND_SEGMENTS = 4; // calibration knobs: offset per m² of bend, the dead zone, stretches drawn at once
+export const BEND_LEAD = 40; // metres before a stretch's start line where its bend begins; Caedon, 2026-10-09: "the turn still reads late, bend it earlier"
 export const bendStart = { value: DEAD };
 export const bendSegments = { value: Array.from({ length: BEND_SEGMENTS }, () => new THREE.Vector4()) };
 const BEND_FN = `
@@ -21,7 +23,7 @@ uniform vec4 uSeg[${BEND_SEGMENTS}];
 vec3 bendOffset( float z ) {
   vec3 o = vec3( 0.0 );
   for ( int i = 0; i < ${BEND_SEGMENTS}; i ++ ) {
-    float s = max( uBendStart, uSeg[ i ].x );
+    float s = max( uBendStart, uSeg[ i ].x - ${BEND_LEAD.toFixed(1)} );
     float L = max( 0.0, uSeg[ i ].y - s );
     float u = clamp( z - s, 0.0, L );
     o.x += uSeg[ i ].z * ( u * u + 2.0 * L * max( 0.0, z - uSeg[ i ].y ) );
@@ -70,7 +72,7 @@ export function setBend({ origin = 0, segments = [] } = {}) {
 export function bendOffset(z) {
   let x = 0, y = 0;
   for (const v of bendSegments.value) {
-    const s = Math.max(bendStart.value, v.x), L = Math.max(0, v.y - s), u = Math.min(L, Math.max(0, z - s));
+    const s = Math.max(bendStart.value, v.x - BEND_LEAD), L = Math.max(0, v.y - s), u = Math.min(L, Math.max(0, z - s));
     x += v.z * (u * u + 2 * L * Math.max(0, z - v.y));
     y += v.w * u * u;
   }

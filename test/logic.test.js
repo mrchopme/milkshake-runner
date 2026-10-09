@@ -431,15 +431,17 @@ test('the bend is anchored to its stretch of street: straight before the start l
   const seg = { from: 150, to: 400, turn: 0.7, hill: 0 };
   gfx.setBend({ origin: 0, segments: [seg] });
   assert.deepEqual(gfx.bendSegments.value[0].toArray(), [150, 400, -0.7 * gfx.TURN_K, 0], 'positive turn bends to screen-right (-x)');
-  assert.deepEqual(gfx.bendOffset(100), { x: 0, y: 0 }, 'straight up to the start line');
+  assert.deepEqual(gfx.bendOffset(100), { x: 0, y: 0 }, 'straight up to the lead-in line');
+  assert.equal(gfx.bendOffset(150 - gfx.BEND_LEAD).x, 0, 'the bend begins BEND_LEAD metres before the stretch\'s start line');
+  assert.ok(gfx.bendOffset(150).x < -3, 'so the line itself is already turning: the corner reads before you reach it (Caedon, 2026-10-09)');
   const far = gfx.bendOffset(250).x;
   assert.ok(far < -30, 'bends to screen-right beyond it');
-  gfx.setBend({ origin: 100, segments: [seg] });
+  gfx.setBend({ origin: 80, segments: [seg] });
   assert.equal(gfx.bendOffset(250).x, far, 'a fixed point on the street looks the same as Milkshake approaches');
-  gfx.setBend({ origin: 130, segments: [seg] }); // 20 m ahead is the start line: from here the stretch rides with Milkshake
+  gfx.setBend({ origin: 90, segments: [seg] }); // 20 m ahead is the lead-in line: from here the stretch rides with Milkshake
   const atLine = gfx.bendOffset(250).x;
-  gfx.setBend({ origin: 130.01, segments: [seg] });
-  assert.ok(Math.abs(gfx.bendOffset(250).x - atLine) < 0.02, 'and crossing the line moves the picture by the slope alone, 7 mm for a centimetre: no step');
+  gfx.setBend({ origin: 90.01, segments: [seg] });
+  assert.ok(Math.abs(gfx.bendOffset(250).x - atLine) < 0.02, 'and crossing the line moves the picture by the slope alone, a centimetre for a centimetre: no step');
   gfx.setBend({ origin: 340, segments: [seg] }); // 60 m before the end line
   assert.ok(gfx.bendOffset(400).x < 0 && gfx.bendOffset(400).x > -6, 'the last of the bend is a few metres');
   assert.ok(gfx.bendOffset(500).x < gfx.bendOffset(400).x, 'and the far road keeps the turn\'s heading');
@@ -455,7 +457,7 @@ test('the bend is anchored to its stretch of street: straight before the start l
   assert.equal(gfx.bendOffset(500).y, crest, 'and holds its depth past the end line');
   assert.equal(gfx.bendOffset(500).x, 0);
   gfx.setBend({ origin: 0, segments: Array.from({ length: 5 }, (_, i) => ({ from: 20 + i, to: 500, turn: 0.2, hill: 0 })) });
-  const four = [0, 1, 2, 3].reduce((s, i) => s - 0.2 * gfx.TURN_K * (280 - i) ** 2, 0);
+  const four = [0, 1, 2, 3].reduce((s) => s - 0.2 * gfx.TURN_K * 280 ** 2, 0); // the lead-in puts every start line behind the dead zone, so all four begin at 20 m
   assert.ok(Math.abs(gfx.bendOffset(300).x - four) < 1e-9, 'only the first four stretches in view bend');
   gfx.setBend();
   assert.deepEqual(gfx.bendOffset(300), { x: 0, y: 0 }, 'no stretches, straight street');
