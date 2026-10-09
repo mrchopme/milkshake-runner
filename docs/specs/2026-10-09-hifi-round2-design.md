@@ -1,11 +1,11 @@
 ---
-provenance: agent-generated
-last-verified: never
+provenance: human-approved
+last-verified: 2026-10-09
 ---
 
 # Milkshake Runner: HiFi test, round 2 design (sub-projects 2 to 4: the city, Milkshake, the hero assets)
 
-**Date:** 2026-10-09 · **Status:** design approved by Caedon in chat, section by section, on 2026-10-09; this written spec awaits his review · **Builds on:** [HiFi spec](2026-10-08-hifi-test-design.md) (sub-project 1, approved), [HiFi ledger](2026-10-08-hifi-ledger.md), the v4 round ([spec](2026-10-08-milkshake-runner-design-v4.md), PR #4, merged into `feat/v1` as 0a954c3 on 2026-10-09), the Paper style sheet (file `01M46QWM611CXK4WQSBTH6FJK3`) · **Branch:** `hi-fi-city`, local, cut from `origin/hi-fi-test` and fast-forwarded to 9132bae, where the sub-project 1 session had merged `feat/v1` (0a954c3, v4) into `hi-fi-test` (draft PR #5 onto `feat/v1`)
+**Date:** 2026-10-09 · **Status:** approved by Caedon on 2026-10-09, in chat, section by section and then as this written spec · **Builds on:** [HiFi spec](2026-10-08-hifi-test-design.md) (sub-project 1, approved), [HiFi ledger](2026-10-08-hifi-ledger.md), the v4 round ([spec](2026-10-08-milkshake-runner-design-v4.md), PR #4, merged into `feat/v1` as 0a954c3 on 2026-10-09), the Paper style sheet (file `01M46QWM611CXK4WQSBTH6FJK3`) · **Branch:** `hi-fi-city`, local, cut from `origin/hi-fi-test` and fast-forwarded to 9132bae, where the sub-project 1 session had merged `feat/v1` (0a954c3, v4) into `hi-fi-test` (draft PR #5 onto `feat/v1`)
 
 > Point-in-time snapshot. Written on 2026-10-09 against `hi-fi-city` at 9132bae (v4 merged in, 118 tests), from four
 > research notes kept in the session scratchpad (street map, bend, board 01 inventory, asset list). The decisions table
