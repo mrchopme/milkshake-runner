@@ -43,6 +43,11 @@ read "of 12". The build that follows them is `2026-10-08-milkshake-runner-plan-v
 numbers on the boards (bend strengths, camera presets, speeds) are the plan's starting values and get tuned in the
 manual pass.
 
+**2026-10-08, v4 boards.** Two boards were added for the second playtest response and approved by Caedon the day they
+were drawn: 13 Turns you can see coming (the bend anchored to the street, seen from above) · 14 Obstacles you can read
+(barrier, beam and taxi, today beside proposed, at one scale with Milkshake). The eyebrows now read "of 14". The build that
+follows them is `2026-10-08-milkshake-runner-plan-v4.md`. Snapshot, not a contract.
+
 Display font: Lilita One (SIL Open Font Licence, `public/fonts/OFL.txt`), self-hosted in `public/fonts/`.
 UI tokens in `src/style.css`: `--ink #1d1b26`, `--paper #ffffff`, `--accent #b9a6e8`.
 Jersey colours deliberately sit off the real team's `#f58426` / `#006bb6`.

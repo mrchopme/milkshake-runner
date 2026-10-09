@@ -166,7 +166,7 @@ test('swipes and keys map to actions', () => {
 
 import { before } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { generate, normalizeLevel, densityAt, rng, passable, curveAt, cameraAt, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
+import { generate, normalizeLevel, densityAt, rng, passable, curveSegments, FINISH_STRAIGHT_M, cameraAt, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
 import * as gfx from '../src/gfx.js';
 import { buildRegistry } from '../src/registry.js';
 import { discover } from './helpers.js';
@@ -390,35 +390,78 @@ test('a magnet pulls a jug in over a few frames instead of collecting it 15 m ou
   assert.equal(inReach(none, { lane: 1, z: 0.5 }), true, 'but a jug in your lane is still picked up');
 });
 
-test('curveAt follows sections, inherits the level, fades at the finish and is reproducible when random', () => {
+test('curveSegments lists the bending stretches of street: sections, the inherited level curve, random picks, nothing in the last 120 m', () => {
   const level = lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 300, to_m: 600, curve: { hill: -1 } }, { from_m: 600, to_m: 900, curve: 'random' }] });
   const norm = normalizeLevel(level);
-  assert.deepEqual(curveAt(norm, 100), { turn: 1, hill: 0 }, 'the level curve applies outside sections');
-  assert.deepEqual(curveAt(norm, 400), { turn: 0, hill: -1 }, 'a section curve replaces it');
-  const r = curveAt(norm, 700, 7);
-  assert.deepEqual(r, curveAt(norm, 700, 7));
-  assert.ok(Math.abs(r.turn) <= 1 && Math.abs(r.hill) <= 1);
-  assert.deepEqual(curveAt(norm, 1500), { turn: 0, hill: 0 }, 'straight at the finish');
-  assert.deepEqual(curveAt(norm, 1440), { turn: 0.5, hill: 0 }, 'half way through the fade');
-  assert.deepEqual(curveAt(normalizeLevel(lvl()), 500), { turn: 0, hill: 0 }, 'no curve means straight');
+  const segs = curveSegments(norm, 0, 1500, 7);
+  assert.deepEqual(segs[0], { from: 0, to: 300, turn: 1, hill: 0 }, 'the level curve applies outside sections');
+  assert.deepEqual(segs[1], { from: 300, to: 600, turn: 0, hill: -1 }, 'a section curve replaces it');
+  const random = segs.filter((s) => s.from >= 600 && s.from < 900);
+  assert.ok(random.length <= 2 && random.every((s) => s.to <= 900 && Math.abs(s.turn) <= 1 && Math.abs(s.hill) <= 1 && (s.turn || s.hill)), 'random stretches stay inside their section, carry a pick and skip the straight ones');
+  assert.deepEqual(random, curveSegments(norm, 0, 1500, 7).filter((s) => s.from >= 600 && s.from < 900), 'random picks come from the seed');
+  assert.deepEqual(segs.at(-1), { from: 900, to: 1500 - FINISH_STRAIGHT_M, turn: 1, hill: 0 }, 'the level curve resumes and stops 120 m before the finish');
+  assert.deepEqual(curveSegments(norm, 1380, 1500, 7), [], 'the last 120 m are straight');
+  assert.deepEqual(curveSegments(norm, 100, 200, 7), [{ from: 0, to: 300, turn: 1, hill: 0 }], 'only stretches overlapping the asked range, with their real ends');
+  assert.deepEqual(curveSegments(normalizeLevel(lvl()), 0, 1500), [], 'no curve means straight');
+  assert.deepEqual(curveSegments(normalizeLevel(lvl({ sections: [{ from_m: 100, to_m: 200, curve: { turn: 0 } }] })), 0, 1500), [], 'explicit zeros are a straight stretch');
+  assert.deepEqual(curveSegments(normalizeLevel(lvl({ length_m: 100, curve: { turn: 1 } })), 0, 100), [], 'a level shorter than the finish straight is straight');
   const E = normalizeLevel(lvl({ length_m: null, curve: 'random' }));
-  const segs = Array.from({ length: 10 }, (_, i) => i * 240);
-  const a = segs.map((z) => curveAt(E, z, 7)), b = segs.map((z) => curveAt(E, z, 8));
-  assert.deepEqual(a, segs.map((z) => curveAt(E, z, 7)), 'random targets come from the seed');
-  assert.notDeepEqual(a, b);
-  assert.ok(a.some((c, i) => i && (c.turn !== a[i - 1].turn || c.hill !== a[i - 1].hill)), 'and change from segment to segment');
-  const F = normalizeLevel(lvl({ length_m: 480, curve: 'random' }));
-  assert.deepEqual(curveAt(F, 480, 7), { turn: 0, hill: 0 }, 'random still fades out at a finite finish');
+  const a = curveSegments(E, 0, 2400, 7), b = curveSegments(E, 0, 2400, 8);
+  assert.ok(a.length >= 5 && a.every((s) => (s.to - s.from) % 240 === 0 && s.from % 240 === 0), 'random is cut every 240 m (neighbours with the same pick merge into one stretch)');
+  assert.deepEqual(a, curveSegments(E, 0, 2400, 7));
+  assert.notDeepEqual(a, b, 'and differs between seeds');
+  assert.deepEqual(curveSegments(normalizeLevel(lvl({ length_m: 480, curve: 'random' })), 0, 480, 7).filter((s) => s.to > 360), [], 'random stops 120 m before a finite finish too');
+});
+
+test('curveSegments merges touching stretches with the same bend, so a level-wide curve over many sections is one stretch and never fills the slots', () => {
+  const norm = normalizeLevel(lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 100, to_m: 200, density: { start: 1, end: 1 } }, { from_m: 200, to_m: 300, jugs: { per_100m: 0, powerups: [] } }] }));
+  assert.deepEqual(curveSegments(norm, 0, 1500), [{ from: 0, to: 1500 - FINISH_STRAIGHT_M, turn: 1, hill: 0 }], 'four sections under the inherited curve are one stretch');
+  assert.deepEqual(curveSegments(norm, 150, 250), [{ from: 100, to: 300, turn: 1, hill: 0 }], 'inside a window the merge covers the sections in view');
+  const split = normalizeLevel(lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 100, to_m: 200, curve: { turn: 1, hill: 0.5 } }] }));
+  assert.equal(curveSegments(split, 0, 1500).length, 3, 'a different bend in the middle keeps three stretches');
 });
 
 test('gfx.box subdivides along z so long road pieces bend', () => {
   assert.equal(gfx.box(1, 1, 120, '#ffffff').geometry.parameters.depthSegments, 30);
   assert.equal(gfx.box(1, 1, 3, '#ffffff').geometry.parameters.depthSegments, 1);
   assert.ok(gfx.box(1, 1, 1, '#ffffff').material.userData.bent, 'materials from the helpers are bendable');
-  gfx.setBend({ turn: 1, hill: -0.5, origin: 100 });
-  assert.deepEqual(gfx.bendUniform.value.toArray(), [-gfx.TURN_K, -0.5 * gfx.HILL_K, 100, gfx.DEAD], 'positive turn bends to screen-right (-x)');
+});
+
+test('the bend is anchored to its stretch of street: straight before the start line, continuous across it, straight at the end line', () => {
+  const seg = { from: 150, to: 400, turn: 0.7, hill: 0 };
+  gfx.setBend({ origin: 0, segments: [seg] });
+  assert.deepEqual(gfx.bendSegments.value[0].toArray(), [150, 400, -0.7 * gfx.TURN_K, 0], 'positive turn bends to screen-right (-x)');
+  assert.deepEqual(gfx.bendOffset(100), { x: 0, y: 0 }, 'straight up to the lead-in line');
+  assert.equal(gfx.bendOffset(150 - gfx.BEND_LEAD).x, 0, 'the bend begins BEND_LEAD metres before the stretch\'s start line');
+  assert.ok(gfx.bendOffset(150).x < -3, 'so the line itself is already turning: the corner reads before you reach it (Caedon, 2026-10-09)');
+  const far = gfx.bendOffset(250).x;
+  assert.ok(far < -30, 'bends to screen-right beyond it');
+  gfx.setBend({ origin: 80, segments: [seg] });
+  assert.equal(gfx.bendOffset(250).x, far, 'a fixed point on the street looks the same as Milkshake approaches');
+  gfx.setBend({ origin: 90, segments: [seg] }); // 20 m ahead is the lead-in line: from here the stretch rides with Milkshake
+  const atLine = gfx.bendOffset(250).x;
+  gfx.setBend({ origin: 90.01, segments: [seg] });
+  assert.ok(Math.abs(gfx.bendOffset(250).x - atLine) < 0.02, 'and crossing the line moves the picture by the slope alone, a centimetre for a centimetre: no step');
+  gfx.setBend({ origin: 340, segments: [seg] }); // 60 m before the end line
+  assert.ok(gfx.bendOffset(400).x < 0 && gfx.bendOffset(400).x > -6, 'the last of the bend is a few metres');
+  assert.ok(gfx.bendOffset(500).x < gfx.bendOffset(400).x, 'and the far road keeps the turn\'s heading');
+  gfx.setBend({ origin: 380, segments: [seg] }); // the end line is inside the dead zone
+  assert.deepEqual(gfx.bendOffset(600), { x: 0, y: 0 }, 'a stretch ending within 20 m ahead, or behind, bends nothing');
+  gfx.setBend({ origin: 0, segments: [{ from: 100, to: 200, turn: 1, hill: 0 }, { from: 200, to: 300, turn: -1, hill: 0 }] });
+  assert.ok(Math.abs(gfx.bendOffset(200.001).x - gfx.bendOffset(199.999).x) < 0.01, 'a right turn straight into a left turn meets without a step (the slope there is 1 m per m, so 2 mm apart differ by about 2 mm)');
+  assert.ok(gfx.bendOffset(300).x < gfx.bendOffset(200).x, 'the right turn\'s heading carries into the left turn');
+  assert.ok(Math.abs(gfx.bendOffset(400).x - gfx.bendOffset(300).x) < 1e-9, 'and an equal left turn brings the far road back to parallel');
+  gfx.setBend({ origin: 0, segments: [{ from: 100, to: 300, turn: 0, hill: -0.5 }] });
+  const crest = gfx.bendOffset(300).y;
+  assert.ok(crest < -50, 'a dip drops out of sight');
+  assert.equal(gfx.bendOffset(500).y, crest, 'and holds its depth past the end line');
+  assert.equal(gfx.bendOffset(500).x, 0);
+  gfx.setBend({ origin: 0, segments: Array.from({ length: 5 }, (_, i) => ({ from: 20 + i, to: 500, turn: 0.2, hill: 0 })) });
+  const four = [0, 1, 2, 3].reduce((s) => s - 0.2 * gfx.TURN_K * 280 ** 2, 0); // the lead-in puts every start line behind the dead zone, so all four begin at 20 m
+  assert.ok(Math.abs(gfx.bendOffset(300).x - four) < 1e-9, 'only the first four stretches in view bend');
   gfx.setBend();
-  assert.deepEqual(gfx.bendUniform.value.toArray(), [0, 0, 0, gfx.DEAD]);
+  assert.deepEqual(gfx.bendOffset(300), { x: 0, y: 0 }, 'no stretches, straight street');
+  assert.equal(gfx.bendStart.value, gfx.DEAD);
 });
 
 test('a section camera merges over the level camera', () => {
@@ -467,19 +510,13 @@ test('the reaction floor also holds before a placed row that sits on the grid', 
   for (const s of seeds.slice(0, 20)) for (const o of all(placed, s, fast).obstacles.filter((o) => !o.placed)) assert.ok(o.z >= 204 || 204 - o.z >= 18, `seed ${s}: generated row at ${o.z} right before the placement at 204`);
 });
 
-test('curveAt normalises -0 to 0 at the finish and does not hide a NaN', () => {
-  const F = normalizeLevel(lvl({ length_m: 480, curve: { turn: -1, hill: -1 } }));
-  assert.ok(Object.is(curveAt(F, 480).turn, 0) && Object.is(curveAt(F, 480).hill, 0), 'a faded negative curve is +0, not -0');
-  assert.ok(Number.isNaN(curveAt(normalizeLevel(lvl({ curve: { turn: NaN } })), 100).turn), 'a NaN surfaces instead of reading as straight');
-});
-
 test('gfx.bendable chains a material\'s own onBeforeCompile and keys the program cache by it', () => {
   const calls = [];
   const own = gfx.bendable(Object.assign(new gfx.three.MeshBasicMaterial(), { onBeforeCompile: (shader) => calls.push(shader) }));
   const shader = { uniforms: {}, vertexShader: 'void main() {\n#include <project_vertex>\n}' };
   own.onBeforeCompile(shader, null);
   assert.equal(calls[0], shader, 'the module\'s own hook still runs');
-  assert.ok(shader.uniforms.uBend === gfx.bendUniform && shader.vertexShader.includes('uBend'), 'and the bend is patched in after it');
+  assert.ok(shader.uniforms.uSeg === gfx.bendSegments && shader.uniforms.uBendStart === gfx.bendStart && shader.vertexShader.includes('uSeg'), 'and the bend is patched in after it');
   const plain = gfx.bendable(new gfx.three.MeshBasicMaterial());
   assert.notEqual(own.customProgramCacheKey(), plain.customProgramCacheKey(), 'three caches programs by this key: different hooks, different programs');
   assert.notEqual(plain.customProgramCacheKey(), new gfx.three.MeshBasicMaterial().customProgramCacheKey(), 'a bent material never shares a program with an unbent one');

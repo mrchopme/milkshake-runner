@@ -68,18 +68,30 @@ export function densityAt(section, z) {
 }
 
 export const RANDOM_CURVE_M = 240; // "random" curves pick a new target every this many metres
-export const FINISH_FADE_M = 120;  // a finite level straightens over its last metres so endings play on a straight street
+export const FINISH_STRAIGHT_M = 120; // a finite level's last metres are straight, so endings play on the street they were built for
 
-// The bend target at z: the section's curve (inherited from the level), a seeded pick per segment for "random", faded to 0 at a finite finish.
-export function curveAt(norm, z, seed = 0) {
-  let c = sectionAt(norm, z).curve;
-  if (c === 'random') {
-    const pick = rng((seed + 0x9e3779b9 * (Math.floor(z / RANDOM_CURVE_M) + 1)) >>> 0);
-    c = { turn: [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], hill: [-0.6, 0, 0.6][Math.floor(pick() * 3)] };
+// The stretches of street in [fromZ, toZ) that bend, { from, to, turn, hill } ordered by from, each with its real start and end lines.
+// A section's curve is one stretch; "random" is one stretch per RANDOM_CURVE_M with a seeded pick; nothing runs into the finish straight.
+export function curveSegments(norm, fromZ, toZ, seed = 0) {
+  const end = norm.length == null ? Infinity : norm.length - FINISH_STRAIGHT_M;
+  const out = [];
+  const push = (from, to, turn, hill) => {
+    to = Math.min(to, end);
+    if (!(from < to && from < toZ && to > fromZ && (turn || hill))) return;
+    const last = out.at(-1);
+    if (last && last.to === from && last.turn === turn && last.hill === hill) last.to = to; // one bend over touching stretches is one stretch: the formula is exact under splitting, and the shader has four slots
+    else out.push({ from, to, turn, hill });
+  };
+  for (const s of norm.sections) {
+    if (!s.curve || s.to <= fromZ || s.from >= Math.min(toZ, end)) continue;
+    if (s.curve === 'random') {
+      for (let k = Math.floor(Math.max(s.from, fromZ) / RANDOM_CURVE_M); k * RANDOM_CURVE_M < Math.min(s.to, toZ, end); k++) {
+        const pick = rng((seed + 0x9e3779b9 * (k + 1)) >>> 0);
+        push(Math.max(s.from, k * RANDOM_CURVE_M), Math.min(s.to, (k + 1) * RANDOM_CURVE_M), [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], [-0.6, 0, 0.6][Math.floor(pick() * 3)]);
+      }
+    } else push(s.from, s.to, s.curve.turn ?? 0, s.curve.hill ?? 0);
   }
-  let turn = c?.turn ?? 0, hill = c?.hill ?? 0;
-  if (norm.length != null) { const fade = Math.max(0, Math.min(1, (norm.length - z) / FINISH_FADE_M)); turn = turn * fade + 0; hill = hill * fade + 0; } // `+ 0` turns a -0 into 0 and nothing else (`|| 0` would also hide a NaN)
-  return { turn, hill };
+  return out;
 }
 
 function pick(weights, r) {
