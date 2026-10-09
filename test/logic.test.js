@@ -407,10 +407,18 @@ test('curveSegments lists the bending stretches of street: sections, the inherit
   assert.deepEqual(curveSegments(normalizeLevel(lvl({ length_m: 100, curve: { turn: 1 } })), 0, 100), [], 'a level shorter than the finish straight is straight');
   const E = normalizeLevel(lvl({ length_m: null, curve: 'random' }));
   const a = curveSegments(E, 0, 2400, 7), b = curveSegments(E, 0, 2400, 8);
-  assert.ok(a.length >= 5 && a.every((s) => s.to - s.from === 240 && s.from % 240 === 0), 'random is cut every 240 m');
+  assert.ok(a.length >= 5 && a.every((s) => (s.to - s.from) % 240 === 0 && s.from % 240 === 0), 'random is cut every 240 m (neighbours with the same pick merge into one stretch)');
   assert.deepEqual(a, curveSegments(E, 0, 2400, 7));
   assert.notDeepEqual(a, b, 'and differs between seeds');
   assert.deepEqual(curveSegments(normalizeLevel(lvl({ length_m: 480, curve: 'random' })), 0, 480, 7).filter((s) => s.to > 360), [], 'random stops 120 m before a finite finish too');
+});
+
+test('curveSegments merges touching stretches with the same bend, so a level-wide curve over many sections is one stretch and never fills the slots', () => {
+  const norm = normalizeLevel(lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 100, to_m: 200, density: { start: 1, end: 1 } }, { from_m: 200, to_m: 300, jugs: { per_100m: 0, powerups: [] } }] }));
+  assert.deepEqual(curveSegments(norm, 0, 1500), [{ from: 0, to: 1500 - FINISH_STRAIGHT_M, turn: 1, hill: 0 }], 'four sections under the inherited curve are one stretch');
+  assert.deepEqual(curveSegments(norm, 150, 250), [{ from: 100, to: 300, turn: 1, hill: 0 }], 'inside a window the merge covers the sections in view');
+  const split = normalizeLevel(lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 100, to_m: 200, curve: { turn: 1, hill: 0.5 } }] }));
+  assert.equal(curveSegments(split, 0, 1500).length, 3, 'a different bend in the middle keeps three stretches');
 });
 
 test('gfx.box subdivides along z so long road pieces bend', () => {
@@ -430,8 +438,8 @@ test('the bend is anchored to its stretch of street: straight before the start l
   assert.equal(gfx.bendOffset(250).x, far, 'a fixed point on the street looks the same as Milkshake approaches');
   gfx.setBend({ origin: 130, segments: [seg] }); // 20 m ahead is the start line: from here the stretch rides with Milkshake
   const atLine = gfx.bendOffset(250).x;
-  gfx.setBend({ origin: 130.5, segments: [seg] });
-  assert.ok(Math.abs(gfx.bendOffset(250).x - atLine) < 0.5, 'and crossing the line moves the picture by less than half a metre');
+  gfx.setBend({ origin: 130.01, segments: [seg] });
+  assert.ok(Math.abs(gfx.bendOffset(250).x - atLine) < 0.02, 'and crossing the line moves the picture by the slope alone, 7 mm for a centimetre: no step');
   gfx.setBend({ origin: 340, segments: [seg] }); // 60 m before the end line
   assert.ok(gfx.bendOffset(400).x < 0 && gfx.bendOffset(400).x > -6, 'the last of the bend is a few metres');
   assert.ok(gfx.bendOffset(500).x < gfx.bendOffset(400).x, 'and the far road keeps the turn\'s heading');

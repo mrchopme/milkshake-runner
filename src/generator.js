@@ -75,7 +75,13 @@ export const FINISH_STRAIGHT_M = 120; // a finite level's last metres are straig
 export function curveSegments(norm, fromZ, toZ, seed = 0) {
   const end = norm.length == null ? Infinity : norm.length - FINISH_STRAIGHT_M;
   const out = [];
-  const push = (from, to, turn, hill) => { to = Math.min(to, end); if (from < to && from < toZ && to > fromZ && (turn || hill)) out.push({ from, to, turn, hill }); };
+  const push = (from, to, turn, hill) => {
+    to = Math.min(to, end);
+    if (!(from < to && from < toZ && to > fromZ && (turn || hill))) return;
+    const last = out.at(-1);
+    if (last && last.to === from && last.turn === turn && last.hill === hill) last.to = to; // one bend over touching stretches is one stretch: the formula is exact under splitting, and the shader has four slots
+    else out.push({ from, to, turn, hill });
+  };
   for (const s of norm.sections) {
     if (!s.curve || s.to <= fromZ || s.from >= Math.min(toZ, end)) continue;
     if (s.curve === 'random') {
