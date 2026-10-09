@@ -42,3 +42,8 @@ test('the engine never names content (defaults jug, milkshake and finish excepte
     assert.ok(!new RegExp(`['"\`]${id}['"\`]`).test(src), `src/ mentions "${id}"`);
   }
 });
+
+test('the HiFi shot fixture validates against the shipped content', async () => {
+  const reg = buildRegistry(await discover(fileURLToPath(here('../content/'))));
+  assert.deepEqual(validateAll({ 'hifi-shot': read(here('./fixtures/levels/hifi-shot.json')) }, [], reg), {});
+});
