@@ -140,10 +140,9 @@ export function applyPack(registry, entries) {
 }
 
 // Browser loader for one pack. Lazy: a low-fi session never downloads pack code.
-export async function loadPack(name) {
-  const files = import.meta.glob('../packs/**/*.js', { import: 'default' });
+export async function loadPack(name, files = import.meta.glob('../packs/**/*.js', { import: 'default' })) {
   const mine = Object.entries(files).filter(([p]) => p.startsWith(`../packs/${name}/`));
-  return Promise.all(mine.map(async ([p, load]) => ({ path: p.replace(/^(\.\.\/)+/, ''), module: await load() })));
+  return Promise.all(mine.map(async ([p, load]) => ({ path: p.replace(/^(\.\.\/)+/, ''), module: await safeLoad(p, load) }))); // a file that fails to load comes back empty, and applyPack lists it
 }
 
 // entries: [{ path: 'content/<kind>s/...js', module }]. Pure. Only modules with no problem are registered;
@@ -194,4 +193,9 @@ export function loadRegistry({ fixtures = false } = {}) {
 // A hook written by someone else may throw; the game must not freeze because of it.
 export function safeCall(label, fn, fallback) {
   try { return fn(); } catch (err) { console.warn(`${label} failed:`, err); return fallback; }
+}
+
+// The async twin, for code loaded on demand (a pack file, the HiFi look): a 404 or a network drop skips it, never blanks the page.
+export async function safeLoad(label, load) {
+  try { return await load(); } catch (err) { console.warn(`${label} failed to load:`, err); return undefined; }
 }

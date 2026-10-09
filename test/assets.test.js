@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { adopt, preload, asset } from '../src/assets.js';
+import { adopt, preload, asset, gate } from '../src/assets.js';
 
 const model = () => gfx.group(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ map: new THREE.Texture() })));
 
@@ -42,4 +42,13 @@ test('preload loads each file once and never rejects when one fails', async () =
   assert.throws(() => asset('test/bad.glb'), /not loaded/);
   await preload(['test/c.glb'], load);
   assert.equal(asked.length, 2, 'a cached file is not loaded again');
+});
+
+test('while the files load, a second start is dropped, so a double click on LOADING… starts one level', async () => {
+  let loaded;
+  const start = gate(new Promise((r) => { loaded = r; }));
+  const first = start(), second = start();
+  loaded();
+  assert.deepEqual(await Promise.all([first, second]), [true, false]);
+  assert.equal(await start(), true, 'once the files are in, the next start goes through');
 });

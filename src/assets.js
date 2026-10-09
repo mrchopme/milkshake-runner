@@ -24,6 +24,17 @@ export async function preload(paths, load = (p) => loadGlb(`${import.meta.env.BA
   }));
 }
 
+// RUN's wait on the preload: while the files are still loading only the first caller waits; the rest get false at once,
+// so a second click on LOADING… does not start a second level once they land.
+export function gate(ready) {
+  let waiting = false;
+  return async () => {
+    if (waiting) return false;
+    waiting = true;
+    try { await ready; return true; } finally { waiting = false; }
+  };
+}
+
 export function asset(path) {
   const scene = cache.get(path);
   if (!scene) throw new Error(`asset "${path}" is not loaded: list it in the module's assets`);

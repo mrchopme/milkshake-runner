@@ -26,6 +26,9 @@ last-verified: never
 | 5 | `src/game.js` | The sky-change key includes the theme id | A theme switch under the same sky colour still re-applies the look | Generic hook | No |
 | 5 | `src/registry.js` | `checkLook`; the theme check validates an optional `look` | A look is data, range-checked like the rest of a theme | Generic hook | No |
 | 5 | `src/main.js` | In HiFi, `engine.useLook(createLook(engine))` from a lazy `import('./look.js')` | Low-fi never downloads the look code | Generic hook | No |
+| Final | `src/assets.js` | `gate(ready)`: while the preload is pending, only the first caller waits | A second click on LOADING… started a second level (review, Important 1) | Generic hook | No |
+| Final | `src/registry.js` | `safeLoad(label, load)`, the async twin of `safeCall`; `loadPack` loads each file through it and takes its file map as a parameter (for the test) | One pack chunk failing to import blanked the HiFi page (review, Minor 3 re-graded) | Generic hook | No |
+| Final | `src/main.js` | `startLevel` waits through `gate`; the look loads through `safeLoad` and falls back to low-fi | Same two findings | Generic hook | No |
 
 ## Credits
 
@@ -99,6 +102,32 @@ Sub-project 1 total so far: 20.25 of 40.
 - Task 6: complete (commits 1d2ff4f..1613a43, tests: npm test → 106 pass)
 - Task 7: complete (commits 1613a43..63be053, tests: npm test → 108 pass)
 
+## Final review
+
+- Final review: one whole-branch review by a fresh reviewer subagent on Fable 5.1 (`superpowers:requesting-code-review`), range 4a145c7..f6d83bc. Verdict: ready to merge with fixes; no Critical issues, 2 Important, 6 Minor, 10 lines set aside.
+- Final: Ruling: the review range starts at 4a145c7 (`origin/feat/v1`, merged at a7d951e), not the plan's e3742bc, so the camera fix (already reviewed and merged upstream) was not reviewed again as new work; the two ranges differ only by 4ecd1a7 — cost if wrong: none.
+- Final: fixed Important 1, a double start: a second click on RUN (or a level or ENDLESS button) while it read LOADING… parked at `await ready` and started a second level when the GLB landed — test "while the files load, a second start is dropped, so a double click on LOADING… starts one level" RED→GREEN, suite 109/109.
+- Final: Ruling: re-graded Minor 3 to Important. If a pack chunk or the look chunk failed to import (a transient network error at boot), the whole HiFi page stayed blank; the spec's principle is that a broken overlay disables only itself — cost if wrong: about 10 lines of hardening.
+- Final: fixed Minor 3 (re-graded): `loadPack` loads each file through `safeLoad`, so a failed file becomes an `applyPack` problem and the rest of the pack applies; the look loads through `safeLoad` too and low-fi draws if it fails — test "a pack file that fails to load disables only itself, like a broken one" RED (first `import.meta.glob` missing in Node; then, with the file map injectable, the 404 rejecting the whole pack) → GREEN, suite 110/110. The `main.js` line for the look is wiring that Node cannot run; HiFi still loads its look in the browser (stills unchanged).
+- Final: Ruling: re-graded Minor 4 to Important, a security issue in dev tooling. Any web page open in Safari or Firefox could make the drop server write a file into its folder (`.` by default, so the repo while run from it), and an empty name crashed it — cost if wrong: a few lines of hardening.
+- Final: fixed Minor 4 (re-graded): the folder argument is required; writes are accepted only from `http(s)://localhost` or `127.0.0.1` origins (403 otherwise, including no origin); an empty, `.` or `..` name saves as `drop.bin`; a failed write answers 500 instead of crashing — tests "the drop server saves only what a localhost page sends, and a bad name never crashes it" and "the drop server wants its folder spelled out" RED→GREEN, suite 112/112.
+- Final: Ruling: Important 2, the taxi at 2.08 m against the 1.5 m box, stands: Caedon chose "keep it lane-wide" in chat (2026-10-09). Carry-forward: sub-project 4's spec should relax "detail goes inside the box, never above it" for obstacles that cannot be jumped — cost if wrong: one line in the taxi module.
+- Final: minor (deferred): the taxi's paint copies a fixed subset of the generated material (`color`, `normalScale`, `aoMapIntensity`, `side`, alpha and vertex colours are dropped); harmless for this taxi, a rule for sub-project 4's models.
+- Final: minor (deferred): `composer.setPixelRatio` reallocates the render targets a second time on every resize.
+- Final: minor (deferred): the composer's ping-pong target inherits 4× MSAA (about 190 MB each at 3024×1964); memory only, for sub-project 2's performance section.
+- Final: minor (deferred): `RoomEnvironment` is not disposed after the PMREM bake.
+- Final: Ruling (set aside by the reviewer): community or fixture themes without a `look` render low-fi inside a HiFi session — spec §4 prescribes it — cost if wrong: such a section looks flat in HiFi.
+- Final: Ruling (set aside): HiFi is the default on every `pointer: fine` device whatever its GPU — Caedon's quality decision; `?lofi` is the escape — cost if wrong: a slow HiFi on weak laptops.
+- Final: Ruling (set aside): Milkshake and pickups show a blob shadow and a cast shadow in HiFi — their looks belong to sub-projects 3 and 4 — cost if wrong: doubled shadows until then.
+- Final: Ruling (set aside): the shadow box ends about 77 m ahead, where shade turns to light under the fog — the spec sized the box; cascades are sub-project 2's — cost if wrong: a visible seam far ahead.
+- Final: Ruling (set aside): `existsSync` is case-insensitive on macOS — the `ASSET` pattern forces lowercase and CI runs on Linux — cost if wrong: none.
+- Final: Ruling (set aside): the merged camera fix 4ecd1a7 — reviewed upstream; the diff confirms only its lines differ from the plan's blocks — cost if wrong: none.
+- Final: Ruling (set aside): `scene.background` is still cleared under the HiFi sky dome — one wasted clear — cost if wrong: negligible.
+- Final: Ruling (set aside): `content/characters/milkshake.js` keeps its own `GLTFLoader` import beside `assets.js` — pre-existing, and Vite shares the chunk — cost if wrong: none.
+- Final: Ruling (set aside): Task 8 Step 7 (stills, memory note, the push and PR gate) is not in the diff — done after the review — cost if wrong: none.
+- Final: Ruling (set aside): forced `?hifi` on phones — out of scope per the spec — cost if wrong: none for this slice.
+- Final, after the fixes: `hifi-taxi.png` and `lofi-final.png` re-shot through the hardened drop server, byte-identical to the close-out stills (d61b5469…, c97c809e…); no console errors.
+
 ## Gap to the reference (board 01's 9:16 keyframe against `hifi-taxi.png`)
 
 Already reads like the teaser:
@@ -117,22 +146,22 @@ Still to come:
 `git diff --stat e3742bc..HEAD -- src/` (as planned; it includes the merged camera fix 4ecd1a7, about 11 lines in `engine.js`, `game.js` and `main.js`):
 
 ```
- src/assets.js   |  31 +++++++++++++++++
+ src/assets.js   |  42 +++++++++++++++++++++++
  src/engine.js   |  42 ++++++++++++++---------
  src/game.js     |   6 ++--
  src/gfx.js      |  16 +++++++--
  src/look.js     | 102 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
- src/main.js     |  22 ++++++++++--
- src/registry.js |  64 ++++++++++++++++++++++++++++++++++-
+ src/main.js     |  23 +++++++++++--
+ src/registry.js |  68 ++++++++++++++++++++++++++++++++++++-
  src/world.js    |   2 +-
- 8 files changed, 260 insertions(+), 25 deletions(-)
+ 8 files changed, 276 insertions(+), 25 deletions(-)
 ```
 
-HiFi work alone (`a7d951e..HEAD -- src/`, after the merge): 8 files, 251 insertions, 19 deletions; `src/look.js` (102 lines) and `src/assets.js` (31 lines) are new.
+(Updated after the final review's fixes; before them it was 260 insertions.) HiFi work alone (`a7d951e..HEAD -- src/`, after the merge): 8 files, 267 insertions, 19 deletions; `src/look.js` (102 lines) and `src/assets.js` (42 lines) are new.
 
-- Engine changes: 14 ledger rows. 12 are generic hooks (packs and the quality switch, the asset loader and the shared-safe dispose, `resize(w, h)`, the look hook, `skyAt`'s id and look, the sky key, shadow flags in `bend`, `checkLook`), 1 is HiFi-only (`src/look.js`, loaded on demand), and 1 is dev-only (the hook's `character`).
+- Engine changes: 17 ledger rows. 15 are generic hooks (packs and the quality switch, the asset loader, the preload gate and the shared-safe dispose, `resize(w, h)`, the look hook, `skyAt`'s id and look, the sky key, shadow flags in `bend`, `checkLook`, `safeLoad`), 1 is HiFi-only (`src/look.js`, loaded on demand), and 1 is dev-only (the hook's `character`).
 - The asset itself, the taxi, needed **no** `src/` change: one pack file and one GLB.
 - Credits: 20.25 of the 40 budget (concepts 1, views 1.25, model 18; no retry). Balance 3,000 → 2,979.75.
-- Tests: 108 (85 at the start, plus 1 from the merged fix, plus 22 new). Build: the look, the loader, the meshopt decoder and each pack file are separate on-demand chunks, so low-fi downloads none of them.
+- Tests: 112 (85 at the start, plus 1 from the merged fix, plus 26 new, 4 of them from the final review's fixes). Build: the look, the loader, the meshopt decoder and each pack file are separate on-demand chunks, so low-fi downloads none of them.
 
 The modularity read: once the hooks existed, a single pack file could re-skin a shipped obstacle with a generated, PBR-painted, glowing model, and re-light every theme, without touching the engine or changing how anything plays. Low-fi stayed byte-identical throughout. What a module still cannot do: draw instanced geometry under the bend (`gfx.bend` drops `instanceMatrix`), live at the horizon (chunks scroll and drop), give a power-up a worn look, load assets per level, or restyle the camera and HUD. And the shipped toon materials ignore the environment map, so a HiFi look leans on a high ambient until the content itself moves to PBR (sub-projects 2 to 4).

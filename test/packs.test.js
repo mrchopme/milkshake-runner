@@ -2,7 +2,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
-import { buildRegistry, applyPack, checkModule } from '../src/registry.js';
+import { buildRegistry, applyPack, checkModule, loadPack } from '../src/registry.js';
 import { discover } from './helpers.js';
 import * as gfx from '../src/gfx.js';
 import { adopt } from '../src/assets.js';
@@ -112,4 +112,21 @@ test('the HiFi taxi lights its own red tail lamps instead of laying boxes over t
   assert.deepEqual([...lampMask(px)], [220, 40, 40, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255]);
   const red = (n) => n.isMesh && n.material.emissive && n.material.emissive.r > 0.9 && n.material.emissive.g < 0.5;
   assert.ok(!hifiTaxi.createView(gfx).object.children.some(red), 'no red plates over the lamps');
+});
+
+test('a pack file that fails to load disables only itself, like a broken one', async () => {
+  const files = { // what import.meta.glob hands loadPack in the browser; one file 404s
+    '../packs/hifi/themes/downtown.js': async () => ({ kind: 'theme', id: 'downtown', look: { exposure: 1.1 } }),
+    '../packs/hifi/themes/bridge.js': async () => { throw new Error('404'); },
+    '../packs/other/themes/uptown.js': async () => { throw new Error('another pack: never loaded'); },
+  };
+  const warn = console.warn;
+  console.warn = () => {};
+  let entries;
+  try { entries = await loadPack('hifi', files); } finally { console.warn = warn; }
+  const { registry, problems } = applyPack(shipped, entries);
+  assert.deepEqual(registry.theme.downtown.look, { exposure: 1.1 });
+  assert.equal(registry.theme.bridge, shipped.theme.bridge);
+  assert.match(problems.join(), /packs\/hifi\/themes\/bridge\.js/);
+  assert.ok(!problems.join().includes('uptown'), 'files of other packs are never loaded');
 });
