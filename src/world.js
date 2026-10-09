@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as gfx from './gfx.js';
-import { generate, normalizeLevel, rng, sectionAt, curveAt, cameraAt, FINISH_FADE_M } from './generator.js';
+import { generate, normalizeLevel, rng, sectionAt, curveSegments, cameraAt } from './generator.js';
 import { laneX, obstacleBox, updateObstacle, pull } from './rules.js';
 import { safeCall } from './registry.js';
 
@@ -30,8 +30,6 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
   const norm = normalizeLevel(level);
   const r = rng(seed), rs = rng(seed ^ 0x9e3779b9); // scenery has its own rng so it never shifts the street
   const gen = { lastRow: -Infinity, speedFrom, propEnd: -Infinity }; // the generator's memory across chunks
-  const bend = { turn: 0, hill: 0 }; // eased toward curveAt; the uniform is shared by every bendable material
-  const BEND_EASE_M = 40;            // metres of travel to get 95% of the way to a new curve
   const root = new THREE.Group();
   scene.add(root);
   const live = { obstacles: [], pickups: [], props: [] };
@@ -96,13 +94,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
       if (p.view.update) safeCall(`pickup ${p.id} update`, () => p.view.update(p, run, dt));
     }
     for (const p of live.props) if (p.view.update) safeCall(`prop ${p.id} update`, () => p.view.update(p, run, dt));
-    const target = curveAt(norm, run.z, seed);
-    const a = 1 - Math.exp((-3 * (run.speed ?? 0) * dt) / BEND_EASE_M);
-    bend.turn += (target.turn - bend.turn) * a;
-    bend.hill += (target.hill - bend.hill) * a;
-    // The eased value lags the faded target, so the applied bend is scaled by the same finish fade: exactly straight at the line.
-    const fade = norm.length == null ? 1 : Math.max(0, Math.min(1, (norm.length - run.z) / FINISH_FADE_M));
-    gfx.setBend({ turn: bend.turn * fade, hill: bend.hill * fade, origin: run.z });
+    gfx.setBend({ origin: run.z, segments: curveSegments(norm, run.z, builtTo, seed) }); // every stretch the built street lies in, so nothing pops when it enters view; nothing eases, the street is the anchor
   }
 
   const skyAt = (z) => {

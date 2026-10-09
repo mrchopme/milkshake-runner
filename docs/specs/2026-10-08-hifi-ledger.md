@@ -127,6 +127,7 @@ Sub-project 1 total so far: 20.25 of 40.
 - Final: Ruling (set aside): Task 8 Step 7 (stills, memory note, the push and PR gate) is not in the diff — done after the review — cost if wrong: none.
 - Final: Ruling (set aside): forced `?hifi` on phones — out of scope per the spec — cost if wrong: none for this slice.
 - Final, after the fixes: `hifi-taxi.png` and `lofi-final.png` re-shot through the hardened drop server, byte-identical to the close-out stills (d61b5469…, c97c809e…); no console errors.
+- After the PR (2026-10-09, Auto-fix): PR #4 (v4) merged into `feat/v1` at 0a954c3, so PR #5 conflicted. Merged `origin/feat/v1` into `hi-fi-test`. One conflict, in `src/gfx.js`: kept this branch's `bend` (shadow flags) and v4's anchored `setBend` and `bendOffset`. `dispose`, the `asset` re-export and `skyAt` auto-merged with both sides intact. v4 raised the shipped taxi's box to 2.0 m, so the HiFi taxi (2.08 m) now sits 8 cm above it, not 58 cm; the footprint (2 × 4 m) is unchanged. `npm test` 118 pass (v4 brought 6), build succeeds. A `?hifi` run shows the look, 3 HiFi taxis, v4's skinned Milkshake, no pink blocks, and 24 compiled shader programs with no errors. Low-fi byte equality against the new `feat/v1` was not re-shot: this branch's low-fi-relevant lines are unchanged and inert.
 
 ## Gap to the reference (board 01's 9:16 keyframe against `hifi-taxi.png`)
 
