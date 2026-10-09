@@ -84,6 +84,16 @@ test('the world hands the shader the bending stretches in view, 20 m ahead of Mi
   assert.deepEqual(gfx.bendSegments.value.map((v) => v.length()), [0, 0, 0, 0]);
 });
 
+test('a stretch that starts past 200 m but inside the built street is in the uniforms too, so nothing pops when it enters view', () => {
+  const rock = { kind: 'obstacle', id: 'rock', avoid: 'lane', box: { w: 1, h: 1, d: 1 }, createView(gfx) { return { object: gfx.box(1, 1, 1, '#ffffff') }; } };
+  const registry = { obstacle: { rock }, pickup: {}, theme: { t: theme }, character: {}, ending: {} };
+  const world = createWorld(new THREE.Scene(), { ...level, sections: [{ from_m: 230, to_m: 400, curve: { turn: 1 } }] }, { registry, rules, seed: 1, end: 600 });
+  const run = createRun(rules, { height: 1.9, width: 1 });
+  world.update(run, 0); // the street is built in 120 m chunks to 240 m: the start line at 230 is drawn, so it must already be bent
+  assert.deepEqual(gfx.bendSegments.value[0].toArray(), [230, 400, -gfx.TURN_K, 0], 'every drawn vertex is bent by every stretch it lies in');
+  world.dispose();
+});
+
 test('props are built, streamed, dropped and bent like obstacles', () => {
   let disposed = 0;
   const arch = { kind: 'prop', id: 'arch', length: 2, createView(gfx, { lanes }) { return { object: gfx.box(lanes.roadHalf * 2, 1, 1, '#ffffff'), dispose() { disposed++; } }; } };
