@@ -137,3 +137,74 @@ Unchanged. Everything that validated under v3 validates under v4 and means the s
 ## Out of scope for v4
 
 The real corner (option B) · chevron or sign props at a turn (option C) · Blender, a regenerated model, any credit spend · more lanes, sound, a HUD speed readout · the v3 deferred items (the theme switch at 120 m chunk boundaries, bigger dust at the cap, the two remaining review minors) · the six deferred minors already fixed on the minors branch, which merges under this build when Caedon lands it; the one overlap is the bend hook in `gfx.js`, reconciled at merge and recorded in the ledger.
+
+## Addendum (2026-10-09, after the build)
+
+> Agent-drafted by Fable on 2026-10-09 and pending Caedon's approval: the frontmatter above dates his approval to 2026-10-08
+> and covers the text above this heading, not this section. Point-in-time snapshot written against `feat/v4-feedback` after
+> 3950926 (PR #4 onto `feat/v1`, 92 tests); the code may have moved on since, so read `src/` and `content/` before treating a
+> detail here as how the game works today.
+
+The approved text above is left as written. The build changed it in four places, each by Caedon's decision and each under a
+test; the v4 ledger's Fix pass (2026-10-08) and Live tuning (2026-10-09) sections are the record and this is their reading
+against the spec's sections. Where the two differ, the code is the truth.
+
+1. **§1: the bend begins `BEND_LEAD` = 40 m before a stretch's start line** (3950926, live tuning). Caedon played the pushed
+   build at the pane on 2026-10-09 and said "the turn still reads late, bend it earlier": a parabola is flat where it starts, so
+   a section's start line showed almost no deflection and the corner only read once its steeper part was near. The formula's
+   first line is now
+
+   ```
+   s    = max(uBendStart, from − BEND_LEAD)   // the bend begins at the later of 40 m before the start line and 20 m ahead
+   ```
+
+   in the GLSL and in `bendOffset` alike (`src/gfx.js`; `BEND_LEAD` is a knob exported beside `TURN_K`, `HILL_K`, `DEAD` and
+   `BEND_SEGMENTS`, baked into the GLSL as a literal). The uniforms still carry the section's own start and end lines; `L` and
+   `u` follow from the moved `s`, so the rest of the formula, the continuity as Milkshake crosses and the straight end line are
+   as written, and the start line itself already turns. Where §1 and the level schema section say "straight up to the start
+   line", read "straight up to 40 m before the start line"; CONTRIBUTING's `curve` row says so. Test: `the bend is anchored to
+   its stretch of street …` in `test/logic.test.js` asserts 0 at the lead-in line and a turn under way at the start line.
+
+2. **§1, World: `world.update` calls `curveSegments(norm, run.z, builtTo, seed)`, not `run.z + AHEAD`** (62ee1ea, fix
+   pass). The street is built 120 m at a time while less than 200 m of it is ahead, so it runs up to 320 m ahead; a stretch
+   whose start line sat between 200 and 320 m was drawn straight until it entered the 200 m window, then popped (hidden by the
+   shipped fog, about 30 % visible on a `fog: 0` community level). With `builtTo` every drawn vertex is bent by every stretch it
+   lies in, and nothing pops when it enters view. The four-slot cap counts from the same list: the nearest four stretches inside
+   the built street, not inside 200 m (CONTRIBUTING's row still says "inside 200 m"). Caedon chose this knowing it departs from
+   the spec's letter. Test: `a stretch that starts past 200 m but inside the built street is in the uniforms too, so nothing
+   pops when it enters view` (`test/world.test.js`).
+
+3. **§1, Segments: consecutive stretches with equal `turn` and `hill` and touching ends are one stretch** (d9679b5, fix
+   pass). `curveSegments` merges in its `push`: a stretch that starts where the last one ended with the same bend extends it
+   instead of taking a slot. The ruling's reason: the formula as approved is exact under splitting a stretch, so the picture and
+   the cut lines are identical and only the slot count changes; a level-wide curve inherited by many short sections (a community
+   level with sections of 50 m or less) is one stretch and never fills the four slots. The merge applies to `"random"` stretches
+   too: two neighbouring picks that happen to match become one 480 m stretch, so "one segment per 240 m stretch" reads "cut on
+   a 240 m line, a multiple of 240 m long" (a flag to exempt random picks would be code for no visible gain). Since 1, the
+   merge also protects the picture: a stretch in the uniforms bends over its own length plus the 40 m lead-in, so a level-wide
+   curve handed over as one stretch per section would gain a lead-in's worth of bend at every inner section line (8 m by the
+   line and a steeper heading past it, on a full turn). Test: `curveSegments merges touching stretches with the same bend, so a
+   level-wide curve over many sections is one stretch and never fills the slots` (`test/logic.test.js`).
+
+4. **§3: the skinning runs inside `fitModel(THREE, scene, def)`, exported and tested in Node** (b509fe0, fix pass).
+   `createView` loads the GLB and then does one thing with it:
+   `({ model, arms, legs, head, limbAxis } = fitModel(gfx.three, gltf.scene, this))`. `fitModel` skins the scene's mesh as §3
+   describes (`skin`: six bones from `BONES`, weights from `skinWeights`, a `SkinnedMesh` in the mesh's place), sets `limbAxis`
+   to `'z'`, swaps the toon material, applies `def.yaw` and fits the model to `def.height`, and returns those five values or
+   throws. So a scene that breaks anywhere after `skin()` leaves nothing behind: the `catch` falls back to the shape cow with
+   its own `limbAxis` `'x'` and no `head` (§3's Failure bullet covered a throw during skinning; the fix covers everything up to
+   the fit, which used to leave the fallback cow swinging its limbs sideways). Tests, in Node on synthetic meshes in the Tripo
+   frame: `fitModel skins the loaded mesh in place: six bones under the hips under the mesh, weights that sum to 1, the swing
+   axis z, the model fitted to its height` and `a model that breaks after skinning is thrown away whole, so the fallback cow
+   keeps its own limb axis` (`test/content.test.js`). One thing §3 did not say and the code now says at the `SkinnedMesh` call:
+   it is built from the raw geometry and deliberately drops the GLB node's own transform, which is only a 19.5° yaw, so
+   Milkshake faces straight down the street where v3 ran turned 19.5° toward screen-left. Caedon chose to keep it facing
+   straight (fix-pass decisions, 2026-10-08); `yaw` in the module (`-Math.PI / 2`) is where the three-quarter stance would come
+   back (`+ 0.34`).
+
+**Noticed while drafting, not in the ledger, not seen in the pane** (Fable's reading of the code, Caedon's call): 1 and 2
+together leave one small pop. `curveSegments` lists a stretch once its own start line is inside `[run.z, builtTo)`, but its bend
+now begins 40 m before that line, so a stretch whose start line sits within 40 m past the next chunk seam shows that lead-in
+straight until the chunk builds, which happens when the seam is 200 m ahead: up to 40 m of road, 160–200 m out, from straight
+to at most 8 m of offset on a full turn. The same class of pop as the one 2 removed, fog-hidden on the shipped levels;
+`curveSegments(norm, run.z, builtTo + gfx.BEND_LEAD, seed)` would close it.
