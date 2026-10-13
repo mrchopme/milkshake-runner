@@ -170,7 +170,7 @@ against the spec's sections. Where the two differ, the code is the truth.
    whose start line sat between 200 and 320 m was drawn straight until it entered the 200 m window, then popped (hidden by the
    shipped fog, about 30 % visible on a `fog: 0` community level). With `builtTo` every drawn vertex is bent by every stretch it
    lies in, and nothing pops when it enters view. The four-slot cap counts from the same list: the nearest four stretches inside
-   the built street, not inside 200 m (CONTRIBUTING's row still says "inside 200 m"). Caedon chose this knowing it departs from
+   the built street, not inside 200 m (CONTRIBUTING's row said "inside 200 m" until f483688). Caedon chose this knowing it departs from
    the spec's letter. Test: `a stretch that starts past 200 m but inside the built street is in the uniforms too, so nothing
    pops when it enters view` (`test/world.test.js`).
 
