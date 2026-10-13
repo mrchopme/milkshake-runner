@@ -83,7 +83,7 @@ export async function cowView(gfx, def, { load, skin = SKIN, bones = BONES, dres
       lastStride = stride;
       for (const p of pool) if (p.visible) {
         const age = run.time - p.userData.born;
-        if (age > 0.35) { p.visible = false; continue; }
+        if (age < 0 || age > 0.35) { p.visible = false; continue; } // a negative age is a puff from a clock that has since restarted
         p.position.set(p.userData.x - run.x, 0.1 - run.y, p.userData.z - run.z); // a child of the root, so world x and y are held by countering the root
         p.scale.setScalar(0.6 + age * 3);
         p.material.opacity = 0.5 * (1 - age / 0.35);

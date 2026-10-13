@@ -54,7 +54,9 @@ const SKY_FRAG = /* glsl */`
 
 export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  const room = new RoomEnvironment();
+  const env = pmrem.fromScene(room, 0.04).texture;
+  room.dispose(); // final review, minor: the bake's scene is not needed afterwards
   pmrem.dispose();
 
   // A camera-centred dome, drawn first and outside the fog; the horizon colour is the level's sky, so the fog meets it.
@@ -106,9 +108,13 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   composer.addPass(new RenderPass(scene, camera));
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.5, 0.4, 0.85);
   composer.addPass(bloom);
-  composer.addPass(new OutputPass());
+  const output = new OutputPass();
+  output.needsSwap = false; // the last pass draws to the screen: no swap after it, so the scene always lands in the same target
+  // (a pass added before it that swaps must be added with needsSwap = false too, or the scene alternates into the unsampled target)
+  composer.addPass(output);
+  composer.renderTarget1.samples = 0; // only the target the scene renders into keeps 4x MSAA (about 190 MB saved at 3024x1964)
 
-  let active = false;
+  let active = false, lastRatio = 0;
   return {
     get active() { return active; },
     // engine.setSky calls this after setting the low-fi sky, fog and light: a look overrides them, no look switches itself off.
@@ -157,7 +163,8 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       composer.render();
     },
     resize(w, h) {
-      composer.setPixelRatio(renderer.getPixelRatio());
+      const pr = renderer.getPixelRatio();
+      if (pr !== lastRatio) { lastRatio = pr; composer.setPixelRatio(pr); } // setPixelRatio reallocates; only when it changed
       composer.setSize(w, h);
     },
   };

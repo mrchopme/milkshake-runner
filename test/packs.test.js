@@ -111,12 +111,49 @@ test('the HiFi taxi fits the shipped taxi footprint, sits on the road, and every
 });
 
 test('the HiFi taxi lights its own red tail lamps instead of laying boxes over them', async () => {
-  const { default: hifiTaxi, lampMask } = await import('../packs/hifi/obstacles/taxi.js');
+  const { default: hifiTaxi, isLamp } = await import('../packs/hifi/obstacles/taxi.js');
   // a red lamp, yellow paint, a white bumper and an orange shadow in the paint: only the lamp may glow
-  const px = new Uint8ClampedArray([220, 40, 40, 255, 245, 200, 30, 255, 250, 250, 250, 255, 180, 120, 40, 255]);
-  assert.deepEqual([...lampMask(px)], [220, 40, 40, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255]);
+  assert.deepEqual([[220, 40, 40], [245, 200, 30], [250, 250, 250], [180, 120, 40]].map((c) => isLamp(...c)), [true, false, false, false]);
   const red = (n) => n.isMesh && n.material.emissive && n.material.emissive.r > 0.9 && n.material.emissive.g < 0.5;
   assert.ok(!hifiTaxi.createView(gfx).object.children.some(red), 'no red plates over the lamps');
+});
+
+test('gloss copies every standard field of a generated material, then adds the gloss', async () => {
+  const { gloss } = await import('../packs/hifi/lib/paint.js');
+  const T = gfx.three, src = new T.MeshStandardMaterial({ color: '#ff0000', aoMapIntensity: 0.5, side: T.DoubleSide, vertexColors: true });
+  src.normalScale.set(0.3, 0.3);
+  const p = gloss(T, src, { clearcoat: 1 });
+  assert.ok(p.isMeshPhysicalMaterial && p.clearcoat === 1);
+  assert.ok('PHYSICAL' in p.defines, 'still compiles as a physical material (ior, specular), which the standard copy resets');
+  assert.equal(p.color.getHexString(), 'ff0000'); assert.equal(p.aoMapIntensity, 0.5); assert.equal(p.side, T.DoubleSide); assert.equal(p.vertexColors, true); assert.equal(p.normalScale.x, 0.3);
+  const glow = gloss(T, src, { emissive: '#ffffff', emissiveMap: null }); // the taxi's call: a colour given as a string must stay a Color
+  assert.ok(glow.emissive.isColor && glow.emissive.getHexString() === 'ffffff');
+});
+
+test('glowMap hands back nothing without a map or a canvas to read it', async () => {
+  const { glowMap } = await import('../packs/hifi/lib/paint.js');
+  assert.equal(glowMap(gfx.three, null, () => true), null, 'a map-less model');
+  assert.equal(glowMap(gfx.three, { image: {} }, () => true), null, 'Node has no OffscreenCanvas');
+});
+
+test('glowMap keeps the texels the test accepts, blacks out the rest, and reads the map the way the source does', async () => {
+  const { glowMap } = await import('../packs/hifi/lib/paint.js');
+  const bytes = new Uint8ClampedArray([220, 40, 40, 255, 245, 200, 30, 255, 250, 250, 250, 255, 180, 120, 40, 255]); // lamp, paint, bumper, shadow
+  let stored;
+  const saved = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class { getContext() { return { drawImage() {}, getImageData: () => ({ data: bytes }), putImageData: (img) => { stored = [...img.data]; } }; } };
+  try {
+    const t = glowMap(gfx.three, { image: {}, flipY: false, colorSpace: 'srgb', channel: 1 }, (r, g, b) => r > 150 && g < 90 && b < 90, 2);
+    assert.deepEqual(stored, [220, 40, 40, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255], 'the lamp stays, the rest goes black, alpha stays');
+    assert.ok(t.isCanvasTexture && t.flipY === false && t.colorSpace === 'srgb' && t.channel === 1, 'read the way the source map is');
+  } finally { globalThis.OffscreenCanvas = saved; }
+});
+
+test('fitBox keeps a jumpable model inside its box and lets a lane blocker stand taller', async () => {
+  const { fitBox } = await import('../packs/hifi/lib/fit.js');
+  const T = gfx.three, tall = () => new T.Mesh(new T.BoxGeometry(1, 3, 2), new T.MeshStandardMaterial());
+  assert.ok(Math.abs(fitBox(T, tall(), { w: 2, h: 1, d: 4 }, true).scale - 1 / 3) < 1e-9, 'inside: the height decides');
+  assert.ok(Math.abs(fitBox(T, tall(), { w: 2, h: 1, d: 4 }, false).scale - 2) < 1e-9, 'lane: the footprint decides');
 });
 
 test('a pack file that fails to load disables only itself, like a broken one', async () => {
