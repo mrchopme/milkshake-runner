@@ -84,6 +84,11 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 
 | Task | Still or probe | Query | Result | SHA-256 |
 |---|---|---|---|---|
+| 2–16 | low-fi re-shots | `?fixtures&lofi` after Tasks 2+6, 16 and 19 merged | 464,350 bytes each time, byte-identical | 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3 |
+| 14 | `hifiProbe` per shot level (placeholder city, Tasks 9–13 and 16–19 in) | `?fixtures&hifi`, 150 frames at 3024×1964 (1512×982 at dpr 2), browser pane | downtown 5.98 ms mean / 11.3 p95, 351 calls, 234,800 tris; midtown 5.55 / 9.8, 348, 195,928; uptown 5.49 / 10.7, 351, 278,244; bridge 5.31 / 10.3, 260, 185,492; textures 32–51 across the four (render targets and per-theme placeholder tiles) | — |
+| 14 | fog option B (console: fog near and far × 1.6, 63.6/212 → 101.8/339) | downtown, 120 frames | 5.36 / 11.7 ms; the far end reads clearer, no change in cost | — |
+| 14 | shadow option A (console: 8192 map, box top/bottom ±90, sun target 60 m ahead) | downtown, 120 frames | 5.98 / 12.3 ms, 367 calls; no visible difference in the 16:9 frame | — |
+| 14 | skyline ring height × 0.3 (console) | downtown 16:9 | the placeholder skyline sits low at the avenue's end instead of a grey wall; the ring formula (~485 m on 360 m) needs this calibration | — |
 | 1 | `baseline-lofi-r2.png`, 2160×3840 | `?fixtures&lofi` on fba8e25 (9132bae's code plus docs), `hifiShot` | 464,350 bytes. **The round's low-fi invariant** (v4's merge retired c97c809e… on purpose) | 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3 |
 | 1 | `baseline-lofi-r2b.png`, 2160×3840 | same, after a page reload | 464,350 bytes, byte-identical to the first | 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3 |
 | 1 | `hifi-r2-start.png`, 2160×3840 | `?fixtures&hifi` on fba8e25 | 1,580,843 bytes, the before picture for the round | fc6bd358523be6f79b9d725b131ad1af704b14b66f74d8d8083ccf281cd12aa2 |
