@@ -135,3 +135,11 @@ test('a pack file that fails to load disables only itself, like a broken one', a
   assert.match(problems.join(), /packs\/hifi\/themes\/bridge\.js/);
   assert.ok(!problems.join().includes('uptown'), 'files of other packs are never loaded');
 });
+
+test('files under packs/<pack>/lib/ are helpers, never loaded as overlays', async () => {
+  const files = {
+    '../packs/hifi/lib/city.js': async () => { throw new Error('a helper must not be loaded as an overlay'); },
+    '../packs/hifi/themes/downtown.js': async () => ({ kind: 'theme', id: 'downtown', look: {} }),
+  };
+  assert.deepEqual((await loadPack('hifi', files)).map((e) => e.path), ['packs/hifi/themes/downtown.js']);
+});

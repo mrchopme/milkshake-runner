@@ -75,6 +75,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
   }
 
   function update(run, dt) {
+    gfx.time.value = run.time;
     while (builtTo < Math.min(end, run.z + AHEAD)) build();
     const behind = run.z - BEHIND;
     for (const list of [live.obstacles, live.pickups, live.props]) { // a prop stays until its far end is behind
