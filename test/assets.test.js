@@ -52,3 +52,19 @@ test('while the files load, a second start is dropped, so a double click on LOAD
   assert.deepEqual(await Promise.all([first, second]), [true, false]);
   assert.equal(await start(), true, 'once the files are in, the next start goes through');
 });
+
+test('dropping an instanced copy frees its instance buffers, never the shared model or a shared texture', () => {
+  adopt('test/i.glb', model());
+  const src = asset('test/i.glb').children[0];
+  const inst = new THREE.InstancedMesh(src.geometry, src.material, 4);
+  const own = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ map: src.material.map }));
+  const freed = [];
+  inst.dispose = () => freed.push('instances');
+  src.geometry.dispose = () => freed.push('shared geometry');
+  src.material.dispose = () => freed.push('shared material');
+  src.material.map.dispose = () => freed.push('shared texture');
+  own.geometry.dispose = () => freed.push('own geometry');
+  own.material.dispose = () => freed.push('own material');
+  gfx.dispose(gfx.group(inst, own));
+  assert.deepEqual(freed.sort(), ['instances', 'own geometry', 'own material']);
+});

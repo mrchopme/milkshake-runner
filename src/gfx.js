@@ -33,8 +33,16 @@ vec3 bendOffset( float z ) {
   return o;
 }
 `;
+// three's own order (project_vertex): a batched copy's matrix, then an instance's, then the mesh's; the street's offset last.
 const BEND = `
-  vec4 bentWorld = modelMatrix * vec4( transformed, 1.0 );
+  vec4 bentWorld = vec4( transformed, 1.0 );
+  #ifdef USE_BATCHING
+    bentWorld = batchingMatrix * bentWorld;
+  #endif
+  #ifdef USE_INSTANCING
+    bentWorld = instanceMatrix * bentWorld;
+  #endif
+  bentWorld = modelMatrix * bentWorld;
   bentWorld.xyz += bendOffset( bentWorld.z );
   vec4 mvPosition = viewMatrix * bentWorld;
   gl_Position = projectionMatrix * mvPosition;
@@ -54,8 +62,10 @@ function patchSprite(shader) { // a sprite places its centre from the model-view
 }
 // Marks a material bendable, once. Materials a module builds itself get this when the engine adds the object (gfx.bend).
 // A hook the module set itself keeps running, first; the bend is patched in after it.
+const patched = new WeakSet(); // by material, not userData: a clone copies userData but not the hook, and must be patched again
 export function bendable(material) {
-  if (!material || material.userData.bent) return material;
+  if (!material || patched.has(material)) return material;
+  patched.add(material);
   material.userData.bent = true;
   const own = material.onBeforeCompile, bend = material.isSpriteMaterial ? patchSprite : patch;
   material.onBeforeCompile = (shader, renderer) => { own.call(material, shader, renderer); bend(shader); };
@@ -145,12 +155,17 @@ export function orb(def) {
   return g;
 }
 
-// Frees geometry and per-object textures. Shared toon materials from mat() stay alive on purpose, and so does anything
-// flagged userData.shared: a preloaded asset's meshes, which every copy of it uses.
+// Frees geometry, per-object textures and instance buffers. Shared toon materials from mat() stay alive on purpose, and so
+// does anything flagged userData.shared: a preloaded asset's nodes, geometry, materials and textures, which every copy uses.
 export function dispose(object) {
   object.traverse((n) => {
     if (n.userData.shared) return;
-    n.geometry?.dispose();
-    if (n.isSprite || n.isPoints || n.material?.map) { n.material.map?.dispose(); n.material.dispose(); }
+    if (!n.geometry?.userData.shared) n.geometry?.dispose();
+    if (n.isInstancedMesh || n.isBatchedMesh) n.dispose(); // the instance matrices and colours (and a batched mesh's textures)
+    for (const m of [].concat(n.material ?? [])) {
+      if (m.userData.shared || !(n.isSprite || n.isPoints || m.map)) continue;
+      if (!m.map?.userData.shared) m.map?.dispose();
+      m.dispose();
+    }
   });
 }
