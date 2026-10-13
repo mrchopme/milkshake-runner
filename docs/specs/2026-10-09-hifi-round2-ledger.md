@@ -210,6 +210,7 @@ Every task against itself:
 - Task 18: complete (commits 45ad80e..2384f5b, merged as f63abc0; fix round 1: gloss keeps the physical define, glowMap's pixel path tested; re-review clean; npm test 159; `?lofi` 3d77a939…, unchanged)
 - Task 20: Step 4 done (board 16b on its own Paper page; Caedon accepted all 62 picks; two views redone a second time, 0.5); Step 5 done (download approved, 62 PNGs); Step 6 done (62 WebPs tiled, 3.2 MB). Boards 16 and 16b moved to their own Paper pages at Caedon's request (the main page crashed with that many images).
 - Task 20: complete (203 + 24 redo images; 62 picks tiled in df5d793; the 13 multi-view models' final front/left/rear/right job ids in `scratchpad/w2/views-final.json`, all checked; newsstand passes its left and right swapped)
+- Task 21: Step 1 pilot gate (Caedon, 2026-10-13, AskUserQuestion): "Run the pilot (about 54)" — lamp 3133cf3e (face_limit 6000), tree e3eddf0a (8000), hydrant b19f139f (4000), `tripo_h3_1_image_to_3d`, detailed/detailed, PBR; approved just before a context compaction, nothing spent yet (balance 2,792.5).
 
 ## Final review
 
