@@ -143,3 +143,8 @@ test('files under packs/<pack>/lib/ are helpers, never loaded as overlays', asyn
   };
   assert.deepEqual((await loadPack('hifi', files)).map((e) => e.path), ['packs/hifi/themes/downtown.js']);
 });
+
+test('every skyline a HiFi look names is in that theme\'s assets', async () => {
+  const { registry } = applyPack(shipped, await discover(PACK, 'packs/hifi'));
+  for (const t of Object.values(registry.theme)) for (const p of [].concat(t.look?.skyline ?? [])) assert.ok(t.assets?.includes(p), `theme "${t.id}" names ${p} but does not list it`);
+});

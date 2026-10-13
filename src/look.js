@@ -4,6 +4,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { texture } from './assets.js';
 
 // The HiFi look (spec §4): tone mapping, sun shadows, studio reflections, a gradient sky and bloom, from a theme's `look`.
 // main.js loads this file only in HiFi sessions; without a look the engine renders exactly as before.
@@ -14,11 +15,12 @@ export function lookState(theme) {
   if (!l) return null;
   return {
     exposure: l.exposure ?? 1,
-    sun: { color: l.sun?.color ?? '#ffffff', intensity: l.sun?.intensity ?? 3 },
+    sun: { color: l.sun?.color ?? '#ffffff', intensity: l.sun?.intensity ?? 3, dir: l.sun?.dir ?? null },
     ambient: l.ambient ?? 0.5,
     env: l.env ?? 0.7,
     skyTop: l.skyTop ?? theme.sky,
     skyBottom: theme.sky,
+    skyline: [].concat(l.skyline ?? []),
     bloom: { strength: l.bloom?.strength ?? 0.5, threshold: l.bloom?.threshold ?? 0.85, radius: l.bloom?.radius ?? 0.4 },
   };
 }
@@ -39,7 +41,7 @@ const SKY_FRAG = /* glsl */`
     #include <colorspace_fragment>
   }`;
 
-export function createLook({ renderer, scene, camera, sun, hemi }) {
+export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const env = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   pmrem.dispose();
@@ -53,6 +55,17 @@ export function createLook({ renderer, scene, camera, sun, hemi }) {
   dome.frustumCulled = false;
   dome.visible = false;
   scene.add(dome);
+
+  // The skyline (round 2): up to two camera-centred open cylinders wearing look.skyline, far side first, between the dome and
+  // the far plane; unbent, unfogged, no shadows. A missing image hides its ring. ponytail: calibration knobs.
+  const RING = { radius: [360, 330], base: -14, yaw: 0 };
+  const rings = RING.radius.map((r, i) => {
+    const geo = new THREE.CylinderGeometry(r, r, 1, 96, 1, true).translate(0, 0.5, 0);
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true, side: THREE.BackSide, depthWrite: false, fog: false }));
+    m.renderOrder = -0.9 + i * 0.1; m.frustumCulled = false; m.visible = false; m.rotation.y = RING.yaw;
+    scene.add(m);
+    return m;
+  });
 
   // ponytail: calibration knobs — the shadow box around the sun's target (engine.js aims it 25 m ahead of the run)
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -81,6 +94,7 @@ export function createLook({ renderer, scene, camera, sun, hemi }) {
       sun.castShadow = !!s; // toggled with the shadow map, so the light state changes and materials recompile once
       scene.environment = s ? env : null;
       dome.visible = !!s;
+      for (const r of rings) r.visible = false; // shown below when the look names an image that is loaded
       if (!s) return;
       scene.environmentIntensity = s.env;
       sun.color.set(s.sun.color);
@@ -89,9 +103,21 @@ export function createLook({ renderer, scene, camera, sun, hemi }) {
       dome.material.uniforms.top.value.set(s.skyTop);
       dome.material.uniforms.bottom.value.set(s.skyBottom);
       Object.assign(bloom, s.bloom);
+      if (s.sun.dir) sunDir.set(...s.sun.dir).normalize();
+      rings.forEach((ring, i) => {
+        const list = s.skyline, path = list.length === 2 ? list[i] : i === 1 ? list[0] : undefined; // two images: far, near; one: the near ring
+        let map = null;
+        try { if (path) map = texture(path); } catch { /* not loaded: no ring */ }
+        ring.visible = !!map;
+        if (!map) return;
+        map.wrapS = THREE.MirroredRepeatWrapping; map.repeat.x = 2; // the image covers half the ring, mirrored round the back
+        ring.material.map = map; ring.material.needsUpdate = true;
+        ring.scale.y = (Math.PI * RING.radius[i] * map.image.height) / map.image.width; // the image keeps its aspect over half the ring
+      });
     },
     render() {
       dome.position.copy(camera.position);
+      for (const r of rings) r.position.set(camera.position.x, camera.position.y + RING.base, camera.position.z);
       composer.render();
     },
     resize(w, h) {
