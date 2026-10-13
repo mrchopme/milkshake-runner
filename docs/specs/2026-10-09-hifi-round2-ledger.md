@@ -12,6 +12,7 @@ last-verified: never
 
 | Task | File | Change | Why | Generic hook or HiFi-only | Could a module have done it without this? |
 |---|---|---|---|---|---|
+| Task 2 | `src/game.js` | the dev hook also carries `gfx` and `assets` (the page's own module instances) | the lineup preloads and copies models through the page's own cache | Dev only (stripped from builds) | No: the hook is the only handle on a running level. |
 
 ## Assets
 

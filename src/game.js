@@ -1,6 +1,8 @@
 import { createRun, act, step, speedAt, playerBox, obstacleBox, overlaps, hit, inReach, collect, resolveRules } from './rules.js';
 import { createWorld } from './world.js';
 import { bindInput } from './input.js';
+import * as gfx from './gfx.js';
+import * as assets from './assets.js';
 
 // Runs one level to its end. A content hook that throws ends the run with outcome 'error' instead of freezing.
 export function playLevel({ engine, level, registry, hud, character, carryJugs = 0, carrySpeed }) {
@@ -13,7 +15,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
       registry, rules, seed: level.seed ?? ((Math.random() * 2 ** 32) >>> 0),
       end: level.length_m === null ? Infinity : level.length_m + streetAfter, speedFrom: run.speedFrom,
     });
-    if (import.meta.env.DEV) window.__milkshake = { run, world, level, engine, character }; // dev-only hook for the manual pass and scripts/hifi-shot.js; stripped from builds
+    if (import.meta.env.DEV) window.__milkshake = { run, world, level, engine, character, gfx, assets }; // dev-only hook for the manual pass and scripts/hifi-shot.js (gfx and assets are the page's own module instances); stripped from builds
     let paused = false, last = performance.now(), raf = 0, skyKey = '';
 
     const setPaused = (p) => { paused = p; hud.setPaused(p); last = performance.now(); };

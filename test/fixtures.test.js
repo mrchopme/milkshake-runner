@@ -43,7 +43,9 @@ test('the engine never names content (defaults jug, milkshake and finish excepte
   }
 });
 
-test('the HiFi shot fixture validates against the shipped content', async () => {
+test('every HiFi shot fixture validates against the shipped content', async () => {
   const reg = buildRegistry(await discover(fileURLToPath(here('../content/'))));
-  assert.deepEqual(validateAll({ 'hifi-shot': read(here('./fixtures/levels/hifi-shot.json')) }, [], reg), {});
+  for (const id of ['hifi-shot', 'hifi-shot-midtown', 'hifi-shot-uptown', 'hifi-shot-bridge']) {
+    assert.deepEqual(validateAll({ [id]: read(here(`./fixtures/levels/${id}.json`)) }, [], reg), {}, id);
+  }
 });
