@@ -16,6 +16,7 @@ last-verified: never
 | 6 | `src/gfx.js` | `bendable` keys on a WeakSet of patched materials, not `userData.bent` | A cloned material copies `userData` but not the hook, so it rendered straight | Generic hook | No |
 | 6 | `src/gfx.js` | `dispose` frees instanced and batched meshes' buffers and spares geometry, materials and maps flagged `userData.shared` | A module's InstancedMesh over a preloaded model's geometry freed the shared model on drop | Generic hook | No |
 | 6 | `src/assets.js` | `adopt` flags every node's geometry, materials and material textures as shared, not only the nodes | So `dispose` can tell shared parts reused in a module's own meshes | Generic hook | No |
+| Task 2 | `src/game.js` | the dev hook also carries `gfx` and `assets` (the page's own module instances) | the lineup preloads and copies models through the page's own cache | Dev only (stripped from builds) | No: the hook is the only handle on a running level. |
 
 ## Assets
 
