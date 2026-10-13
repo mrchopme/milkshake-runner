@@ -1,7 +1,11 @@
-// HiFi shield: the bubble Milkshake wears while the shield holds (board 04), a code shader, 0 credits. ponytail: knobs.
+// HiFi shield: the generated badge in public/hifi/shield.glb, fitted to the shipped orb's sphere (lib/pickup.js), and the bubble Milkshake
+// wears while the shield holds (board 04), a code shader, 0 credits. ponytail: knobs.
+import { pickupOverlay } from '../lib/pickup.js';
+
+const YAW = Math.PI / 2; // ponytail: calibration knob — turns the badge so its face (+x) looks at the player (-z); Task 22's lineup
 const BUBBLE = { r: 1.25, y: 1.0, opacity: 0.22, rim: 2.2, rimAlpha: 1.5, pulse: 0.03 }; // rimAlpha: how far the edge opaques up so the rim's light survives the blend (ponytail: eyeballed, tune in the still)
 export default {
-  kind: 'pickup', id: 'shield',
+  kind: 'pickup', id: 'shield', ...pickupOverlay('shield', { yaw: YAW }),
   createWorn(gfx) {
     const T = gfx.three;
     const m = new T.MeshPhysicalMaterial({ color: '#4dc3ff', transparent: true, opacity: BUBBLE.opacity, roughness: 0.05, clearcoat: 1, iridescence: 1, depthWrite: false });
