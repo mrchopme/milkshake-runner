@@ -94,6 +94,17 @@ test('a stretch that starts past 200 m but inside the built street is in the uni
   world.dispose();
 });
 
+test('a stretch whose lead-in lies inside the built street is in the uniforms before its own chunk builds, so the lead-in never pops', () => {
+  const rock = { kind: 'obstacle', id: 'rock', avoid: 'lane', box: { w: 1, h: 1, d: 1 }, createView(gfx) { return { object: gfx.box(1, 1, 1, '#ffffff') }; } };
+  const registry = { obstacle: { rock }, pickup: {}, theme: { t: theme }, character: {}, ending: {} };
+  const world = createWorld(new THREE.Scene(), { ...level, sections: [{ from_m: 250, to_m: 400, curve: { turn: 1 } }] }, { registry, rules, seed: 1, end: 600 });
+  const run = createRun(rules, { height: 1.9, width: 1 });
+  world.update(run, 0); // the street is built to 240 m: the start line at 250 is not drawn yet, but its bend begins BEND_LEAD before it, at 210, which is drawn
+  assert.deepEqual(gfx.bendSegments.value[0].toArray(), [250, 400, -gfx.TURN_K, 0], 'a stretch is in the uniforms as soon as its lead-in is drawn');
+  assert.ok(gfx.bendOffset(230).x < 0, 'the lead-in on the drawn street, 230 m out, is already bent');
+  world.dispose();
+});
+
 test('props are built, streamed, dropped and bent like obstacles', () => {
   let disposed = 0;
   const arch = { kind: 'prop', id: 'arch', length: 2, createView(gfx, { lanes }) { return { object: gfx.box(lanes.roadHalf * 2, 1, 1, '#ffffff'), dispose() { disposed++; } }; } };

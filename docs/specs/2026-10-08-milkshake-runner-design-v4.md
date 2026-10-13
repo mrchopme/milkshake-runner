@@ -208,3 +208,5 @@ now begins 40 m before that line, so a stretch whose start line sits within 40 m
 straight until the chunk builds, which happens when the seam is 200 m ahead: up to 40 m of road, 160–200 m out, from straight
 to at most 8 m of offset on a full turn. The same class of pop as the one 2 removed, fog-hidden on the shipped levels;
 `curveSegments(norm, run.z, builtTo + gfx.BEND_LEAD, seed)` would close it.
+
+*Resolved 2026-10-09: closed as written, `src/world.js` passes `builtTo + gfx.BEND_LEAD` (RED→GREEN in `test/world.test.js`, suite 93/93); see the v4 ledger's Live tuning entry.*

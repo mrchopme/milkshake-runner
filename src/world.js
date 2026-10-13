@@ -94,7 +94,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
       if (p.view.update) safeCall(`pickup ${p.id} update`, () => p.view.update(p, run, dt));
     }
     for (const p of live.props) if (p.view.update) safeCall(`prop ${p.id} update`, () => p.view.update(p, run, dt));
-    gfx.setBend({ origin: run.z, segments: curveSegments(norm, run.z, builtTo, seed) }); // every stretch the built street lies in, so nothing pops when it enters view; nothing eases, the street is the anchor
+    gfx.setBend({ origin: run.z, segments: curveSegments(norm, run.z, builtTo + gfx.BEND_LEAD, seed) }); // every stretch the built street lies in, lead-in included (a bend begins BEND_LEAD before its start line), so nothing pops when it enters view; nothing eases, the street is the anchor
   }
 
   const skyAt = (z) => {
