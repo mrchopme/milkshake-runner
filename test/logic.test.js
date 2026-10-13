@@ -553,3 +553,29 @@ test('a clone of a bent material is bent too, instead of silently rendering stra
   gfx.bendable(clone).onBeforeCompile(shader, null);
   assert.ok(shader.vertexShader.includes('bendOffset'), 'the clone is patched');
 });
+
+test('HiFi lets the skyline through what the fog has fully hidden, and only the look switches that on', () => {
+  assert.equal(gfx.fogCut.value, 0, 'low-fi never cuts');
+  for (const [m, lib] of [[new gfx.three.MeshToonMaterial(), 'toon'], [new gfx.three.SpriteMaterial(), 'sprite']]) {
+    const shader = { uniforms: {}, vertexShader: gfx.three.ShaderLib[lib].vertexShader, fragmentShader: gfx.three.ShaderLib[lib].fragmentShader };
+    gfx.bendable(m).onBeforeCompile(shader, null);
+    const f = shader.fragmentShader, decl = f.indexOf('uniform float uFogCut;'), main = f.indexOf('void main() {'), fog = f.indexOf('#include <fog_fragment>'), cut = f.indexOf('fogFactor > 0.999');
+    assert.equal(shader.uniforms.uFogCut, gfx.fogCut, `${lib}: one shared uniform the look switches`);
+    assert.ok(decl >= 0 && decl < main && fog > main && cut > fog, `${lib}: declared before main, the cut after three's fog (${[decl, main, fog, cut]})`);
+  }
+});
+
+test('gfx.bendable runs the look\'s beforeBend hook before the bend wraps: the module\'s hook, then the look\'s, then the bend', () => {
+  assert.equal(gfx.hook.beforeBend, null, 'low-fi sets no hook');
+  const order = [], own = () => order.push('own');
+  gfx.hook.beforeBend = (m) => { // as CSM.setupMaterial does: it replaces onBeforeCompile instead of chaining
+    order.push(m.onBeforeCompile === own ? 'hooked before the wrap' : 'hooked after the wrap');
+    m.onBeforeCompile = (shader) => order.push(shader.vertexShader.includes('bendOffset') ? 'look, after the bend' : 'look');
+  };
+  try {
+    const shader = { uniforms: {}, vertexShader: 'void main() {\n#include <project_vertex>\n}' };
+    gfx.bendable(Object.assign(new gfx.three.MeshToonMaterial(), { onBeforeCompile: own })).onBeforeCompile(shader, null);
+    assert.deepEqual(order, ['hooked before the wrap', 'own', 'look']);
+    assert.ok(shader.vertexShader.includes('bendOffset'), 'and the bend is patched in last');
+  } finally { gfx.hook.beforeBend = null; }
+});

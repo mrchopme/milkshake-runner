@@ -52,23 +52,37 @@ const BEND_SPRITE = `
   bentWorld.xyz += bendOffset( bentWorld.z );
   vec4 mvPosition = viewMatrix * bentWorld;
 `;
+// The HiFi fog cut: with fogCut.value 1 (the look sets it) a bent fragment the fog has fully hidden is dropped, so the
+// skyline ring shows through instead of a fog-coloured block; low-fi leaves it at 0 and the branch never runs.
+export const fogCut = { value: 0 };
+function cutFog(shader) {
+  shader.uniforms.uFogCut = fogCut;
+  if (!shader.fragmentShader) return; // ponytail: the tests' stand-in shaders carry a vertex shader only
+  shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'uniform float uFogCut;\nvoid main() {').replace('#include <fog_fragment>', '#include <fog_fragment>\n#ifdef USE_FOG\n  if ( uFogCut > 0.5 && fogFactor > 0.999 ) discard; // HiFi: what the fog has fully hidden lets the skyline through\n#endif');
+}
 function patch(shader) {
+  cutFog(shader);
   shader.uniforms.uBendStart = bendStart; shader.uniforms.uSeg = bendSegments;
   shader.vertexShader = shader.vertexShader.replace('void main() {', `${BEND_FN}\nvoid main() {`).replace('#include <project_vertex>', BEND);
 }
 function patchSprite(shader) { // a sprite places its centre from the model-view matrix; bend that centre in world space instead
+  cutFog(shader);
   shader.uniforms.uBendStart = bendStart; shader.uniforms.uSeg = bendSegments;
   shader.vertexShader = shader.vertexShader.replace('void main() {', `${BEND_FN}\nvoid main() {`).replace('vec4 mvPosition = modelViewMatrix[ 3 ];', BEND_SPRITE);
 }
 // Marks a material bendable, once. Materials a module builds itself get this when the engine adds the object (gfx.bend).
-// A hook the module set itself keeps running, first; the bend is patched in after it.
+// A hook the module set itself keeps running, first; then the look's (hook.beforeBend, HiFi only: the cascaded shadows'
+// setupMaterial); the bend is patched in last.
+export const hook = { beforeBend: null };
 const patched = new WeakSet(); // by material, not userData: a clone copies userData but not the hook, and must be patched again
 export function bendable(material) {
   if (!material || patched.has(material)) return material;
   patched.add(material);
   material.userData.bent = true;
   const own = material.onBeforeCompile, bend = material.isSpriteMaterial ? patchSprite : patch;
-  material.onBeforeCompile = (shader, renderer) => { own.call(material, shader, renderer); bend(shader); };
+  hook.beforeBend?.(material); // CSM's setupMaterial replaces onBeforeCompile instead of chaining, so it runs before the wrap
+  const look = material.onBeforeCompile === own ? null : material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => { own.call(material, shader, renderer); look?.call(material, shader, renderer); bend(shader); };
   material.customProgramCacheKey = () => own.toString() + bend.name; // three keys its program cache by onBeforeCompile.toString(), which is now the same wrapper for every material
   material.needsUpdate = true;
   return material;
