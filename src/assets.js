@@ -43,14 +43,38 @@ export async function preload(paths, loader = load) {
   }));
 }
 
-// RUN's wait on the preload: while the files are still loading only the first caller waits; the rest get false at once,
-// so a second click on LOADING… does not start a second level once they land.
-export function gate(ready) {
-  let waiting = false;
-  return async () => {
-    if (waiting) return false;
-    waiting = true;
-    try { await ready; return true; } finally { waiting = false; }
+// Every file a level needs, from what its JSON names (round 2 spec §7): section themes, obstacles, power-ups and the default
+// jug, props, placements, its character and its ending, and the files of any next level its ending declares (a `level` param),
+// so a transition carries on without a load. Pure, so Node tests it; the generator only ever draws from these lists.
+export function levelAssets(level, registry, levels = {}) {
+  const ids = { theme: new Set(), obstacle: new Set(), pickup: new Set(['jug']), prop: new Set(), character: new Set([level.character?.id ?? 'milkshake']), ending: new Set([level.ending?.id ?? 'finish']) };
+  for (const s of [level, ...(level.sections ?? [])]) {
+    if (s.theme?.id) ids.theme.add(s.theme.id);
+    for (const id of Object.keys(s.obstacles ?? {})) ids.obstacle.add(id);
+    for (const id of s.jugs?.powerups ?? []) ids.pickup.add(id);
+    for (const id of Object.keys(s.props?.ids ?? {})) ids.prop.add(id);
+    for (const p of s.placements ?? []) ids[p.kind]?.add(p.id);
+  }
+  const own = Object.entries(ids).flatMap(([kind, set]) => [...set].flatMap((id) => registry[kind]?.[id]?.assets ?? []));
+  const ending = registry.ending?.[level.ending?.id ?? 'finish'];
+  const next = Object.entries(ending?.params ?? {}).filter(([, s]) => s.type === 'level').map(([k, s]) => levels[level.ending?.params?.[k] ?? s.default]);
+  return [...new Set([...own, ...next.flatMap((l) => (l ? levelAssets(l, registry) : []))])]; // one step ahead, so a loop of levels stops
+}
+
+// A level's start waits on its files. A start during the menu's own load waits for it, then loads its own; a second start
+// while one is pending is dropped (a double click on LOADING…), as is a second menu load. `busy` hears LOADING… on and off.
+export function gateLoads(load = preload, busy = () => {}) {
+  let menuLoad = null, starting = false;
+  const settle = () => { if (!menuLoad && !starting) busy(false); };
+  return async (paths, { start = true } = {}) => {
+    if (starting || (!start && menuLoad)) return false;
+    busy(true);
+    if (!start) {
+      menuLoad = load(paths);
+      try { await menuLoad; return true; } finally { menuLoad = null; settle(); }
+    }
+    starting = true;
+    try { if (menuLoad) await menuLoad; await load(paths); return true; } finally { starting = false; settle(); }
   };
 }
 
@@ -69,7 +93,7 @@ export function texture(path) {
 }
 
 // Frees every cached file not in `keep` (the next level's set), so GPU memory follows the level. Call it only after the
-// previous world is disposed: nothing still drawn may use a freed file. Nothing calls it yet outside tests.
+// previous world is disposed: nothing still drawn may use a freed file.
 export function release(keep) {
   const k = new Set(keep);
   for (const [path, v] of cache) {
