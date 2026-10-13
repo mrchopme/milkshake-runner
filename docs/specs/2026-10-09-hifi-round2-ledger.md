@@ -94,6 +94,7 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 | 5 | `scratchpad/wave1-jobs.json` (16 GPT style frames, 4 NBP hero frames, 112 + 4 concepts, 3 price probes) | gpt_image_2_5, nano_banana_pro, nano_banana_2_1 | Wave 1 (Caedon: "Approve (about 46)"; lamp redo 1) | 45.75 (2,979.75 → 2,934) |
 | 20 | `scratchpad/w2/jobs.tsv` (203: 52 views, 151 city images; 2 storefronts resubmitted after a 503 that charged nothing) | gpt_image_2_5 | Wave 2 (Caedon re-confirmed "Go ahead (about 133)" after compaction; probe gate "about 139") | 132.5 (2,934 → 2,801.5) |
 | 20 | `scratchpad/w2/redo-jobs.tsv` (18 view redos, 4 midtown skylines without the sun glow) | gpt_image_2_5 | Wave 2 redos (Caedon: "Redo 18 views (4.5)", "Redo without glow (4)") | 8.5 (2,801.5 → 2,793) |
+| 20 | 686c2ef4 (bus shelter right), d563ac73 (hot-dog cart rear) | gpt_image_2_5 | second redo of two views (Caedon: "Redo 2 views (0.5)") | 0.5 (2,793 → 2,792.5); wave 2 in all 141.5 |
 
 ## Downloads and dependencies
 
@@ -208,6 +209,7 @@ Every task against itself:
 - Task 20: Steps 1–3 done (203 generated, 0 failed; 18 views and 4 midtown skylines redone). Step 4: Caedon asked for the contact sheet and picks on a Paper board beside the others, not a separate HTML page; download not yet approved.
 - Task 18: complete (commits 45ad80e..2384f5b, merged as f63abc0; fix round 1: gloss keeps the physical define, glowMap's pixel path tested; re-review clean; npm test 159; `?lofi` 3d77a939…, unchanged)
 - Task 20: Step 4 done (board 16b on its own Paper page; Caedon accepted all 62 picks; two views redone a second time, 0.5); Step 5 done (download approved, 62 PNGs); Step 6 done (62 WebPs tiled, 3.2 MB). Boards 16 and 16b moved to their own Paper pages at Caedon's request (the main page crashed with that many images).
+- Task 20: complete (203 + 24 redo images; 62 picks tiled in df5d793; the 13 multi-view models' final front/left/rear/right job ids in `scratchpad/w2/views-final.json`, all checked; newsstand passes its left and right swapped)
 
 ## Final review
 
