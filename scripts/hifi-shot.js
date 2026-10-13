@@ -21,6 +21,12 @@
   async function shotLevel(id = 'hifi-shot') {
     let m = window.__milkshake;
     if (m?.level.id === id && !m.run.over) return m;
+    if (m && !m.run.over) { // a different level is alive: the game never starts one over another, so end it as the game does or both worlds stay in the scene and their facades z-fight
+      if (!$('overlay').hidden) $('overlay').click(); // paused (hud overlay up): unpause so the loop ticks
+      m.run.over = true;                              // the next tick ends the run ('dead'); main.js renders, holds ~900 ms, disposes the world, then shows #results
+      for (let i = 0; i < 200 && $('results').hidden; i++) await wait(50); // results are hidden for the whole run (show(null)), so shown means the world is gone
+      if ($('results').hidden) throw new Error('the running level did not end');
+    }
     const title = `HiFi shot${id.slice('hifi-shot'.length).replace('-', ' ')} (dev)`; // 'hifi-shot-midtown' -> 'HiFi shot midtown (dev)'
     $('levels').click();
     const button = [...document.querySelectorAll('#level-list button')].find((b) => b.querySelector('span')?.textContent === title);
