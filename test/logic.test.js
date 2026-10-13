@@ -554,14 +554,23 @@ test('a clone of a bent material is bent too, instead of silently rendering stra
   assert.ok(shader.vertexShader.includes('bendOffset'), 'the clone is patched');
 });
 
-test('HiFi lets the skyline through what the fog has fully hidden, and only the look switches that on', () => {
-  assert.equal(gfx.fogCut.value, 0, 'low-fi never cuts');
-  for (const [m, lib] of [[new gfx.three.MeshToonMaterial(), 'toon'], [new gfx.three.SpriteMaterial(), 'sprite']]) {
+test('HiFi lets the skyline through what the fog has fully hidden, and low-fi compiles three\'s fragment shaders untouched', () => {
+  assert.ok(gfx.fogCut.value === 0 && gfx.hook.cutFog === false, 'the cut starts off, compiled out');
+  const CUT = '#include <fog_fragment>\n#ifdef USE_FOG\n  if ( uFogCut > 0.5 && fogFactor > 0.999 ) discard;';
+  const compile = (T, lib) => {
     const shader = { uniforms: {}, vertexShader: gfx.three.ShaderLib[lib].vertexShader, fragmentShader: gfx.three.ShaderLib[lib].fragmentShader };
-    gfx.bendable(m).onBeforeCompile(shader, null);
-    const f = shader.fragmentShader, decl = f.indexOf('uniform float uFogCut;'), main = f.indexOf('void main() {'), fog = f.indexOf('#include <fog_fragment>'), cut = f.indexOf('fogFactor > 0.999');
-    assert.equal(shader.uniforms.uFogCut, gfx.fogCut, `${lib}: one shared uniform the look switches`);
-    assert.ok(decl >= 0 && decl < main && fog > main && cut > fog, `${lib}: declared before main, the cut after three's fog (${[decl, main, fog, cut]})`);
+    gfx.bendable(new T()).onBeforeCompile(shader, null);
+    return shader;
+  };
+  for (const [T, lib] of [[gfx.three.MeshToonMaterial, 'toon'], [gfx.three.SpriteMaterial, 'sprite']]) {
+    const low = compile(T, lib);
+    assert.ok(low.fragmentShader === gfx.three.ShaderLib[lib].fragmentShader && !('uFogCut' in low.uniforms), `${lib}: low-fi has no uFogCut and no discard`);
+    gfx.hook.cutFog = true; // what createLook sets, once, before anything compiles
+    try {
+      const hi = compile(T, lib), f = hi.fragmentShader, decl = f.indexOf('uniform float uFogCut;');
+      assert.equal(hi.uniforms.uFogCut, gfx.fogCut, `${lib}: one shared uniform the look switches per theme`);
+      assert.ok(decl >= 0 && decl < f.indexOf('void main() {') && f.includes(CUT), `${lib}: declared before main; the cut right after three's fog, behind USE_FOG and uFogCut`);
+    } finally { gfx.hook.cutFog = false; }
   }
 });
 

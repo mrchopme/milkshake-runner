@@ -49,7 +49,7 @@
     Object.assign(run, { x: 0, lane: 1, z: S.runZ, y: S.runY, speed: S.speed, time: 0 });
     world.update(run, 0);             // streams the street to the spot; pickups spin with run.time, held at 0
     character.update(run);
-    engine.follow(run, {}, Infinity); // snaps the sun, and in HiFi its shadow box, to the spot
+    engine.follow(run, {}, Infinity); // snaps the sun to the spot
     const cam = engine.camera;
     cam.position.set(0, S.camUp, S.runZ - S.camBack);
     cam.lookAt(0, S.lookY, S.runZ + S.lookAhead);

@@ -52,12 +52,12 @@ const BEND_SPRITE = `
   bentWorld.xyz += bendOffset( bentWorld.z );
   vec4 mvPosition = viewMatrix * bentWorld;
 `;
-// The HiFi fog cut: with fogCut.value 1 (the look sets it) a bent fragment the fog has fully hidden is dropped, so the
-// skyline ring shows through instead of a fog-coloured block; low-fi leaves it at 0 and the branch never runs.
+// The HiFi fog cut: compiled in only when the look sets hook.cutFog; then with fogCut.value 1 (a theme with a look) a bent
+// fragment the fog has fully hidden is dropped, so the skyline ring shows through instead of a fog-coloured block.
 export const fogCut = { value: 0 };
 function cutFog(shader) {
+  if (!hook.cutFog) return; // low-fi compiles three's fragment shaders as they are: no uniform, no discard
   shader.uniforms.uFogCut = fogCut;
-  if (!shader.fragmentShader) return; // ponytail: the tests' stand-in shaders carry a vertex shader only
   shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'uniform float uFogCut;\nvoid main() {').replace('#include <fog_fragment>', '#include <fog_fragment>\n#ifdef USE_FOG\n  if ( uFogCut > 0.5 && fogFactor > 0.999 ) discard; // HiFi: what the fog has fully hidden lets the skyline through\n#endif');
 }
 function patch(shader) {
@@ -73,7 +73,9 @@ function patchSprite(shader) { // a sprite places its centre from the model-view
 // Marks a material bendable, once. Materials a module builds itself get this when the engine adds the object (gfx.bend).
 // A hook the module set itself keeps running, first; then the look's (hook.beforeBend, HiFi only: the cascaded shadows'
 // setupMaterial); the bend is patched in last.
-export const hook = { beforeBend: null };
+// The HiFi look sets both fields once, before anything compiles. ?lofi and ?hifi never share a page, so neither needs a
+// program-cache key; low-fi leaves both off.
+export const hook = { beforeBend: null, cutFog: false };
 const patched = new WeakSet(); // by material, not userData: a clone copies userData but not the hook, and must be patched again
 export function bendable(material) {
   if (!material || patched.has(material)) return material;

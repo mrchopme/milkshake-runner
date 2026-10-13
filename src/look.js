@@ -27,6 +27,15 @@ export function lookState(theme) {
   };
 }
 
+// What the look hands bendable() (gfx.hook.beforeBend): CSM's setupMaterial for lit materials only (an unlit blob, glow or
+// sprite has no lights chunk to patch), and each one leaves CSM's material Map when disposed: the Map is strong, and pickups
+// and the shield bubble build new materials on every spawn. Tested in Node with a stand-in CSM.
+export const cascadeHook = (csm) => (m) => {
+  if (!(m.isMeshStandardMaterial || m.isMeshToonMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial)) return; // Physical is a Standard
+  csm.setupMaterial(m);
+  m.addEventListener('dispose', () => csm.shaders.delete(m)); // a material used again recompiles, and CSM records it again
+};
+
 const SKY_VERT = /* glsl */`
   varying vec3 vDir;
   void main() {
@@ -83,12 +92,14 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
 
   // ponytail: calibration knobs — two shadow cascades out to 220 m (the Task 14 probe: they reach the far canyon, where one
   // box around the run did not). While a look is on they light the scene in the sun's place, with its colour and intensity,
-  // and the sun hides. They aim along the engine's sunDir itself, so a look that turns the sun turns them. Every material
+  // and the sun hides. They aim along the engine's sunDir itself, so a look that turns the sun turns them. Every lit material
   // bendable() wraps from now on gets CSM's setupMaterial (gfx.hook), after the module's own hook and before the bend.
+  // Never csm.dispose(): it deletes each material's onBeforeCompile, which after bendable() is the bend itself.
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const csm = new CSM({ maxFar: 220, cascades: 2, shadowMapSize: 4096, lightDirection: sunDir, camera, parent: scene, shadowBias: -0.0004 });
   for (const l of csm.lights) { l.shadow.normalBias = 0.03; l.visible = false; }
-  hook.beforeBend = (m) => csm.setupMaterial(m);
+  hook.beforeBend = cascadeHook(csm);
+  hook.cutFog = true; // the fog cut compiles into bent shaders from here on; a theme's look switches it with fogCut
   let view = ''; // the camera's fov and aspect when the cascade splits were last fitted
 
   const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
@@ -148,14 +159,6 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
     resize(w, h) {
       composer.setPixelRatio(renderer.getPixelRatio());
       composer.setSize(w, h);
-    },
-    // Takes the cascades out and gives the scene its sun back. ponytail: nothing calls this yet, the look lives for the
-    // session. Never csm.dispose(): it deletes each material's onBeforeCompile, which after bendable() is the bend itself.
-    dispose() {
-      hook.beforeBend = null;
-      csm.remove();
-      for (const l of csm.lights) l.dispose();
-      sun.visible = true;
     },
   };
 }
