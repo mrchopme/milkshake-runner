@@ -44,8 +44,9 @@ export async function preload(paths, loader = load) {
 }
 
 // Every file a level needs, from what its JSON names (round 2 spec §7): section themes, obstacles, power-ups and the default
-// jug, props, placements, its character and its ending. Pure, so Node tests it; the generator only ever draws from these lists.
-export function levelAssets(level, registry) {
+// jug, props, placements, its character and its ending, and the files of any next level its ending declares (a `level` param),
+// so a transition carries on without a load. Pure, so Node tests it; the generator only ever draws from these lists.
+export function levelAssets(level, registry, levels = {}) {
   const ids = { theme: new Set(), obstacle: new Set(), pickup: new Set(['jug']), prop: new Set(), character: new Set([level.character?.id ?? 'milkshake']), ending: new Set([level.ending?.id ?? 'finish']) };
   for (const s of [level, ...(level.sections ?? [])]) {
     if (s.theme?.id) ids.theme.add(s.theme.id);
@@ -54,16 +55,26 @@ export function levelAssets(level, registry) {
     for (const id of Object.keys(s.props?.ids ?? {})) ids.prop.add(id);
     for (const p of s.placements ?? []) ids[p.kind]?.add(p.id);
   }
-  return [...new Set(Object.entries(ids).flatMap(([kind, set]) => [...set].flatMap((id) => registry[kind]?.[id]?.assets ?? [])))];
+  const own = Object.entries(ids).flatMap(([kind, set]) => [...set].flatMap((id) => registry[kind]?.[id]?.assets ?? []));
+  const ending = registry.ending?.[level.ending?.id ?? 'finish'];
+  const next = Object.entries(ending?.params ?? {}).filter(([, s]) => s.type === 'level').map(([k, s]) => levels[level.ending?.params?.[k] ?? s.default]);
+  return [...new Set([...own, ...next.flatMap((l) => (l ? levelAssets(l, registry) : []))])]; // one step ahead, so a loop of levels stops
 }
 
-// A level's start waits on its files; while they load, a second start is dropped (a double click on LOADING…).
-export function gateLoads(load = preload) {
-  let busy = false;
-  return async (paths) => {
-    if (busy) return false;
-    busy = true;
-    try { await load(paths); return true; } finally { busy = false; }
+// A level's start waits on its files. A start during the menu's own load waits for it, then loads its own; a second start
+// while one is pending is dropped (a double click on LOADING…), as is a second menu load. `busy` hears LOADING… on and off.
+export function gateLoads(load = preload, busy = () => {}) {
+  let menuLoad = null, starting = false;
+  const settle = () => { if (!menuLoad && !starting) busy(false); };
+  return async (paths, { start = true } = {}) => {
+    if (starting || (!start && menuLoad)) return false;
+    busy(true);
+    if (!start) {
+      menuLoad = load(paths);
+      try { await menuLoad; return true; } finally { menuLoad = null; settle(); }
+    }
+    starting = true;
+    try { if (menuLoad) await menuLoad; await load(paths); return true; } finally { starting = false; settle(); }
   };
 }
 

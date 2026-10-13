@@ -50,12 +50,8 @@ async function main() {
   const defaultRules = resolveRules();
   let backdrop = null;
   // Per level (round 2): a level's files load before it starts, behind LOADING…; the previous level's leave once its world is gone.
-  const loads = gateLoads();
-  async function prepare(id) {
-    const paths = levelAssets(levels[id], registry), play = $('play');
-    play.textContent = 'LOADING…';
-    try { return await loads(paths); } finally { play.textContent = 'RUN'; }
-  }
+  const loads = gateLoads(undefined, (on) => ($('play').textContent = on ? 'LOADING…' : 'RUN'));
+  const prepare = (id, start) => loads(levelAssets(levels[id], registry, levels), { start });
   // One character in the scene at a time: a level's character replaces the previous one.
   const character = async (level) => {
     const view = await loadCharacter(registry.character[level.character?.id ?? 'milkshake']);
@@ -69,7 +65,7 @@ async function main() {
     $('endless').hidden = !levels.endless || isLocked(campaign, save, 'endless');
     show('menu'); // the buttons appear first; the street when its files land, the character after its model
     if (!backdrop) {
-      if (!(await prepare(campaign.start))) return; // the menu's own load counts as the one running load
+      if (!(await prepare(campaign.start, false))) return; // a start pressed meanwhile waits for this load, then goes
       backdrop = createWorld(engine.scene, level, { registry, rules: defaultRules, seed: 1, end: 400 });
     }
     const idle = createRun(defaultRules, registry.character[level.character?.id ?? 'milkshake']);
@@ -126,7 +122,7 @@ async function main() {
     if (!save.helpSeen) { save.helpSeen = true; writeSave(save); return help(() => startLevel(id, carry)); } // once per browser, before the first run however it starts (spec §4)
     show(null);
     if (backdrop) { backdrop.dispose(); backdrop = null; }
-    release(levelAssets(levels[id], registry)); // after the old world is gone and before this level's sky: nothing drawn holds a freed file
+    release(levelAssets(levels[id], registry, levels)); // after the old world is gone and before this level's sky: nothing drawn holds a freed file
     const level = levels[id];
     const view = await character(level);
     let result;

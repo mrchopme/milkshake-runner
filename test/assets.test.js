@@ -63,6 +63,29 @@ test('a second start while a level\'s files load is dropped', async () => {
   assert.equal(await gateLoads(async () => {})(['y.glb']), true);
 });
 
+test('a start during the menu\'s load waits for it, then loads its own files and starts; the label follows whoever owns a load', async () => {
+  const resolve = [], loaded = [], label = [];
+  const gate = gateLoads((paths) => new Promise((r) => resolve.push(() => { loaded.push(...paths); r(); })), (on) => label.push(on));
+  const menu = gate(['level1.glb'], { start: false }), start = gate(['level2.glb']), again = gate(['level2.glb']);
+  assert.equal(await again, false, 'a second start while one is pending is dropped');
+  assert.equal(await gate(['level1.glb'], { start: false }), false, 'the menu does not load twice');
+  resolve.shift()();
+  assert.equal(await menu, true);
+  await new Promise((r) => setTimeout(r));
+  resolve.shift()();
+  assert.equal(await start, true);
+  assert.deepEqual(loaded, ['level1.glb', 'level2.glb'], 'the start loaded its own files after the menu\'s');
+  assert.equal(label.at(-1), false, 'RUN only once nothing is loading');
+  assert.ok(!label.slice(0, -1).includes(false), 'never RUN while the start still waited');
+});
+
+test('a level\'s files include those of the next level its ending declares', () => {
+  const reg = { theme: { a: { assets: ['a.webp'] }, b: { assets: ['b.webp'] } }, obstacle: {}, pickup: {}, prop: {}, character: {}, ending: { transition: { params: { next: { type: 'level' } } }, finish: {} } };
+  const levels = { A: { theme: { id: 'a' }, ending: { id: 'transition', params: { next: 'B' } } }, B: { theme: { id: 'b' } } };
+  assert.deepEqual(levelAssets(levels.A, reg, levels).sort(), ['a.webp', 'b.webp']);
+  assert.deepEqual(levelAssets(levels.B, reg, levels), ['b.webp'], 'a level with no declared next keeps only its own');
+});
+
 test('dropping an instanced copy frees its instance buffers, never the shared model or a shared texture', () => {
   adopt('test/i.glb', model());
   const src = asset('test/i.glb').children[0];
