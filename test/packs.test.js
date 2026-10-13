@@ -124,6 +124,7 @@ test('gloss copies every standard field of a generated material, then adds the g
   src.normalScale.set(0.3, 0.3);
   const p = gloss(T, src, { clearcoat: 1 });
   assert.ok(p.isMeshPhysicalMaterial && p.clearcoat === 1);
+  assert.ok('PHYSICAL' in p.defines, 'still compiles as a physical material (ior, specular), which the standard copy resets');
   assert.equal(p.color.getHexString(), 'ff0000'); assert.equal(p.aoMapIntensity, 0.5); assert.equal(p.side, T.DoubleSide); assert.equal(p.vertexColors, true); assert.equal(p.normalScale.x, 0.3);
   const glow = gloss(T, src, { emissive: '#ffffff', emissiveMap: null }); // the taxi's call: a colour given as a string must stay a Color
   assert.ok(glow.emissive.isColor && glow.emissive.getHexString() === 'ffffff');
@@ -133,6 +134,19 @@ test('glowMap hands back nothing without a map or a canvas to read it', async ()
   const { glowMap } = await import('../packs/hifi/lib/paint.js');
   assert.equal(glowMap(gfx.three, null, () => true), null, 'a map-less model');
   assert.equal(glowMap(gfx.three, { image: {} }, () => true), null, 'Node has no OffscreenCanvas');
+});
+
+test('glowMap keeps the texels the test accepts, blacks out the rest, and reads the map the way the source does', async () => {
+  const { glowMap } = await import('../packs/hifi/lib/paint.js');
+  const bytes = new Uint8ClampedArray([220, 40, 40, 255, 245, 200, 30, 255, 250, 250, 250, 255, 180, 120, 40, 255]); // lamp, paint, bumper, shadow
+  let stored;
+  const saved = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class { getContext() { return { drawImage() {}, getImageData: () => ({ data: bytes }), putImageData: (img) => { stored = [...img.data]; } }; } };
+  try {
+    const t = glowMap(gfx.three, { image: {}, flipY: false, colorSpace: 'srgb', channel: 1 }, (r, g, b) => r > 150 && g < 90 && b < 90, 2);
+    assert.deepEqual(stored, [220, 40, 40, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255], 'the lamp stays, the rest goes black, alpha stays');
+    assert.ok(t.isCanvasTexture && t.flipY === false && t.colorSpace === 'srgb' && t.channel === 1, 'read the way the source map is');
+  } finally { globalThis.OffscreenCanvas = saved; }
 });
 
 test('fitBox keeps a jumpable model inside its box and lets a lane blocker stand taller', async () => {

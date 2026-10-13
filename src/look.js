@@ -110,6 +110,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   composer.addPass(bloom);
   const output = new OutputPass();
   output.needsSwap = false; // the last pass draws to the screen: no swap after it, so the scene always lands in the same target
+  // (a pass added before it that swaps must be added with needsSwap = false too, or the scene alternates into the unsampled target)
   composer.addPass(output);
   composer.renderTarget1.samples = 0; // only the target the scene renders into keeps 4x MSAA (about 190 MB saved at 3024x1964)
 

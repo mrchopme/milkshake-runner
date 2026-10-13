@@ -31,7 +31,7 @@ function build(gfx, model) {
   const box = new T.Box3().setFromObject(model), size = box.getSize(new T.Vector3()), centre = box.getCenter(new T.Vector3());
   const scale = Math.min(FOOTPRINT.w / size.x, FOOTPRINT.d / size.z);
   const offset = new T.Vector3(-centre.x * scale, -box.min.y * scale, -centre.z * scale);
-  const paint = new Map(); // generated material -> the same maps under a glossy clearcoat
+  const paint = new Map(); // generated material -> a copy of it under a glossy clearcoat, its red lamps lit
   model.traverse((n) => {
     if (!n.isMesh || paint.has(n.material)) return;
     const m = n.material, lamps = glowMap(T, m.map, isLamp);
