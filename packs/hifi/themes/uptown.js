@@ -1,6 +1,7 @@
 import { cityChunk } from '../lib/city.js';
+import { buildings } from '../lib/buildings.js';
 // HiFi look for uptown (endless, a purple dusk). ponytail: calibration knobs.
-const STYLE = { id: 'uptown', road: '#5a5c72', walk: '#a3a0ab', paint: '#f2f2f2', parts: [] }; // the generated city (round 2), board 15
+const STYLE = { id: 'uptown', road: '#5a5c72', walk: '#a3a0ab', paint: '#f2f2f2', parts: [buildings], facades: [], shops: [] }; // the generated city (round 2), board 15
 export default {
   kind: 'theme', id: 'uptown',
   assets: ['hifi/city/sky/placeholder.png'],

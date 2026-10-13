@@ -1,6 +1,7 @@
 import { cityChunk } from '../lib/city.js';
+import { buildings } from '../lib/buildings.js';
 // HiFi look for midtown (level 2, a low orange sun). ponytail: calibration knobs.
-const STYLE = { id: 'midtown', road: '#5a5c72', walk: '#a3a0ab', paint: '#f2f2f2', parts: [] }; // the generated city (round 2), board 15
+const STYLE = { id: 'midtown', road: '#5a5c72', walk: '#a3a0ab', paint: '#f2f2f2', parts: [buildings], facades: [], shops: [] }; // the generated city (round 2), board 15
 export default {
   kind: 'theme', id: 'midtown',
   assets: ['hifi/city/sky/placeholder.png'],

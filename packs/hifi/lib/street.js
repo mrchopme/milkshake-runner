@@ -1,7 +1,7 @@
 import { box, instanced } from './shapes.js';
 import { material } from './materials.js';
 // ponytail: calibration knobs, metres (board 15)
-export const KERB = 0.18, WALK = 3, DASH = { w: 0.12, len: 3, every: 6 }, CROSS = { width: 12, stripe: 0.6 };
+export const KERB = 0.18, WALK = 3, DASH = { w: 0.12, len: 3, every: 6 }, CROSS = { width: 12, stripe: 0.6, reach: 17.5 }; // reach: the cross street's paving runs out to the back of the blocks (FACADE_X + 10)
 
 export function street(gfx, { z0, length, lanes }, style, cross) {
   const T = gfx.three, g = gfx.group(), half = lanes.roadHalf, zc = z0 + length / 2;
@@ -9,7 +9,18 @@ export function street(gfx, { z0, length, lanes }, style, cross) {
   const road = box(T, half * 2, 0.1, length, std('road', style.road, 0.85), 0, -0.05, zc);
   road.userData.road = true;
   g.add(road);
-  for (const side of [-1, 1]) g.add(box(T, WALK, KERB, length, std('walk', style.walk, 0.9), side * (half + WALK / 2), KERB / 2, zc));
+  // the sidewalks run up to the cross street and on from its far side (board 15); the cross street is paved between
+  if (cross) for (const side of [-1, 1]) {
+    const paving = box(T, CROSS.reach - half, 0.1, CROSS.width, road.material, side * (half + CROSS.reach) / 2, -0.05, cross.z + CROSS.width / 2);
+    paving.userData.crossing = true;
+    g.add(paving);
+  }
+  const spans = cross ? [[z0, cross.z], [cross.z + CROSS.width, z0 + length]] : [[z0, z0 + length]];
+  for (const side of [-1, 1]) for (const [a, b] of spans) {
+    const walk = box(T, WALK, KERB, b - a, std('walk', style.walk, 0.9), side * (half + WALK / 2), KERB / 2, (a + b) / 2);
+    walk.userData.walk = true;
+    g.add(walk);
+  }
   const dashes = [];
   for (let z = z0; z + DASH.len <= z0 + length; z += DASH.every) for (const x of [lanes.width / 2, -lanes.width / 2]) {
     if (cross && z + DASH.len > cross.z && z < cross.z + CROSS.width) continue; // no lane dashes across the crosswalk
