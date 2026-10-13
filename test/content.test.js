@@ -111,3 +111,15 @@ test('a model that breaks after skinning is thrown away whole, so the fallback c
   const pivots = view.object.children[1].children[0].children.filter((c) => c.isGroup);
   assert.ok(pivots.length === 4 && pivots.every((p) => p.rotation.x !== 0 && p.rotation.z === 0), 'the shape cow swings its capsule limbs about x');
 });
+
+test('the HiFi pack can reuse Milkshake\'s view with its own model, skin knobs and paint', async () => {
+  const { cowView, SKIN } = await import('../content/characters/milkshake.js');
+  const T = gfx.three, def = { height: 1.9, width: 1, yaw: 0 };
+  const scene = new T.Group(); scene.add(new T.Mesh(new T.BoxGeometry(0.6, 1, 0.4, 2, 8, 2), new T.MeshStandardMaterial()));
+  let dressed = 0;
+  const view = await cowView(gfx, def, { load: async () => scene, skin: { ...SKIN, crotch: -0.4 }, dress: (T2, m) => { dressed++; return new T2.MeshPhysicalMaterial({ map: m.map }); }, blob: false });
+  assert.ok(dressed > 0, 'the caller dresses the model');
+  let skinned = 0, blobs = 0; view.object.traverse((n) => { if (n.isSkinnedMesh) skinned++; if (n.geometry?.type === 'CircleGeometry') blobs++; });
+  assert.equal(skinned, 1, 'skinned with v4\'s code'); assert.equal(blobs, 0, 'no blob shadow when the caller says so');
+  assert.doesNotThrow(() => view.update({ x: 0, y: 0, z: 0, lane: 1, time: 0.3, slideT: 0, over: false, speed: 12, rules: { laneWidth: 2.5 } }));
+});

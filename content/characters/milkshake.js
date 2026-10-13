@@ -6,8 +6,11 @@ export const SKIN = {
   shoulder: 0.06, shoulderBand: 0.07, // arm weight fades out above this height
   neck: 0.19, neckBand: 0.08,         // head weight fades in above this height
 };
-const BONES = { hips: [-0.02, -0.4, 0], head: [-0.05, 0.22, 0], armL: [-0.04, 0.07, 0.16], armR: [-0.04, 0.07, -0.16], legL: [-0.04, SKIN.crotch, 0.1], legR: [-0.04, SKIN.crotch, -0.1] };
-const LEG_SWING = 0.7, ARM_SWING = 0.7, HEAD_SWING = 0.08; // radians at the stride's peak; tuned in the manual pass
+export const BONES = { hips: [-0.02, -0.4, 0], head: [-0.05, 0.22, 0], armL: [-0.04, 0.07, 0.16], armR: [-0.04, 0.07, -0.16], legL: [-0.04, SKIN.crotch, 0.1], legR: [-0.04, SKIN.crotch, -0.1] };
+// The generated GLB ships a metallic PBR material, which three.js renders near-black without an environment map;
+// the toon material with the same colour map matches the rest of the street. The default `dress`.
+const toon = (T, m) => new T.MeshToonMaterial({ map: m.map, color: m.color });
+const LEG_SWING =0.7, ARM_SWING = 0.7, HEAD_SWING = 0.08; // radians at the stride's peak; tuned in the manual pass
 
 // Weights for a vertex at height y and side z: [hips, head, armL, armR, legL, legR], summing to 1. Pure, so Node can test it.
 export function skinWeights(y, z, K = SKIN) {
@@ -23,79 +26,81 @@ export function skinWeights(y, z, K = SKIN) {
 export default {
   kind: 'character', id: 'milkshake', height: 1.9, width: 1.0, model: 'milkshake.glb', yaw: -Math.PI / 2,
 
-  async createView(gfx) {
-    const P = gfx.palette;
-    const root = gfx.group(gfx.blobShadow(0.55));
-    const shadow = root.children[0];
-    const body = gfx.group();
-    root.add(body);
-    let model, arms = [], legs = [], head = null, limbAxis = 'x';
-    try {
-      const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-      const gltf = await new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}${this.model}`);
-      ({ model, arms, legs, head, limbAxis } = fitModel(gfx.three, gltf.scene, this)); // one assignment: a model that breaks half way leaves nothing behind
-    } catch {
-      ({ model, arms, legs } = shapeCow(gfx)); // no GLB yet, or a bad one: the shape-built cow
-    }
-    body.add(model);
-
-    // Dust: six puffs pooled under the hooves, one per footfall while on the ground. They hold their place on the road as Milkshake runs on, changes lane or jumps.
-    const puffs = gfx.group();
-    root.add(puffs);
-    const pool = Array.from({ length: 6 }, () => {
-      const m = new gfx.three.Mesh(new gfx.three.SphereGeometry(0.18, 8, 6), new gfx.three.MeshBasicMaterial({ color: P.spot, transparent: true, opacity: 0.5, depthWrite: false }));
-      m.visible = false; puffs.add(m); return m;
-    });
-    let lastStride = 0, nextPuff = 0;
-
-    const BASE = 12; // m/s the v1 stride was tuned at
-    const pose = (time, { sliding = false, over = false, lean = 0, airborne = false, speed = BASE } = {}) => {
-      const k = speed / BASE;                                       // 1 at the old pace, 2 at 24 m/s
-      const stride = airborne || sliding || over ? 0 : Math.sin(time * 14 * k);
-      body.position.y = Math.abs(stride) * Math.min(0.14, 0.08 * k);
-      body.scale.y = sliding ? 0.5 : 1;
-      body.rotation.z = lean + stride * 0.03 * Math.max(0, k - 1);  // a little roll per stride once it is running hard
-      body.rotation.x = over ? 0.9 : sliding ? -0.3 : Math.max(0, 0.1 * (k - 1)); // forward lean grows with speed
-      legs.forEach((l, i) => (l.rotation[limbAxis] = stride * LEG_SWING * (i ? 1 : -1)));
-      arms.forEach((a, i) => (a.rotation[limbAxis] = stride * ARM_SWING * (i ? -1 : 1)));
-      if (head) head.rotation.z = -HEAD_SWING * stride;             // a counter-nod against the stride
-      return stride;
-    };
-    return {
-      object: root,
-      pose,
-      update(run) {
-        root.position.set(run.x, run.y, run.z);
-        shadow.position.y = -run.y + 0.01; // the shadow stays on the road while Milkshake jumps
-        const stride = pose(run.time, { sliding: run.slideT > 0, over: run.over, lean: ((1 - run.lane) * run.rules.laneWidth - run.x) * 0.12, airborne: run.y > 0, speed: run.speed ?? BASE });
-        if (run.y === 0 && run.slideT === 0 && !run.over && stride !== 0 && Math.sign(stride) !== Math.sign(lastStride)) {
-          const p = pool[nextPuff++ % pool.length];
-          p.visible = true; p.userData.born = run.time; p.userData.x = run.x + (nextPuff % 2 ? 0.18 : -0.18); p.userData.z = run.z - 0.4; // where it landed, in world space
-        }
-        lastStride = stride;
-        for (const p of pool) if (p.visible) {
-          const age = run.time - p.userData.born;
-          if (age > 0.35) { p.visible = false; continue; }
-          p.position.set(p.userData.x - run.x, 0.1 - run.y, p.userData.z - run.z); // a child of the root, so world x and y are held by countering the root
-          p.scale.setScalar(0.6 + age * 3);
-          p.material.opacity = 0.5 * (1 - age / 0.35);
-        }
-      },
-      dispose() { pool.forEach((p) => p.material.dispose()); gfx.dispose(root); },
-    };
+  createView(gfx) {
+    return cowView(gfx, this, { load: async () => (await new (await import('three/addons/loaders/GLTFLoader.js')).GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}${this.model}`)).scene });
   },
 };
 
-// Skins the loaded scene's mesh, swaps its material for the toon one, yaws it and fits it to the character's height. It returns
+// Milkshake's view around any model: `load` resolves to a scene, `skin` and `bones` place the skinning, `dress` paints each mesh,
+// `blob` adds the ground shadow. The defaults are the shipped character's; a pack (the HiFi remodel) passes its own.
+export async function cowView(gfx, def, { load, skin = SKIN, bones = BONES, dress = toon, yaw = def.yaw, blob = true } = {}) {
+  const P = gfx.palette;
+  const root = blob ? gfx.group(gfx.blobShadow(0.55)) : gfx.group();
+  const shadow = blob ? root.children[0] : null;
+  const body = gfx.group();
+  root.add(body);
+  let model, arms = [], legs = [], head = null, limbAxis = 'x';
+  try {
+    ({ model, arms, legs, head, limbAxis } = fitModel(gfx.three, await load(), def, { skin, bones, dress, yaw })); // one assignment: a model that breaks half way leaves nothing behind
+  } catch {
+    ({ model, arms, legs } = shapeCow(gfx)); // no GLB yet, or a bad one: the shape-built cow
+  }
+  body.add(model);
+
+  // Dust: six puffs pooled under the hooves, one per footfall while on the ground. They hold their place on the road as Milkshake runs on, changes lane or jumps.
+  const puffs = gfx.group();
+  root.add(puffs);
+  const pool = Array.from({ length: 6 }, () => {
+    const m = new gfx.three.Mesh(new gfx.three.SphereGeometry(0.18, 8, 6), new gfx.three.MeshBasicMaterial({ color: P.spot, transparent: true, opacity: 0.5, depthWrite: false }));
+    m.visible = false; puffs.add(m); return m;
+  });
+  let lastStride = 0, nextPuff = 0;
+
+  const BASE = 12; // m/s the v1 stride was tuned at
+  const pose = (time, { sliding = false, over = false, lean = 0, airborne = false, speed = BASE } = {}) => {
+    const k = speed / BASE;                                       // 1 at the old pace, 2 at 24 m/s
+    const stride = airborne || sliding || over ? 0 : Math.sin(time * 14 * k);
+    body.position.y = Math.abs(stride) * Math.min(0.14, 0.08 * k);
+    body.scale.y = sliding ? 0.5 : 1;
+    body.rotation.z = lean + stride * 0.03 * Math.max(0, k - 1);  // a little roll per stride once it is running hard
+    body.rotation.x = over ? 0.9 : sliding ? -0.3 : Math.max(0, 0.1 * (k - 1)); // forward lean grows with speed
+    legs.forEach((l, i) => (l.rotation[limbAxis] = stride * LEG_SWING * (i ? 1 : -1)));
+    arms.forEach((a, i) => (a.rotation[limbAxis] = stride * ARM_SWING * (i ? -1 : 1)));
+    if (head) head.rotation.z = -HEAD_SWING * stride;             // a counter-nod against the stride
+    return stride;
+  };
+  return {
+    object: root,
+    pose,
+    update(run) {
+      root.position.set(run.x, run.y, run.z);
+      if (shadow) shadow.position.y = -run.y + 0.01; // the shadow stays on the road while Milkshake jumps
+      const stride = pose(run.time, { sliding: run.slideT > 0, over: run.over, lean: ((1 - run.lane) * run.rules.laneWidth - run.x) * 0.12, airborne: run.y > 0, speed: run.speed ?? BASE });
+      if (run.y === 0 && run.slideT === 0 && !run.over && stride !== 0 && Math.sign(stride) !== Math.sign(lastStride)) {
+        const p = pool[nextPuff++ % pool.length];
+        p.visible = true; p.userData.born = run.time; p.userData.x = run.x + (nextPuff % 2 ? 0.18 : -0.18); p.userData.z = run.z - 0.4; // where it landed, in world space
+      }
+      lastStride = stride;
+      for (const p of pool) if (p.visible) {
+        const age = run.time - p.userData.born;
+        if (age > 0.35) { p.visible = false; continue; }
+        p.position.set(p.userData.x - run.x, 0.1 - run.y, p.userData.z - run.z); // a child of the root, so world x and y are held by countering the root
+        p.scale.setScalar(0.6 + age * 3);
+        p.material.opacity = 0.5 * (1 - age / 0.35);
+      }
+    },
+    dispose() { pool.forEach((p) => p.material.dispose()); gfx.dispose(root); },
+  };
+}
+
+// Skins the loaded scene's mesh, dresses it (the toon material by default), yaws it and fits it to the character's height. It returns
 // what createView needs, or throws, so a scene that breaks half way is thrown away whole; exported so Node can test the GLB path.
-export function fitModel(THREE, model, def) {
+export function fitModel(THREE, model, def, { skin: K = SKIN, bones = BONES, dress = toon, yaw = def.yaw } = {}) {
   let arms = [], legs = [], head = null, limbAxis = 'x';
   const mesh = model.getObjectByProperty('isMesh', true);
-  if (mesh) { ({ arms, legs, head } = skin(THREE, mesh)); limbAxis = 'z'; } // the bones swing about the GLB's left-right axis
-  // The generated GLB ships a metallic PBR material, which three.js renders near-black without an environment map;
-  // the toon material with the same colour map matches the rest of the street.
-  model.traverse((n) => { if (n.isMesh) n.material = new THREE.MeshToonMaterial({ map: n.material.map, color: n.material.color }); });
-  model.rotation.y = def.yaw;
+  if (mesh) { ({ arms, legs, head } = skin(THREE, mesh, K, bones)); limbAxis = 'z'; } // the bones swing about the GLB's left-right axis
+  model.traverse((n) => { if (n.isMesh) n.material = dress(THREE, n.material); });
+  model.rotation.y = yaw;
   const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
   model.scale.setScalar(def.height / size.y);
   model.position.y -= new THREE.Box3().setFromObject(model).min.y;
@@ -104,19 +109,19 @@ export function fitModel(THREE, model, def) {
 
 // Six bones placed from the mesh's shape (BONES) and weights from skinWeights; a SkinnedMesh takes the mesh's place in its parent.
 // The bones are children of the skinned mesh, so three.js's attached bind mode keeps the skin on the model wherever the root moves.
-function skin(THREE, mesh) {
+function skin(THREE, mesh, K, B) {
   const g = mesh.geometry, pos = g.attributes.position, n = pos.count;
   const joints = new Uint16Array(n * 4), weights = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) {
-    const w = skinWeights(pos.getY(i), pos.getZ(i));
+    const w = skinWeights(pos.getY(i), pos.getZ(i), K);
     const top = [0, 1, 2, 3, 4, 5].sort((a, b) => w[b] - w[a]).slice(0, 4), sum = top.reduce((s, k) => s + w[k], 0);
     top.forEach((k, j) => { joints[i * 4 + j] = k; weights[i * 4 + j] = w[k] / sum; });
   }
   g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(joints, 4));
   g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(weights, 4));
-  const hips = new THREE.Bone(); hips.position.fromArray(BONES.hips);
+  const hips = new THREE.Bone(); hips.position.fromArray(B.hips);
   const child = (p) => { const b = new THREE.Bone(); b.position.fromArray(p).sub(hips.position); hips.add(b); return b; };
-  const head = child(BONES.head), armL = child(BONES.armL), armR = child(BONES.armR), legL = child(BONES.legL), legR = child(BONES.legR);
+  const head = child(B.head), armL = child(B.armL), armR = child(B.armR), legL = child(B.legL), legR = child(B.legR);
   const skinned = new THREE.SkinnedMesh(g, mesh.material); // deliberately without the node's own transform: the bones and weights live in geometry space, and the shipped GLB's node carries only a 19.5° yaw (v3's three-quarter stance)
   skinned.add(hips);
   skinned.bind(new THREE.Skeleton([hips, head, armL, armR, legL, legR]));
