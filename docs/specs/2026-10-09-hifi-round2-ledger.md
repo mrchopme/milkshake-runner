@@ -82,6 +82,9 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 
 | Task | Job ids | Model | What | Credits (balance before → after) |
 |---|---|---|---|---|
+| 5 | `scratchpad/wave1-jobs.json` (16 GPT style frames, 4 NBP hero frames, 112 + 4 concepts, 3 price probes) | gpt_image_2_5, nano_banana_pro, nano_banana_2_1 | Wave 1 (Caedon: "Approve (about 46)"; lamp redo 1) | 45.75 (2,979.75 → 2,934) |
+| 20 | `scratchpad/w2/jobs.tsv` (203: 52 views, 151 city images; 2 storefronts resubmitted after a 503 that charged nothing) | gpt_image_2_5 | Wave 2 (Caedon re-confirmed "Go ahead (about 133)" after compaction; probe gate "about 139") | 132.5 (2,934 → 2,801.5) |
+| 20 | `scratchpad/w2/redo-jobs.tsv` (18 view redos, 4 midtown skylines without the sun glow) | gpt_image_2_5 | Wave 2 redos (Caedon: "Redo 18 views (4.5)", "Redo without glow (4)") | 8.5 (2,801.5 → 2,793) |
 
 ## Downloads and dependencies
 
@@ -100,6 +103,9 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 | 1 | `baseline-lofi-r2.png`, 2160×3840 | `?fixtures&lofi` on fba8e25 (9132bae's code plus docs), `hifiShot` | 464,350 bytes. **The round's low-fi invariant** (v4's merge retired c97c809e… on purpose) | 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3 |
 | 1 | `baseline-lofi-r2b.png`, 2160×3840 | same, after a page reload | 464,350 bytes, byte-identical to the first | 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3 |
 | 1 | `hifi-r2-start.png`, 2160×3840 | `?fixtures&hifi` on fba8e25 | 1,580,843 bytes, the before picture for the round | fc6bd358523be6f79b9d725b131ad1af704b14b66f74d8d8083ccf281cd12aa2 |
+| 15 | `t15-lofi.png`, 2160×3840 | `?fixtures&lofi` after merging Task 15 (2012105) | 464,350 bytes, byte-identical to the baseline | 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3 |
+| 15 | `hifiProbe` downtown and midtown, fog cut + 2 CSM cascades together | `?fixtures&hifi`, 150 frames at 3024×1964 | downtown 7.74 ms mean / 11.2 p95, 527 calls, 352,622 tris; midtown 5.93 / 10.4, 519, 293,115 (Task 14 base: 5.98 / 11.3 and 5.55 / 9.8) | — |
+| 15 | `t15-downtown-16x9`, `t15-midtown-clean` (1080×1920), `t15-bridge-16x9` | `?fixtures&hifi` on 2012105 | the skyline sits low at the avenue's end (ring × 0.3); cascaded shadows; white paint and the taxi's lamps still bloom (Task 24) | — |
 
 ## Rulings
 
@@ -129,6 +135,10 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 - Task 15: Ruling: "dispose the CSM with the look" — the look had no `dispose`, so it gains a minimal one (nothing calls it yet; the look lives for the session) that clears `hook.beforeBend`, removes the cascades, frees their shadow maps and shows the sun again; it never calls three's `csm.dispose()`, which deletes each material's `onBeforeCompile`: after `bendable()` that is the bend wrapper, so every bent material would draw straight — cost if wrong: seven lines to delete.
 - Task 15: Ruling (fix round 1, the main session's): the fog cut compiles only in HiFi (`gfx.hook.cutFog`, set once by `createLook` before anything compiles), not in every session as the brief's `patch` had it, so low-fi's shader text stays the base's, with no `discard`; no program-cache key, since `?lofi` and `?hifi` never share a page — cost if wrong: a page that switched quality in place would keep the first quality's shaders.
 - Task 15: Ruling (fix round 1, supersedes the "dispose the CSM with the look" Ruling above): the look keeps no `dispose()`: it lives for the session, and nothing called it. The warning stays as a comment by the CSM: never `csm.dispose()`, which deletes each material's `onBeforeCompile` (after `bendable()`, the bend). The leak to watch was CSM's material Map, not its lights: `cascadeHook` hands CSM only lit materials and drops each from the Map when disposed — cost if wrong: a later task that disposes the look writes its own teardown.
+- Task 18: Ruling: the MSAA readBuffer check is settled from three 0.186.1's `EffectComposer` source, not a browser log — the composer is internal to `createLook` and not on the dev hook; with `OutputPass.needsSwap = false` no pass swaps, so `readBuffer` stays `renderTarget2` (the clone of the 4× MSAA target) every frame and `renderTarget1` is never drawn into, so `renderTarget1.samples = 0` is the right one — cost if wrong: aliased edges, caught by the before/after stills in Task 18 Step 4.
+- Task 18: Ruling: Milkshake's dust puffs keep `born = run.time`; when a run's clock restarts while the view lives on (the shot helper's level switch, and any hand-off that reuses the view), a leftover puff's age goes negative and `opacity = 0.5 * (1 - age / 0.35)` reaches ~6.7, which the HiFi bloom turns into a white flare over the bottom of the frame (found in Task 15's midtown frame; gone after a reload). The one-line fix (a puff with a negative age hides) rides in Task 18's minors with a Node test — cost if wrong: none, a hidden puff is the right state for a clock that went back.
+- Task 24: note (Task 15 review M5): `RING.height` 0.3 squashes a 21:9 skyline over half the ring to about 7.8:1; with the real strips, prefer more repeats around the ring (keeping the art's aspect) over the height knob — cost if wrong: flattened towers on the horizon.
+- Task 20: Ruling: views are checked against the convention that a left view shows the object's front pointing to the left edge of the frame (camera at the object's left); 18 of 52 drew the wrong side (a rear drawn as a second front, both sides facing the same way, an end drawn as a long side) and were redone with the side spelled out in the view clause (Caedon approved, 4.5); the newsstand's left and right are mirror-consistent but swapped, so they go to Tripo swapped, free — cost if wrong: a mirrored model, harmless for these left-right symmetric props.
 
 ## Progress
 
@@ -178,6 +188,9 @@ Every task against itself:
 | 19 | Yes |
 
 - Task 1, Step 1: baseline at fba8e25: `npm test` 118 pass, 0 fail; `npm run build` succeeds.
+- Task 15: complete (commits 841b3b2..141acba, merged as 2012105; fix round 1: CSM forgets disposed materials and sees only lit ones, the fog cut compiles only when a HiFi look exists, uncalled `dispose()` removed, stale comments; re-review clean; npm test 154; `?lofi` 3d77a939…, unchanged)
+- Task 15: minors (re-review, parked): N1 the CSM test stands in for `csm.shaders`, so a three rename would slip by (three pinned ^0.186.1); N2 the first Task 15 Engine-changes row reads in pre-fix terms, superseded by the `15 (fix 1)` rows.
+- Task 20: Steps 1–3 done (203 generated, 0 failed; 18 views and 4 midtown skylines redone). Step 4: Caedon asked for the contact sheet and picks on a Paper board beside the others, not a separate HTML page; download not yet approved.
 
 ## Final review
 
