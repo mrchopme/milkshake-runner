@@ -27,6 +27,9 @@ last-verified: never
 | 13 | `src/engine.js` | `sunDir`, a per-engine copy of `SUN_DIR` that `follow` aims along, reset by `setSky` and exposed for the look | A look may turn the sun; low-fi never changes it, so its frames are unchanged | Generic hook (the ring is HiFi-only code in the HiFi-only file) | No: nothing could live at the horizon |
 | 16 | `src/assets.js` | `levelAssets(level, registry)` lists every file a level names (section themes, obstacles, power-ups and the default jug, props, placements, its character and ending); `gateLoads(load)` drops a second start while a load runs; `gate` removed | A HiFi level's decoded textures run to about 200 MB, so each level loads only its own files | Generic hooks | No: the loader and the asset rule live in the engine |
 | 16 | `src/main.js` | No boot-time preload: the menu and every level start `prepare` their level's files behind LOADING…; `startLevel` calls `release(levelAssets(…))` after the backdrop or previous world is disposed, before the level's sky | GPU memory follows the level; the campaign chain keeps the shared files | Generic hooks | No |
+| 17 | `src/worn.js` | New `wornLooks(registry, gfx)`: while a power-up's effect lasts, its `createWorn(gfx)` view rides on the character (built once, updated each frame, disposed when the effect ends) | The HiFi shield bubble Milkshake wears | Generic hook | No: a power-up had no way to show on the character |
+| 17 | `src/registry.js` | `CHECKS.pickup` checks `createWorn` is a function; `SKIN_FIELDS.pickup` adds `createWorn` | A pack overlay may give a power-up a worn look | Generic hook | No: the pack-overlay rule lives in the engine |
+| 17 | `src/game.js` | `worn.update(run, character.object)` after `character.update(run)` in `tick`; `worn.dispose()` first in `end` | Wires the worn looks into the run | Generic hook | No: the run loop is the engine's |
 
 ## Assets
 
