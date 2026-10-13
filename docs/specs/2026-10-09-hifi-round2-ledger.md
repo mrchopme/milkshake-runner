@@ -110,3 +110,11 @@ Every task against itself:
 
 ## Close-out (round 2)
 - Task 1: complete (commit below; npm test 118 pass; low-fi invariant 3d77a939…)
+- Task 6: complete (commits 8a7b33a..15a52b7, merged as b01785a, review clean; npm test 121; `?lofi` still 3d77a939…, unchanged)
+- Task 6: minor (deferred): `adopt`'s shared flag survives a clone (`BufferGeometry.copy` shares `userData` by reference, `Material.copy` copies it), so a module that clones a shared part to modify it keeps it flagged and `dispose` never frees it; latent, nothing clones a shared part for itself today (Task 11's traffic clones are cached and shared on purpose).
+- Task 6: minor (deferred): `userData.bent` is now write-only in `src/` (tests still read it), and the header of `src/assets.js` still says only nodes are flagged.
+- Task 2: minor (deferred): `hifiLineup` (plan code) restores the scene, pixel ratio and size only on success (no try/finally), centres its row about 2 m off, and always uses the default shot level.
+- Task 2: minor (deferred): the fixture test checks each shot level validates, not that its file name, id, title and theme agree.
+- Task 2: Step 5 (main session): `t2-16x9` (3840×2160, 677f151c…), `t2-midtown` (2160×3840, c793d904…) and `t2-lineup` (the taxi on the road) render; `?lofi` re-shot after merging Tasks 2 and 6: 3d77a939…, unchanged. Found: switching shot levels in one page left the previous level's world in the scene (two cities z-fighting at the facade line) → fix round 1.
+- Task 2: fix round 1/5 (1 addressed, 0 open — shotLevel started a level on top of a running one; commits cb0d741..b10710c)
+- Task 2: complete (commits 8a7b33a..b10710c, merged as fe47ba2 and the fix after it; review clean)
