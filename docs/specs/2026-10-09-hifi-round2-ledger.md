@@ -167,3 +167,6 @@ Every task against itself:
 - Task 10: fix round 1/5 (2 addressed, 0 open — placeholder cached under a tile's key; the cross street open to the sky; commits 8d145d9..b16871f)
 - Task 10: complete (commits c030bcc..b16871f, review clean after the fix round; merged over Task 13 without conflict; npm test 137)
 - Task 10: minor (deferred): placeholder walls take `colors[f]` while the body and cornice take a separate random colour; the water-tower geometry is rebuilt per chunk (could be built once and shared); `tile()` sets wrap on the shared texture without `needsUpdate`; no guard for `minH < 4.3 m`; the facade-line test uses one seed.
+- Task 16: fix round 1/5 (2 addressed, 0 open — a dropped start reset the label during the menu's load; the declared next level was not preloaded; commits 83e2b9a..c98c7b3)
+- Task 16: complete (commits 081a120..c98c7b3, review clean after the fix round)
+- Task 16: minor (deferred): `menu()` and a waiting start can overlap their `character()` calls (harmless while every level uses Milkshake); disposing the menu backdrop before `release` relies on microtask order (an explicit await would be sturdier); the keep set now spans two levels' files (the declared next level), a memory-budget note for the probe.
