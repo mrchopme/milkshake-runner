@@ -5,6 +5,7 @@ import { street, CROSS } from './street.js';
 export function cityChunk(gfx, args, style) {
   const r = chunkRng(args.rng), g = gfx.group();
   const cross = args.length >= 100 ? { z: args.z0 + 30 + Math.floor(r() * (args.length - 60 - CROSS.width)) } : null; // one cross street in a full chunk
+  g.userData.cross = cross; // for tests and later parts
   g.add(street(gfx, args, style, cross));
   for (const part of style.parts ?? []) {
     try { g.add(part(gfx, args, style, r, cross)); } catch (err) { console.warn(`city ${style.id}: ${part.name} failed:`, err); }

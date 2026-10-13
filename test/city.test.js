@@ -7,7 +7,7 @@ import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
 import { street, CROSS } from '../packs/hifi/lib/street.js';
 import { buildings } from '../packs/hifi/lib/buildings.js';
-import { chunkRng } from '../packs/hifi/lib/rand.js';
+import { DRIVE } from '../packs/hifi/lib/traffic.js';
 import { adopt } from '../src/assets.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
@@ -116,9 +116,8 @@ test('side-street traffic never enters the avenue', () => {
 
 test('board 15: nothing but the traffic lights within 2 m of the side street, at most one shelter or subway a chunk', () => {
   for (let seed = 1; seed <= 20; seed++) {
-    const r = rng(seed), cz = 30 + Math.floor(chunkRng(r)() * (120 - 60 - CROSS.width)); // the cross street cityChunk draws first
-    const rare = new Set();
-    chunk(seed).traverse((n) => {
+    const g = chunk(seed), cz = g.userData.cross.z, rare = new Set();
+    g.traverse((n) => {
       const kind = n.userData.furniture;
       if (!kind || kind === 'traffic_light') return;
       const m = new THREE.Matrix4(), p = new THREE.Vector3();
@@ -142,4 +141,25 @@ test('two hundred dropped chunks free every instanced mesh they made and no shar
     assert.equal(made.length, instancedBuilt, 'every instanced mesh freed its buffers');
     assert.equal(freedShared.length, 0, 'no shared material freed');
   } finally { THREE.InstancedMesh.prototype.dispose = orig; }
+});
+
+test('a loaded car model drives along the cross street whatever its own frame, and stays on the paving', () => {
+  // a stand-in for the generated taxi: centimetres, long along x, its node turned half round (the kit's yaw makes x ahead z)
+  const body = new THREE.Mesh(new THREE.BoxGeometry(450, 208, 190), new THREE.MeshStandardMaterial());
+  body.scale.setScalar(0.01); body.rotation.y = Math.PI;
+  adopt('hifi/taxi.glb', new THREE.Group().add(body));
+  const kinds = new Set();
+  for (let seed = 1; seed <= 20; seed++) chunk(seed).traverse((n) => {
+    if (!n.userData.traffic) return;
+    kinds.add(n.userData.traffic);
+    n.geometry.computeBoundingBox();
+    const b = n.geometry.boundingBox, m = new THREE.Matrix4(), p = new THREE.Vector3(), ahead = new THREE.Vector3();
+    assert.ok(b.max.z - b.min.z > b.max.x - b.min.x, `${n.userData.traffic}: its length lies along the drive axis (+z)`);
+    assert.ok(DRIVE.to + b.max.z <= 4.5 + CROSS.reach + 1e-6, `${n.userData.traffic}: its nose leaves the paving at ${(DRIVE.to + b.max.z).toFixed(2)}`);
+    for (let i = 0; i < n.count; i++) {
+      n.getMatrixAt(i, m); p.setFromMatrixPosition(m); ahead.set(0, 0, 1).applyMatrix4(m).sub(p); // the drive's +z in the world, unscaled
+      assert.ok(Math.abs(ahead.x - Math.sign(p.x)) < 1e-6 && Math.abs(ahead.y) < 1e-6 && Math.abs(ahead.z) < 1e-6, `${n.userData.traffic}: drives along ${ahead.toArray().map((v) => v.toFixed(2))} from x ${p.x}`);
+    }
+  });
+  assert.ok(kinds.has('taxi'), 'the loaded taxi drove');
 });

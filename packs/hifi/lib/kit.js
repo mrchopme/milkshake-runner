@@ -27,7 +27,7 @@ const STAND = {
   hydrant: [{ w: 0.35, h: 0.8, d: 0.35, color: '#c8352e' }],
   bench: [{ w: 1.8, h: 0.9, d: 0.6, color: '#7a5636' }],
   bin: [{ w: 0.6, h: 0.9, d: 0.6, color: '#2f5d4a' }],
-  tree: [{ w: 0.3, h: 2.5, d: 0.3, color: '#5b4330' }, { w: 2.4, h: 3.5, d: 2.4, y: 2.5, color: '#3f8a4a' }],
+  tree: [{ w: 0.3, h: 2.5, d: 0.3, color: '#5b4330' }, { w: 2.4, h: 3.5, d: 1.8, y: 2.5, z: 0.3, color: '#3f8a4a' }],
   newsstand: [{ w: 2, h: 2.6, d: 1.2, color: '#2f5d4a' }],
   bus_shelter: [{ w: 3, h: 2.7, d: 1.4, color: '#8fa3b0' }],
   subway: [{ w: 2.6, h: 2.4, d: 1.6, color: '#2f5d4a' }],
