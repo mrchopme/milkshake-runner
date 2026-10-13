@@ -5,6 +5,7 @@ import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
+import { street, CROSS } from '../packs/hifi/lib/street.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 const chunk = (seed, z0 = 0, length = 120) => downtown.createChunk.call({ ...shipped, ...downtown }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shipped, ...downtown } });
@@ -38,4 +39,40 @@ test('a city chunk builds its street even when every kit file is missing', () =>
   assert.ok(g.children.length > 0);
   let road = false; g.traverse((n) => { if (n.userData.road) road = true; });
   assert.ok(road, 'the road is there');
+});
+
+test('a city chunk stays inside its draw-call budget', () => {
+  for (const seed of [1, 2, 3]) { let meshes = 0; chunk(seed).traverse((n) => { if (n.isMesh) meshes++; }); assert.ok(meshes <= 45, `seed ${seed}: ${meshes} meshes`); }
+});
+
+test('buildings stand on the facade line, never on the sidewalk or the road', () => {
+  // Every vertex, not the bounding box: one merged mesh holds both sides of the street, so its box spans the road.
+  const g = chunk(5), v = new THREE.Vector3(); let n = 0;
+  g.updateMatrixWorld(true);
+  g.traverse((m) => {
+    if (!m.userData.building) return;
+    const p = m.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++, n++) { v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld); assert.ok(Math.abs(v.x) >= 7.5 - 0.4 - 1e-6, `vertex at x ${v.x}`); } // cornices may overhang the sidewalk by 0.35 m, high up
+  });
+  assert.ok(n > 0, 'buildings were built');
+});
+
+test('a missing facade tile falls back to the placeholder tile', () => {
+  const g = chunk(4); let tiles = 0;
+  g.traverse((n) => { if (n.userData.building && n.material.map?.isDataTexture) tiles++; });
+  assert.ok(tiles > 0, 'placeholder tiles in use');
+});
+
+test('the sidewalks stop at the cross street', () => {
+  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, { id: 'test', road: '#000', walk: '#888', paint: '#fff' }, cross);
+  let walks = 0;
+  g.updateMatrixWorld(true);
+  g.traverse((n) => {
+    if (!n.userData.walk) return;
+    walks++;
+    n.geometry.computeBoundingBox();
+    const b = n.geometry.boundingBox.clone().applyMatrix4(n.matrixWorld);
+    assert.ok(b.max.z <= cross.z + 1e-6 || b.min.z >= cross.z + CROSS.width - 1e-6, `sidewalk ${b.min.z}..${b.max.z}`);
+  });
+  assert.equal(walks, 4, 'two sidewalk pieces a side');
 });
