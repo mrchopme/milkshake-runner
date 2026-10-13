@@ -6,7 +6,7 @@ export function wornLooks(registry, gfx) {
   return {
     update(run, parent) {
       for (const id of Object.keys(run.effects)) if (!on.has(id)) {
-        const def = registry.pickup[id], view = def?.createWorn ? safeCall(`pickup ${id} createWorn`, () => def.createWorn(gfx), null) : null;
+        const def = registry.pickup[id], made = def?.createWorn ? safeCall(`pickup ${id} createWorn`, () => def.createWorn(gfx), null) : null, view = made?.object ? made : null; // a view without an object is no view
         on.set(id, view);
         if (view) parent.add(gfx.bend(view.object));
       }
