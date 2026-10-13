@@ -35,6 +35,38 @@ last-verified: never
 
 | Asset | Wave | Job ids | Credits | File | Size | Caedon's approval |
 |---|---|---|---|---|---|---|
+| style: downtown | 1 (pick) | f549c2e3-c041-4efb-a70d-3a55cb4de145 (variant 4) | — | — | — | picked 2026-10-13 |
+| style: midtown | 1 (pick) | ae99b100-9a6d-465d-9386-91d02265c2a3 (2) | — | — | — | picked 2026-10-13 |
+| style: uptown | 1 (pick) | ce281982-6f14-4adb-8337-9a96dc087ef6 (2) | — | — | — | picked 2026-10-13 |
+| style: bridge | 1 (pick) | dbb92908-b164-4f68-ac9a-7dbb93cda0a7 (5, Nano Banana Pro) | — | — | — | picked 2026-10-13 |
+| lamp | 1 (pick) | 3133cf3e-ed51-41c8-97a2-c9d4d1fc2624 (redo set, 3) | — | — | — | picked 2026-10-13 |
+| lamp_double | 1 (pick) | 3fc00899-9696-4970-8d24-6dbd01e25904 (1) | — | — | — | picked 2026-10-13 |
+| traffic_light | 1 (pick) | ce995a6f-1f5b-42cd-a2ab-e0da85031693 (2) | — | — | — | picked 2026-10-13 |
+| hydrant | 1 (pick) | b19f139f-6012-48ab-9906-9bdf348f9a9c (1) | — | — | — | picked 2026-10-13 |
+| bench | 1 (pick) | a07fce84-6830-48b3-b26a-c6264b79559e (1) | — | — | — | picked 2026-10-13 |
+| bin | 1 (pick) | ba55be1d-42a1-40ae-9a6d-a8f34183ed98 (2) | — | — | — | picked 2026-10-13 |
+| bin_box | 1 (pick) | 22fc22cc-ff1d-4582-a67b-fbd0207d6550 (2) | — | — | — | picked 2026-10-13 |
+| planter | 1 (pick) | 631f1bfc-df67-4fdb-be5d-871e7e05c9f8 (3) | — | — | — | picked 2026-10-13 |
+| tree | 1 (pick) | e3eddf0a-bd18-4461-98c7-5d8348f34229 (1) | — | — | — | picked 2026-10-13 |
+| newsstand | 1 (pick) | 7863661e-e66b-4563-986f-315cf309d2ec (2) | — | — | — | picked 2026-10-13 |
+| bus_shelter | 1 (pick) | 6a2da64d-8d3b-4d1b-9139-c3ccbfa320e6 (1) | — | — | — | picked 2026-10-13 |
+| subway | 1 (pick) | 2667c6d0-6df3-4f99-a1c4-9c41958b7342 (2) | — | — | — | picked 2026-10-13 |
+| barrier_low | 1 (pick) | 1b1ecb99-02ef-4167-9ed1-de77f55c3255 (2) | — | — | — | picked 2026-10-13 |
+| delivery_bike | 1 (pick) | 5496bcfc-8fe2-4d90-ad11-73f0c8a6f278 (4) | — | — | — | picked 2026-10-13 |
+| hot_dog_cart | 1 (pick) | a5faf683-fc15-4bd2-a6ba-6d8a12685773 (2) | — | — | — | picked 2026-10-13 |
+| manhole_steam | 1 (pick) | 08e7eeb4-08b2-458a-b0c0-5a370bd4b4a3 (2) | — | — | — | picked 2026-10-13 |
+| pigeon | 1 (pick) | f95d121d-3ed5-409c-9075-3735ca1315b8 (1) | — | — | — | picked 2026-10-13 |
+| scaffold_beam | 1 (pick) | 8b67208c-cf55-4086-b157-952ba4822143 (2) | — | — | — | picked 2026-10-13 |
+| jug | 1 (pick) | b7312c2c-7407-4e90-86d5-e9ec3ead9c6f (1) | — | — | — | picked 2026-10-13 |
+| magnet | 1 (pick) | dd3fc874-9ed1-452a-98eb-26a6448bdb7f (1) | — | — | — | picked 2026-10-13 |
+| shield | 1 (pick) | 55881c5a-bdb0-4988-a000-74beb6accdf6 (1) | — | — | — | picked 2026-10-13 |
+| x2 | 1 (pick) | 0f28e9a8-5cc8-4b50-aa33-4f3701f7f26f (2) | — | — | — | picked 2026-10-13 |
+| overpass | 1 (pick) | a9e12a65-4d32-48f0-84a1-24f928e3e224 (1) | — | — | — | picked 2026-10-13 |
+| railings | 1 (pick) | 94388a08-7001-4a7a-882c-504dde7daddc (1) | — | — | — | picked 2026-10-13 |
+| tunnel | 1 (pick) | 142290f4-83ba-472d-8b39-f86dffae869f (2) | — | — | — | picked 2026-10-13 |
+| sedan | 1 (pick) | bdb850bd-932f-4f33-8fa3-2238d62034df (1) | — | — | — | picked 2026-10-13 |
+| van | 1 (pick) | 6f4ff7f8-1cf1-47ca-b2fb-f728cef42fa4 (3) | — | — | — | picked 2026-10-13 |
+| milkshake | 1 (pick) | 7fb9ffe8-1bce-4441-9b12-900e80f1a05b (4) | — | — | — | picked 2026-10-13 |
 
 ## Credits
 
@@ -196,3 +228,7 @@ Every task against itself:
 - Task 11: fix round 1/5 (3 addressed + 2 minors, 0 open — traffic in the fitted frame, car shadows through a `customDepthMaterial` with the drive hook (pack-only, no `src/` change), drive limited to the paving (|x| 9 → 19.5); commits 1e745b1..89da28e)
 - Task 11: complete (commits 4e7d979..89da28e, review clean after the fix round)
 - Task 11: minor (deferred): traffic's bounding sphere ignores the 10.5 m drive (a car can be frustum-culled near the frame edge; pad the sphere or `frustumCulled = false`); `kitParts` keeps stale parts after `release()` and each baked car geometry lives for the session; the taxi stand-in stays adopted for the rest of `test/city.test.js`; `RGBADepthPacking` is moot with depth-texture shadow maps.
+- Task 12: complete (commits 22c5d42..95c63a5, review clean; npm test 151; no `src/` change)
+- Task 12: minor (deferred): `WATER.scroll.toFixed(2)` would round a retuned 0.004 to 0 (freezing the ripples); cable segments are single 7.5 m boxes (bend only at their nodes); cables end 1.2 m above the deck; pylons stand 38 m from the water (about 32 m above the deck); waterfront blocks mostly sit below deck level (plan-mandated heights): all for the probe frames.
+- Task 5: the lamp's four concepts came out as snakes ("cobra-head" read literally); redone once with "a plain street fixture, not an animal" (4 × 0.25 = 1 credit, inside wave 1's 20% allowance; jobs e6e45a28, cf55f8ea, 3133cf3e, ccca68d2). Board 16 "Wave 1 concepts" laid out on Paper (images by URL); every image reviewed for brands, landmarks and text: sign words only PIZZA, HOTEL, CAFE, DELI, TAXI; the 2× token reads "2×"; midtown style frames 1 and 5 carry deco spires in the haze (flagged; avoided in the recommendation); three magnet concepts have smiley faces; three delivery-bike riders came out as cows.
+- Task 5: Caedon's picks (2026-10-13, AskUserQuestion): style frames downtown 4, midtown 2, uptown 2, bridge 5; concepts as recommended except Milkshake 4 (grey spots, closest to the low-fi Milkshake). Job ids in the Assets table.
