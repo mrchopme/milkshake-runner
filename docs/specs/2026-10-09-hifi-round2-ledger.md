@@ -138,3 +138,6 @@ Every task against itself:
 - Task 3: Ruling: the skyline prompts drop the two landmark names and keep "generic towers and stepped spires … nothing that resembles any real landmark": naming a landmark inside a negation primes an image model to draw it (the plan's prompt text named them) — cost if wrong: a skyline regenerated at 0.25–2 credits.
 - Task 8: complete (commits fbcea06..348134d, review clean; npm test 126)
 - Task 8: minor (deferred): no test covers "pause freezes `gfx.time`" (it holds because `game.js` skips `world.update` while paused); `gfx.time` is module-global and keeps the last run's value until the menu's `update(idle, 0)`; `discover`'s `lib/` skip is covered only through "the HiFi pack applies cleanly".
+- Task 3: fix round 1/5 (10 addressed, 0 open — the ruled prompt-text minors; commits 95b32d4..32fd220)
+- Task 3: complete (commits 8a7b33a..32fd220, review clean after the fix round)
+- Task 3: minor (deferred): the bridge style frames still end "soft bloom on lit windows and signs"; one downtown facade palette names "clear sky blue #9fd3f5" beside "no sky"; midtown-01's skyline text says orange-grey without an orange token.
