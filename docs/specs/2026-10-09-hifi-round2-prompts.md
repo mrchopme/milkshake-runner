@@ -18,7 +18,7 @@ CAFE (and the `x2` token's "2×"). Skylines say generic towers and stepped spire
 
 ## Jobs the waves will run
 
-Model ids: GPT Image 2.5 is `gpt_image_2_5`; Tripo H3.1 is `tripo_h3_1_multiview_to_3d` or `tripo_h3_1_image_to_3d`. The repo does not record the ids for Nano Banana Pro or Nano Banana 2.1 (the 2026-10-08 keyframes ran as `nano_banana_2`): confirm both with `models_explore` before the probe.
+Model ids: `gpt_image_2_5`, `tripo_h3_1_multiview_to_3d` and `tripo_h3_1_image_to_3d` come from the sub-project 1 docs (the HiFi ledger). The ids for Nano Banana Pro and Nano Banana 2.1 are **unconfirmed** (the 2026-10-08 keyframes ran as `nano_banana_2`): the main session checks both with `models_explore` before the probe.
 
 | Wave | Job | Count | Model | Settings | Price |
 |---|---|---|---|---|---|
@@ -48,7 +48,7 @@ Source: `src/palette.js` (road #5a5c72, sidewalk #a3a0ab, lane #f2f2f2, dark #26
 
 Four tokens are **additions that are not in the shipped palette**, because the subject list asks for dark green furniture, a teal car, green trees and a green signal lens: street green #2f5a45, leaf green #5fae4e, signal green #3fbf6a and teal #2bb3a7. Caedon should look at them on board 16.
 
-## The templates (verbatim from the brief)
+## The templates (from the brief; the facade wording changed, see below)
 
 Concept (GPT Image 2.5, 1:1, quality low, `image_references`: the two teaser keyframe jobs `ed480a6e-19ce-48ff-8cf1-df1f86e16abd` (16:9) and `854c98cf-81b2-40f4-8022-ac87b5a89a06` (9:16) and the Milkshake-3D render job `97ba0692-9968-468c-8357-61e4bcd049ab`):
 
@@ -62,18 +62,20 @@ View (GPT Image 2.5, 1:1, `image_references`: the picked concept job only; `{vie
 The same {subject} as the reference image, with exactly the same design, colours, proportions and details, seen straight from the {view}, centred, the whole object in frame, on a plain light grey background, even studio light. No logos, no brand names, no other text, no people.
 ```
 
-Facade tile (GPT Image 2.5, 2k, 1:1, `image_references`: the theme's picked style frame):
+Facade tile (GPT Image 2.5, 2k, 1:1, `image_references`: the theme's picked style frame; the brief's "a {style} facade" became "{style}", with the article and the word "facade" inside the filled style, so every filled sentence reads cleanly):
 
 ```text
-A flat orthographic front elevation of a {style} facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette {palette}. No logos, no text, no people.
+A flat orthographic front elevation of {style} in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette {palette}. No logos, no text, no people.
 ```
 
 The other image sets (storefront strip, party wall, trim sheet, poster, blade sign, LED face, skyline, style frame) are described in the brief rather than given as fill-in templates; their filled prompts are in the image sets below.
 
-### How the templates were filled (three small departures, logged in the report)
+### How the templates were filled (small departures, logged in the report)
 
 - **No words.** Where the table says "none", "no readable text except none" would read as a contradiction, so the clause is "no readable text at all". For the `x2` token it stays "no readable text except 2×".
 - **The toy rider.** The delivery bike's subject includes a toy rider, which "no people" would forbid, so that concept ends "no people other than the toy rider" and its four view prompts do the same.
+- **Facade grammar.** The brief's "of a {style} facade" made "a art-deco facade" and "mullions facade", so the template says "of {style}" and each filled style carries its own article and the word "facade" ("an art-deco stone facade with tall vertical piers").
+- **Milkshake's views** say "The same cow mascot as the reference image" (the concept's longer subject read badly in the view template, and only the picked concept is passed as the reference).
 - **"NYC"** is left out of the cobra-head lamp's subject (a model could print the letters on the pole); the shape is unchanged.
 
 Every concept is 1:1, resolution 1k, quality low, with the `image_references` named above, and is run four times in one call (GPT Image 2.5 returns a different variant each time). View prompts use the picked concept job as the only reference, with the same settings.
@@ -346,7 +348,7 @@ The same subway stair entrance as the reference image, with exactly the same des
 Concept (4 variants):
 
 ```text
-A jersey barrier, as a glossy vinyl toy in the style of the reference images: chunky rounded proportions, soft bevels, bright clean colours from this palette hazard orange #ff7a1a, lane white #f2f2f2, sidewalk grey #a3a0ab, a slight clearcoat sheen. An orange-and-white road barrier with a stepped profile (wide base, a step, a narrow flat top) and two white stripes running along its length, seen long side toward the camera. Three-quarter view from the front left, the whole object in frame, centred, on a plain light grey background, even studio light. No logos, no brand names, no readable text at all, no people.
+A jersey barrier, as a glossy vinyl toy in the style of the reference images: chunky rounded proportions, soft bevels, bright clean colours from this palette hazard orange #ff7a1a, lane white #f2f2f2, sidewalk grey #a3a0ab, a slight clearcoat sheen. An orange-and-white road barrier with a stepped profile (wide base, a step, a narrow flat top) and two white stripes running along its length. Three-quarter view from the front left, the whole object in frame, centred, on a plain light grey background, even studio light. No logos, no brand names, no readable text at all, no people.
 ```
 
 View, front:
@@ -572,7 +574,7 @@ Views: single image: the picked concept is the input.
 Concept (4 variants):
 
 ```text
-A short steel road overpass span, as a glossy vinyl toy in the style of the reference images: chunky rounded proportions, soft bevels, bright clean colours from this palette steel grey #8a8f99, road violet-grey #5a5c72, sidewalk grey #a3a0ab, night grey #262733, a slight clearcoat sheen. A flat grey deck with steel side girders and low parapets, carried on four round pillars, seen from a slightly low angle so the underside of the deck and the side both show. Three-quarter view from the front left, the whole object in frame, centred, on a plain light grey background, even studio light. No logos, no brand names, no readable text at all, no people.
+A short steel road overpass span, as a glossy vinyl toy in the style of the reference images: chunky rounded proportions, soft bevels, bright clean colours from this palette steel grey #8a8f99, road violet-grey #5a5c72, sidewalk grey #a3a0ab, night grey #262733, a slight clearcoat sheen. A flat grey deck with steel side girders and low parapets, carried on four round pillars, the underside of the deck visible between the pillars. Three-quarter view from the front left, the whole object in frame, centred, on a plain light grey background, even studio light. No logos, no brand names, no readable text at all, no people.
 ```
 
 View, front:
@@ -742,25 +744,25 @@ A Milkshake, the cow mascot of the reference images, as a glossy vinyl toy in th
 View, front:
 
 ```text
-The same Milkshake, the cow mascot of the reference images as the reference image, with exactly the same design, colours, proportions and details, seen straight from the front, centred, the whole object in frame, on a plain light grey background, even studio light. No logos, no brand names, no other text, no people.
+The same cow mascot as the reference image, with exactly the same design, colours, proportions and details, seen straight from the front, centred, the whole object in frame, on a plain light grey background, even studio light. No logos, no brand names, no other text, no people.
 ```
 
 View, left side:
 
 ```text
-The same Milkshake, the cow mascot of the reference images as the reference image, with exactly the same design, colours, proportions and details, seen straight from the left side, centred, the whole object in frame, on a plain light grey background, even studio light. No logos, no brand names, no other text, no people.
+The same cow mascot as the reference image, with exactly the same design, colours, proportions and details, seen straight from the left side, centred, the whole object in frame, on a plain light grey background, even studio light. No logos, no brand names, no other text, no people.
 ```
 
 View, rear:
 
 ```text
-The same Milkshake, the cow mascot of the reference images as the reference image, with exactly the same design, colours, proportions and details, seen straight from the rear, centred, the whole object in frame, on a plain light grey background, even studio light. No logos, no brand names, no other text, no people.
+The same cow mascot as the reference image, with exactly the same design, colours, proportions and details, seen straight from the rear, centred, the whole object in frame, on a plain light grey background, even studio light. No logos, no brand names, no other text, no people.
 ```
 
 View, right side:
 
 ```text
-The same Milkshake, the cow mascot of the reference images as the reference image, with exactly the same design, colours, proportions and details, seen straight from the right side, centred, the whole object in frame, on a plain light grey background, even studio light. No logos, no brand names, no other text, no people.
+The same cow mascot as the reference image, with exactly the same design, colours, proportions and details, seen straight from the right side, centred, the whole object in frame, on a plain light grey background, even studio light. No logos, no brand names, no other text, no people.
 ```
 
 
@@ -811,112 +813,112 @@ A wide cinematic view of a wide four-lane city avenue with wide sidewalks, a few
 #### bridge: GPT Image 2.5 style frame (x4)
 
 ```text
-A wide cinematic view of a three-lane road deck on a bridge, with steel railings along both edges, from the camera of the reference image: a low camera behind and above the middle of the road, looking straight down the street to a vanishing point. Bridge towers and cables rise on both sides, with open water below and a low hazy waterfront city of generic towers across the water. Light: a clear blue day over open water, bright sun, sparkling water either side of the road. Glossy vinyl-toy look in the style of the reference: chunky rounded shapes, bright clean colours, a slight clearcoat sheen. Palette clear sky blue #9fd3f5, harbour blue-grey #a6c1d8, deep harbour blue #81a2bd, hazy blue #8eadc6, road violet-grey #5a5c72, sidewalk grey #a3a0ab, lane white #f2f2f2. Shop signs may read only TAXI, PIZZA, DELI, HOTEL or CAFE, or have no words. No logos, no brand names, no real landmarks, no other readable text, no people.
+A wide cinematic view of a three-lane road deck on a bridge, with steel railings along both edges, from the camera of the reference image: a low camera behind and above the middle of the road, looking straight down the street to a vanishing point. Bridge towers and cables rise on both sides, with open water below and a low hazy waterfront city of generic towers across the water. Light: a clear blue day over open water, bright sun, sparkling water either side of the road. Glossy vinyl-toy look in the style of the reference: chunky rounded shapes, bright clean colours, a slight clearcoat sheen. Palette clear sky blue #9fd3f5, harbour blue-grey #a6c1d8, deep harbour blue #81a2bd, hazy blue #8eadc6, road violet-grey #5a5c72, sidewalk grey #a3a0ab, lane white #f2f2f2. No logos, no brand names, no real landmarks, no other readable text, no people.
 ```
 
 #### bridge: Nano Banana Pro hero frame (x1)
 
 ```text
-A wide cinematic view of a three-lane road deck on a bridge, with steel railings along both edges, from the camera of the reference image: a low camera behind and above the middle of the road, looking straight down the street to a vanishing point. Bridge towers and cables rise on both sides, with open water below and a low hazy waterfront city of generic towers across the water. Light: a clear blue day over open water, bright sun, sparkling water either side of the road. Glossy vinyl-toy look in the style of the reference: chunky rounded shapes, bright clean colours, a slight clearcoat sheen, richer detail and soft bloom on lit windows and signs, final key-art polish. Palette clear sky blue #9fd3f5, harbour blue-grey #a6c1d8, deep harbour blue #81a2bd, hazy blue #8eadc6, road violet-grey #5a5c72, sidewalk grey #a3a0ab, lane white #f2f2f2. Shop signs may read only TAXI, PIZZA, DELI, HOTEL or CAFE, or have no words. No logos, no brand names, no real landmarks, no other readable text, no people.
+A wide cinematic view of a three-lane road deck on a bridge, with steel railings along both edges, from the camera of the reference image: a low camera behind and above the middle of the road, looking straight down the street to a vanishing point. Bridge towers and cables rise on both sides, with open water below and a low hazy waterfront city of generic towers across the water. Light: a clear blue day over open water, bright sun, sparkling water either side of the road. Glossy vinyl-toy look in the style of the reference: chunky rounded shapes, bright clean colours, a slight clearcoat sheen, richer detail and soft bloom on lit windows and signs, final key-art polish. Palette clear sky blue #9fd3f5, harbour blue-grey #a6c1d8, deep harbour blue #81a2bd, hazy blue #8eadc6, road violet-grey #5a5c72, sidewalk grey #a3a0ab, lane white #f2f2f2. No logos, no brand names, no real landmarks, no other readable text, no people.
 ```
 
 ### Facade tiles (15)
 
 GPT Image 2.5, 1:1, resolution 2k, quality medium, `image_references`: the picked style frame for the facade's theme (downtown, midtown or uptown). The template is the one above, filled.
 
-#### downtown-01: blue glass curtain wall with thin white mullions
+#### downtown-01: a blue glass curtain-wall facade with thin white mullions
 
 ```text
-A flat orthographic front elevation of a blue glass curtain wall with thin white mullions facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette glass blue #8ccfe0, clear sky blue #9fd3f5, lane white #f2f2f2, slate #5d6273. No logos, no text, no people.
+A flat orthographic front elevation of a blue glass curtain-wall facade with thin white mullions in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette glass blue #8ccfe0, clear sky blue #9fd3f5, lane white #f2f2f2, slate #5d6273. No logos, no text, no people.
 ```
 
-#### downtown-02: dark glass tower with slim steel mullions
+#### downtown-02: a dark glass tower facade with slim steel mullions
 
 ```text
-A flat orthographic front elevation of a dark glass tower with slim steel mullions facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette night grey #262733, slate #5d6273, steel grey #8a8f99, stone grey #8a8f9c. No logos, no text, no people.
+A flat orthographic front elevation of a dark glass tower facade with slim steel mullions in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette night grey #262733, slate #5d6273, steel grey #8a8f99, stone grey #8a8f9c. No logos, no text, no people.
 ```
 
-#### downtown-03: brick facade with punched windows
+#### downtown-03: a brick facade with punched windows
 
 ```text
-A flat orthographic front elevation of a brick facade with punched windows facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette brick brown #a3714f, limestone #c2b8a3, slate #5d6273, night grey #262733. No logos, no text, no people.
+A flat orthographic front elevation of a brick facade with punched windows in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette brick brown #a3714f, limestone #c2b8a3, slate #5d6273, night grey #262733. No logos, no text, no people.
 ```
 
-#### downtown-04: limestone facade with pilasters between the window bays
+#### downtown-04: a limestone facade with pilasters between the window bays
 
 ```text
-A flat orthographic front elevation of a limestone facade with pilasters between the window bays facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette limestone #c2b8a3, stone grey #8a8f9c, slate #5d6273, plaza stone #d9d4cc. No logos, no text, no people.
+A flat orthographic front elevation of a limestone facade with pilasters between the window bays in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette limestone #c2b8a3, stone grey #8a8f9c, slate #5d6273, plaza stone #d9d4cc. No logos, no text, no people.
 ```
 
-#### downtown-05: big-window loft facade with large steel-framed windows in brick
+#### downtown-05: a big-window loft facade with large steel-framed windows in brick
 
 ```text
-A flat orthographic front elevation of a big-window loft facade with large steel-framed windows in brick facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette brick brown #a3714f, night grey #262733, glass blue #8ccfe0, steel grey #8a8f99. No logos, no text, no people.
+A flat orthographic front elevation of a big-window loft facade with large steel-framed windows in brick in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette brick brown #a3714f, night grey #262733, glass blue #8ccfe0, steel grey #8a8f99. No logos, no text, no people.
 ```
 
-#### midtown-01: art-deco facade with tall vertical piers and recessed spandrels
+#### midtown-01: an art-deco stone facade with tall vertical piers and recessed spandrels
 
 ```text
-A flat orthographic front elevation of a art-deco facade with tall vertical piers and recessed spandrels facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette pale limestone #cfc6b4, blue-grey #9aa7b8, steel slate #6f7d8f, low-sun orange #f4b26a. No logos, no text, no people.
+A flat orthographic front elevation of an art-deco stone facade with tall vertical piers and recessed spandrels in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette pale limestone #cfc6b4, blue-grey #9aa7b8, steel slate #6f7d8f, low-sun orange #f4b26a. No logos, no text, no people.
 ```
 
-#### midtown-02: glass slab facade with a regular grid of tinted windows
+#### midtown-02: a glass slab facade with a regular grid of tinted windows
 
 ```text
-A flat orthographic front elevation of a glass slab facade with a regular grid of tinted windows facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette blue-grey #9aa7b8, steel slate #6f7d8f, glass blue #8ccfe0, night grey #262733. No logos, no text, no people.
+A flat orthographic front elevation of a glass slab facade with a regular grid of tinted windows in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette blue-grey #9aa7b8, steel slate #6f7d8f, glass blue #8ccfe0, night grey #262733. No logos, no text, no people.
 ```
 
-#### midtown-03: limestone facade with deep ledge courses and recessed window bays
+#### midtown-03: a limestone facade with deep ledge courses and recessed window bays
 
 ```text
-A flat orthographic front elevation of a limestone facade with deep ledge courses and recessed window bays facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette pale limestone #cfc6b4, tan brick #b0855f, steel slate #6f7d8f, plaza stone #d9d4cc. No logos, no text, no people.
+A flat orthographic front elevation of a limestone facade with deep ledge courses and recessed window bays in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette pale limestone #cfc6b4, tan brick #b0855f, steel slate #6f7d8f, plaza stone #d9d4cc. No logos, no text, no people.
 ```
 
-#### midtown-04: prewar brick facade with stone window sills and lintels
+#### midtown-04: a prewar brick facade with stone window sills and lintels
 
 ```text
-A flat orthographic front elevation of a prewar brick facade with stone window sills and lintels facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette tan brick #b0855f, pale limestone #cfc6b4, steel slate #6f7d8f, night grey #262733. No logos, no text, no people.
+A flat orthographic front elevation of a prewar brick facade with stone window sills and lintels in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette tan brick #b0855f, pale limestone #cfc6b4, steel slate #6f7d8f, night grey #262733. No logos, no text, no people.
 ```
 
-#### midtown-05: mirrored glass facade reflecting a warm orange sky
+#### midtown-05: a mirrored glass facade with warm reflections
 
 ```text
-A flat orthographic front elevation of a mirrored glass facade reflecting a warm orange sky facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette blue-grey #9aa7b8, low-sun orange #f4b26a, steel slate #6f7d8f, night grey #262733. No logos, no text, no people.
+A flat orthographic front elevation of a mirrored glass facade with warm reflections in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette blue-grey #9aa7b8, low-sun orange #f4b26a, steel slate #6f7d8f, night grey #262733. No logos, no text, no people.
 ```
 
-#### uptown-01: brownstone facade with tall arched windows
+#### uptown-01: a brownstone facade with tall arched windows
 
 ```text
-A flat orthographic front elevation of a brownstone facade with tall arched windows facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette brownstone #b07a5a, dark brownstone #8c5d47, cream stone #d8c3a5, night grey #262733. No logos, no text, no people.
+A flat orthographic front elevation of a brownstone facade with tall arched windows in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette brownstone #b07a5a, dark brownstone #8c5d47, cream stone #d8c3a5, night grey #262733. No logos, no text, no people.
 ```
 
-#### uptown-02: brick walk-up facade with black iron fire escapes across the bays
+#### uptown-02: a brick walk-up facade with black iron fire escapes across the bays
 
 ```text
-A flat orthographic front elevation of a brick walk-up facade with black iron fire escapes across the bays facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette dark brownstone #8c5d47, sandstone #c9a27e, night grey #262733, cream stone #d8c3a5. No logos, no text, no people.
+A flat orthographic front elevation of a brick walk-up facade with black iron fire escapes across the bays in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette dark brownstone #8c5d47, sandstone #c9a27e, night grey #262733, cream stone #d8c3a5. No logos, no text, no people.
 ```
 
-#### uptown-03: townhouse stone facade with carved window surrounds
+#### uptown-03: a townhouse stone facade with carved window surrounds
 
 ```text
-A flat orthographic front elevation of a townhouse stone facade with carved window surrounds facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette sandstone #c9a27e, cream stone #d8c3a5, dark brownstone #8c5d47, night grey #262733. No logos, no text, no people.
+A flat orthographic front elevation of a townhouse stone facade with carved window surrounds in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette sandstone #c9a27e, cream stone #d8c3a5, dark brownstone #8c5d47, night grey #262733. No logos, no text, no people.
 ```
 
-#### uptown-04: pastel mid-rise facade with a regular window grid
+#### uptown-04: a pastel mid-rise facade with a regular window grid
 
 ```text
-A flat orthographic front elevation of a pastel mid-rise facade with a regular window grid facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette cream stone #d8c3a5, lavender #b9a6e8, glass blue #8ccfe0, sandstone #c9a27e. No logos, no text, no people.
+A flat orthographic front elevation of a pastel mid-rise facade with a regular window grid in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette cream stone #d8c3a5, lavender #b9a6e8, glass blue #8ccfe0, sandstone #c9a27e. No logos, no text, no people.
 ```
 
-#### uptown-05: warm-lit loft facade with large windows glowing warm yellow
+#### uptown-05: a warm-lit loft facade with large windows glowing warm yellow
 
 ```text
-A flat orthographic front elevation of a warm-lit loft facade with large windows glowing warm yellow facade in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette dark brownstone #8c5d47, low-sun orange #f4b26a, night grey #262733, cream stone #d8c3a5. No logos, no text, no people.
+A flat orthographic front elevation of a warm-lit loft facade with large windows glowing warm yellow in the style of the reference: exactly two window bays wide and two floors tall, filling the frame edge to edge, no sky, no ground, no perspective, no shadows, even daylight, so it repeats seamlessly left-right and up-down. Palette dark brownstone #8c5d47, low-sun orange #f4b26a, night grey #262733, cream stone #d8c3a5. No logos, no text, no people.
 ```
 
 ### Storefront strips (12)
 
-GPT Image 2.5, 21:9, resolution 2k, quality medium, `image_references`: the picked style frame for the strip's theme. Sign words: DELI x2, CAFE x2, PIZZA x2, HOTEL x2, none x4.
+GPT Image 2.5, 21:9, resolution 2k, quality medium, `image_references`: the picked style frame for the strip's theme. Sign words: DELI 2, CAFE 3, PIZZA 2, HOTEL 2, no words 3.
 
 #### downtown-01: deli shop front with fruit crates stacked under a striped awning and a wide window
 
@@ -1036,7 +1038,7 @@ One flat trim sheet in the style of the reference, laid out as four equal square
 
 ### Posters (12, shared by every theme)
 
-GPT Image 2.5, 16:9, resolution 1k, quality low, `image_references`: the two teaser keyframe jobs `ed480a6e-19ce-48ff-8cf1-df1f86e16abd` and `854c98cf-81b2-40f4-8022-ac87b5a89a06` (they show the billboard stacks).
+GPT Image 2.5, 16:9, resolution 1k, quality low, `image_references`: the two teaser keyframe jobs `ed480a6e-19ce-48ff-8cf1-df1f86e16abd` and `854c98cf-81b2-40f4-8022-ac87b5a89a06`; they stand in as the flat-colour style reference.
 
 #### poster-01
 
@@ -1101,7 +1103,7 @@ A bold flat billboard poster in the style of the reference, filling the frame ed
 #### poster-11
 
 ```text
-A bold flat billboard poster in the style of the reference, filling the frame edge to edge: a milk bottle with a magnet pink band, on a lane white field with a dark border, simple flat colour blocks with crisp edges, no gradients, a thin dark border. Palette magnet pink #ff4fa3, lane white #f2f2f2, night grey #262733. No words, no letters, no numbers, no logos, no brand names, no people.
+A bold flat billboard poster in the style of the reference, filling the frame edge to edge: a milk bottle with a magnet pink band, on a lane white field, simple flat colour blocks with crisp edges, no gradients, a thin dark border. Palette magnet pink #ff4fa3, lane white #f2f2f2, night grey #262733. No words, no letters, no numbers, no logos, no brand names, no people.
 ```
 
 #### poster-12
@@ -1174,53 +1176,53 @@ A flat front view, in the style of the reference, of a wide LED display panel fa
 
 ### Skylines (8)
 
-GPT Image 2.5, 21:9, resolution 2k, quality medium, `background: transparent`, `image_references`: the picked style frame for the theme. The engine mirrors each strip into a seamless ring, so keep every tower clear of both side edges. The brief's clause naming the landmarks to avoid is kept verbatim; if any frame shows a spire that reads as a real building, regenerate it and consider dropping the names.
+GPT Image 2.5, 21:9, resolution 2k, quality medium, `background: transparent`, `image_references`: the picked style frame for the theme. The engine mirrors each strip into a seamless ring, so keep every tower clear of both side edges. The brief's clause naming two landmarks to avoid is shortened to "nothing that resembles any real landmark" (Task 3 fix round 1: naming a landmark in a negation can prime the model to draw it), and the palettes leave out the theme's sky colour because the sky is transparent. If any frame shows a spire that reads as a real building, regenerate it.
 
 #### downtown-01: far haze
 
 ```text
-A distant hazy skyline in the style of the reference, in a clear blue day with crisp cool shadows: a very pale, hazy blue-grey layer of distant generic towers and stepped spires, low contrast, fading into the haze. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles the Empire State Building, the Chrysler Building or any real landmark. Palette clear sky blue #9fd3f5, harbour blue-grey #a6c1d8, stone grey #8a8f9c, lane white #f2f2f2. No logos, no brand names, no text, no people.
+A distant hazy skyline in the style of the reference, in a clear blue day with crisp cool shadows: a very pale, hazy blue-grey layer of distant generic towers and stepped spires, low contrast, fading into the haze. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles any real landmark. Palette harbour blue-grey #a6c1d8, stone grey #8a8f9c, lane white #f2f2f2. No logos, no brand names, no text, no people.
 ```
 
 #### downtown-02: nearer towers
 
 ```text
-A distant hazy skyline in the style of the reference, in a clear blue day with crisp cool shadows: a nearer row of clearer generic towers and stepped spires with glass and stone faces, crisp cool shadows. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles the Empire State Building, the Chrysler Building or any real landmark. Palette stone grey #8a8f9c, slate #5d6273, glass blue #8ccfe0, limestone #c2b8a3. No logos, no brand names, no text, no people.
+A distant hazy skyline in the style of the reference, in a clear blue day with crisp cool shadows: a nearer row of clearer generic towers and stepped spires with glass and stone faces, crisp cool shadows. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles any real landmark. Palette stone grey #8a8f9c, slate #5d6273, glass blue #8ccfe0, limestone #c2b8a3. No logos, no brand names, no text, no people.
 ```
 
 #### midtown-01: far haze
 
 ```text
-A distant hazy skyline in the style of the reference, in low orange sunlight with a glowing orange haze: a soft layer of distant generic towers and stepped spires turned to warm orange-grey silhouettes by the haze. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles the Empire State Building, the Chrysler Building or any real landmark. Palette low-sun orange #f4b26a, blue-grey #9aa7b8, steel slate #6f7d8f. No logos, no brand names, no text, no people.
+A distant hazy skyline in the style of the reference, in low orange sunlight with a glowing orange haze: a soft layer of distant generic towers and stepped spires turned to warm orange-grey silhouettes by the haze. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles any real landmark. Palette blue-grey #9aa7b8, steel slate #6f7d8f, tan brick #b0855f. No logos, no brand names, no text, no people.
 ```
 
 #### midtown-02: nearer towers
 
 ```text
-A distant hazy skyline in the style of the reference, in low orange sunlight with a glowing orange haze: a nearer row of generic towers and stepped spires, lit from the low orange sun with warm rim light and long shadows. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles the Empire State Building, the Chrysler Building or any real landmark. Palette blue-grey #9aa7b8, steel slate #6f7d8f, pale limestone #cfc6b4, low-sun orange #f4b26a. No logos, no brand names, no text, no people.
+A distant hazy skyline in the style of the reference, in low orange sunlight with a glowing orange haze: a nearer row of generic towers and stepped spires, lit from the low orange sun with warm rim light and long shadows. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles any real landmark. Palette blue-grey #9aa7b8, steel slate #6f7d8f, pale limestone #cfc6b4, taxi yellow #f7c518. No logos, no brand names, no text, no people.
 ```
 
 #### uptown-01: far haze
 
 ```text
-A distant hazy skyline in the style of the reference, in purple dusk with warm lit windows: a dim layer of distant generic towers and stepped spires in violet haze, a few tiny lit windows. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles the Empire State Building, the Chrysler Building or any real landmark. Palette dusk purple #c98bd8, lavender #b9a6e8, dark brownstone #8c5d47. No logos, no brand names, no text, no people.
+A distant hazy skyline in the style of the reference, in purple dusk with warm lit windows: a dim layer of distant generic towers and stepped spires in violet haze, a few tiny lit windows. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles any real landmark. Palette lavender #b9a6e8, brownstone #b07a5a, dark brownstone #8c5d47. No logos, no brand names, no text, no people.
 ```
 
 #### uptown-02: nearer towers
 
 ```text
-A distant hazy skyline in the style of the reference, in purple dusk with warm lit windows: a nearer row of generic towers and stepped spires in dusk shade with many warm lit windows. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles the Empire State Building, the Chrysler Building or any real landmark. Palette brownstone #b07a5a, dark brownstone #8c5d47, cream stone #d8c3a5, low-sun orange #f4b26a. No logos, no brand names, no text, no people.
+A distant hazy skyline in the style of the reference, in purple dusk with warm lit windows: a nearer row of generic towers and stepped spires in dusk shade with many warm lit windows. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles any real landmark. Palette brownstone #b07a5a, dark brownstone #8c5d47, cream stone #d8c3a5, taxi yellow #f7c518. No logos, no brand names, no text, no people.
 ```
 
 #### bridge-01: far haze
 
 ```text
-A distant hazy skyline in the style of the reference, in a clear blue day over open water: a very pale, hazy layer of distant generic towers across open water, low contrast, the waterline along the bottom. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles the Empire State Building, the Chrysler Building or any real landmark. Palette clear sky blue #9fd3f5, harbour blue-grey #a6c1d8, hazy blue #8eadc6. No logos, no brand names, no text, no people.
+A distant hazy skyline in the style of the reference, in a clear blue day over open water: a very pale, hazy layer of distant generic towers across open water, low contrast, the waterline along the bottom. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles any real landmark. Palette harbour blue-grey #a6c1d8, hazy blue #8eadc6, limestone #c2b8a3. No logos, no brand names, no text, no people.
 ```
 
 #### bridge-02: nearer towers
 
 ```text
-A distant hazy skyline in the style of the reference, in a clear blue day over open water: a clearer low waterfront city of generic towers and stepped spires standing on the far shore, the waterline along the bottom. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles the Empire State Building, the Chrysler Building or any real landmark. Palette harbour blue-grey #a6c1d8, deep harbour blue #81a2bd, hazy blue #8eadc6, limestone #c2b8a3. No logos, no brand names, no text, no people.
+A distant hazy skyline in the style of the reference, in a clear blue day over open water: a clearer low waterfront city of generic towers and stepped spires standing on the far shore, the waterline along the bottom. Ground line at the bottom tenth of the frame, transparent sky above, nothing that resembles any real landmark. Palette harbour blue-grey #a6c1d8, deep harbour blue #81a2bd, hazy blue #8eadc6, limestone #c2b8a3. No logos, no brand names, no text, no people.
 ```
 
