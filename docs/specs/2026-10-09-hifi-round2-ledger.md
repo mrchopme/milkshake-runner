@@ -17,6 +17,9 @@ last-verified: never
 | 6 | `src/gfx.js` | `dispose` frees instanced and batched meshes' buffers and spares geometry, materials and maps flagged `userData.shared` | A module's InstancedMesh over a preloaded model's geometry freed the shared model on drop | Generic hook | No |
 | 6 | `src/assets.js` | `adopt` flags every node's geometry, materials and material textures as shared, not only the nodes | So `dispose` can tell shared parts reused in a module's own meshes | Generic hook | No |
 | Task 2 | `src/game.js` | the dev hook also carries `gfx` and `assets` (the page's own module instances) | the lineup preloads and copies models through the page's own cache | Dev only (stripped from builds) | No: the hook is the only handle on a running level. |
+| 7 | `src/registry.js` | `assets` may list `.webp` and `.png` images as well as `.glb` models | The city's facade tiles and skylines are listed and preloaded like the models | Generic hook | No: the loader and the asset rule live in the engine |
+| 7 | `src/assets.js` | `preload` loads images as sRGB textures through `adopt` (flagged shared); `texture(path)` hands out the shared texture; `release(keep)` frees every cached file not kept | Images preload like models, and a level's files can be freed later (Task 16 wires `release`) | Generic hook | No: the loader and the asset rule live in the engine |
+| 7 | `src/gfx.js` | re-exports `texture` beside `asset` | Modules reach preloaded images through `gfx`, never importing `src/` | Generic hook | No: the loader and the asset rule live in the engine |
 
 ## Assets
 

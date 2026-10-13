@@ -2,7 +2,7 @@
 export const KIND_DIR = { obstacle: 'obstacles', pickup: 'pickups', prop: 'props', theme: 'themes', character: 'characters', ending: 'endings' };
 const KINDS = Object.keys(KIND_DIR);
 const PLAIN = /^[a-z0-9_-]+$/, NAMESPACED = /^[a-z0-9_-]+\/[a-z0-9_-]+$/, HEX = /^#[0-9a-fA-F]{6}$/;
-const ASSET = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.glb$/; // a .glb under public/: lowercase, no leading slash, no ..
+const ASSET = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.(?:glb|webp|png)$/; // a model or an image under public/: lowercase, no leading slash, no ..
 const LOOK_RANGES = { exposure: [0.2, 3], ambient: [0, 3], env: [0, 3] };
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
@@ -106,8 +106,8 @@ export function checkModule(m) {
   if (!KINDS.includes(m.kind)) return [`kind must be one of ${KINDS.join(', ')}`];
   if (typeof m.id !== 'string' || !(PLAIN.test(m.id) || NAMESPACED.test(m.id))) return ['id must be a-z0-9_- (built-in) or handle/name (community)'];
   const e = CHECKS[m.kind](m);
-  // Any module may list files the game preloads before play (src/assets.js); only .glb loads today.
-  if (m.assets !== undefined && !(Array.isArray(m.assets) && m.assets.every((a) => typeof a === 'string' && ASSET.test(a)))) e.push('assets must be a list of .glb files under public/, like "hifi/model.glb" (lowercase)');
+  // Any module may list files the game preloads before play (src/assets.js): .glb models, .webp and .png images.
+  if (m.assets !== undefined && !(Array.isArray(m.assets) && m.assets.every((a) => typeof a === 'string' && ASSET.test(a)))) e.push('assets must be a list of .glb, .webp or .png files under public/, like "hifi/model.glb" (lowercase)');
   return e;
 }
 

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { adopt, preload, asset, gate } from '../src/assets.js';
+import { adopt, preload, asset, gate, release } from '../src/assets.js';
 
 const model = () => gfx.group(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ map: new THREE.Texture() })));
 
@@ -67,4 +67,25 @@ test('dropping an instanced copy frees its instance buffers, never the shared mo
   own.material.dispose = () => freed.push('own material');
   gfx.dispose(gfx.group(inst, own));
   assert.deepEqual(freed.sort(), ['instances', 'own geometry', 'own material']);
+});
+
+test('an image asset is one shared texture; asking for it as a model, or for a missing one, fails loudly', async () => {
+  const tex = new THREE.Texture();
+  await preload(['test/sky.webp'], async () => tex);
+  assert.equal(gfx.texture('test/sky.webp'), tex);
+  assert.ok(tex.userData.shared, 'flagged shared, so dropping a chunk never frees it');
+  assert.throws(() => asset('test/sky.webp'), /asset "test\/sky.webp" is an image: use gfx.texture/);
+  assert.throws(() => gfx.texture('test/none.webp'), /texture "test\/none.webp" is not loaded: list it in the module's assets/);
+});
+
+test('release frees every cached file a level does not keep, and keeps the rest', () => {
+  adopt('test/keep.glb', model()); adopt('test/drop.glb', model());
+  const t = new THREE.Texture(); adopt('test/drop.webp', t);
+  const d = asset('test/drop.glb').children[0], freed = [];
+  d.geometry.dispose = () => freed.push('geometry'); d.material.dispose = () => freed.push('material');
+  d.material.map.dispose = () => freed.push('map'); t.dispose = () => freed.push('texture');
+  release(['test/keep.glb']);
+  assert.deepEqual(freed.sort(), ['geometry', 'map', 'material', 'texture']);
+  assert.ok(asset('test/keep.glb'));
+  assert.throws(() => asset('test/drop.glb'), /not loaded/);
 });
