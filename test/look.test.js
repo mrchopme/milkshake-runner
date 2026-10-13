@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { lookState } from '../src/look.js';
+import { lookState, cascadeHook } from '../src/look.js';
 import { checkLook, checkModule } from '../src/registry.js';
 import { createWorld } from '../src/world.js';
 import { resolveRules } from '../src/rules.js';
@@ -11,6 +11,20 @@ const LOOK = { exposure: 1, sun: { color: '#fff3e0', intensity: 3 }, ambient: 0.
 
 test('a theme without a look keeps the low-fi path', () => {
   assert.equal(lookState({ sky: '#9fd3f5', fog: 0.3 }), null);
+});
+
+test('the cascades patch only lit materials, and CSM forgets each one when it is disposed', () => {
+  const csm = { shaders: new Map(), setupMaterial(m) { this.shaders.set(m, null); } }; // CSM's own bookkeeping: a strong Map, by material
+  gfx.hook.beforeBend = cascadeHook(csm);
+  try {
+    const lit = [THREE.MeshToonMaterial, THREE.MeshStandardMaterial, THREE.MeshPhysicalMaterial, THREE.MeshLambertMaterial, THREE.MeshPhongMaterial].map((T) => gfx.bendable(new T()));
+    const unlit = [THREE.MeshBasicMaterial, THREE.SpriteMaterial].map((T) => gfx.bendable(new T()));
+    assert.deepEqual([...csm.shaders.keys()], lit, 'every lit material, and no unlit one: a blob, a glow or a sprite has no lights chunk');
+    lit[0].dispose();
+    assert.ok(!csm.shaders.has(lit[0]) && csm.shaders.size === lit.length - 1, 'a disposed material leaves the Map, so spawned pickups and bubbles do not pile up');
+    for (const m of [...lit, ...unlit]) m.dispose();
+    assert.equal(csm.shaders.size, 0);
+  } finally { gfx.hook.beforeBend = null; }
 });
 
 test('a look fills its defaults, and the sky fades to the level colour at the horizon', () => {

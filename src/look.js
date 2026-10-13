@@ -4,7 +4,9 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { CSM } from 'three/addons/csm/CSM.js';
 import { texture } from './assets.js';
+import { fogCut, hook } from './gfx.js';
 
 // The HiFi look (spec §4): tone mapping, sun shadows, studio reflections, a gradient sky and bloom, from a theme's `look`.
 // main.js loads this file only in HiFi sessions; without a look the engine renders exactly as before.
@@ -24,6 +26,15 @@ export function lookState(theme) {
     bloom: { strength: l.bloom?.strength ?? 0.5, threshold: l.bloom?.threshold ?? 0.85, radius: l.bloom?.radius ?? 0.4 },
   };
 }
+
+// What the look hands bendable() (gfx.hook.beforeBend): CSM's setupMaterial for lit materials only (an unlit blob, glow or
+// sprite has no lights chunk to patch), and each one leaves CSM's material Map when disposed: the Map is strong, and pickups
+// and the shield bubble build new materials on every spawn. Tested in Node with a stand-in CSM.
+export const cascadeHook = (csm) => (m) => {
+  if (!(m.isMeshStandardMaterial || m.isMeshToonMaterial || m.isMeshLambertMaterial || m.isMeshPhongMaterial)) return; // Physical is a Standard
+  csm.setupMaterial(m);
+  m.addEventListener('dispose', () => csm.shaders.delete(m)); // a material used again recompiles, and CSM records it again
+};
 
 const SKY_VERT = /* glsl */`
   varying vec3 vDir;
@@ -60,7 +71,9 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   // the far plane; unbent, unfogged, no shadows. A missing image hides its ring. ponytail: calibration knobs.
   // Its foot fades to the level sky over the lowest `fade` of the ring (the spec's "tinted to the level sky at its base"),
   // so it meets the fogged street and buildings without a band; apply() re-tints it on every theme switch.
-  const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08 };
+  // `height` scales the image-aspect height: at 1 the 360 m ring stood about 485 m tall, and 0.3 (the Task 14 probe) sits
+  // the skyline at the avenue's end.
+  const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08, height: 0.3 };
   const tint = { value: new THREE.Color() };
   const rings = RING.radius.map((r, i) => {
     const geo = new THREE.CylinderGeometry(r, r, 1, 96, 1, true).translate(0, 0.5, 0);
@@ -77,13 +90,17 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
     return m;
   });
 
-  // ponytail: calibration knobs — the shadow box around the sun's target (engine.js aims it 25 m ahead of the run)
+  // ponytail: calibration knobs — two shadow cascades out to 220 m (the Task 14 probe: they reach the far canyon, where one
+  // box around the run did not). While a look is on they light the scene in the sun's place, with its colour and intensity,
+  // and the sun hides. They aim along the engine's sunDir itself, so a look that turns the sun turns them. Every lit material
+  // bendable() wraps from now on gets CSM's setupMaterial (gfx.hook), after the module's own hook and before the bend.
+  // Never csm.dispose(): it deletes each material's onBeforeCompile, which after bendable() is the bend itself.
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  sun.shadow.mapSize.set(4096, 4096);
-  Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 45, bottom: -45, near: 1, far: 260 });
-  sun.shadow.camera.updateProjectionMatrix();
-  sun.shadow.bias = -0.0004;
-  sun.shadow.normalBias = 0.03;
+  const csm = new CSM({ maxFar: 220, cascades: 2, shadowMapSize: 4096, lightDirection: sunDir, camera, parent: scene, shadowBias: -0.0004 });
+  for (const l of csm.lights) { l.shadow.normalBias = 0.03; l.visible = false; }
+  hook.beforeBend = cascadeHook(csm);
+  hook.cutFog = true; // the fog cut compiles into bent shaders from here on; a theme's look switches it with fogCut
+  let view = ''; // the camera's fov and aspect when the cascade splits were last fitted
 
   const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 }));
   composer.addPass(new RenderPass(scene, camera));
@@ -98,10 +115,12 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
     apply(theme) {
       const s = lookState(theme);
       active = !!s;
+      fogCut.value = s ? 1 : 0;
       renderer.toneMapping = s ? THREE.NeutralToneMapping : THREE.NoToneMapping;
       renderer.toneMappingExposure = s?.exposure ?? 1;
       renderer.shadowMap.enabled = !!s;
-      sun.castShadow = !!s; // toggled with the shadow map, so the light state changes and materials recompile once
+      sun.visible = !s; // the cascades light a look's scene; no look keeps the low-fi sun, which never casts
+      for (const l of csm.lights) l.visible = !!s; // toggled with the shadow map, so the light state changes and materials recompile once
       scene.environment = s ? env : null;
       dome.visible = !!s;
       for (const r of rings) { r.visible = false; r.material.map = null; } // shown below when the look names a loaded image; unbound, so a later release() of the old image leaves nothing disposed bound
@@ -109,6 +128,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       scene.environmentIntensity = s.env;
       sun.color.set(s.sun.color);
       sun.intensity = s.sun.intensity;
+      for (const l of csm.lights) { l.color.copy(sun.color); l.intensity = sun.intensity; }
       hemi.intensity = s.ambient;
       dome.material.uniforms.top.value.set(s.skyTop);
       dome.material.uniforms.bottom.value.set(s.skyBottom);
@@ -124,12 +144,16 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
         // ponytail: wrap and repeat are set on the shared preloaded texture; fine while only the ring uses skyline images
         map.wrapS = THREE.MirroredRepeatWrapping; map.repeat.x = 2; // the image covers half the ring, mirrored round the back
         ring.material.map = map; ring.material.needsUpdate = true;
-        ring.scale.y = (Math.PI * RING.radius[i] * map.image.height) / map.image.width; // the image keeps its aspect over half the ring
+        ring.scale.y = ((Math.PI * RING.radius[i] * map.image.height) / map.image.width) * RING.height; // the image's aspect over half the ring, scaled
       });
     },
     render() {
       dome.position.copy(camera.position);
       for (const r of rings) r.position.set(camera.position.x, camera.position.y + RING.base, camera.position.z);
+      const v = `${camera.fov} ${camera.aspect}`;
+      if (v !== view) { view = v; csm.updateFrustums(); } // the speed-eased fov and resizes move the cascade splits
+      camera.updateMatrixWorld(); // follow() moved the camera since the last render
+      csm.update();
       composer.render();
     },
     resize(w, h) {

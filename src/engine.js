@@ -7,8 +7,8 @@ const CAMERA_EASE = 0.2;         // seconds; overrides are 92% of the way in hal
 const STREAKS = 14, STREAK_FROM = 16, STREAK_FULL = 30; // streaks fade in between these speeds (m/s)
 const SUN = 2.2, HEMI = 1.2;     // the low-fi light; a HiFi look sets its own, and setSky puts these back first
 // Sun from above, behind the camera and a little to the right, so faces toward the camera are lit and side faces take
-// the one shade tone the style sheet shows. It sits far back along that line and aims ahead of the run, so a HiFi shadow
-// box covers the street ahead and the tallest buildings; the direction, and so the low-fi shading, is unchanged.
+// the one shade tone the style sheet shows. It sits far back along that line, aimed ahead of the run; only its direction
+// shades. HiFi shadows are the look's cascades (src/look.js), aimed along sunDir.
 const SUN_DIR = new THREE.Vector3(6, -16, 12).normalize(), SUN_BACK = 120, SUN_AHEAD = 25;
 
 // Where the chase camera sits for a run. Pure, so it is testable: `cam` is a section's override, `speed` widens the view.
