@@ -7,6 +7,7 @@ import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
 import { street, CROSS } from '../packs/hifi/lib/street.js';
 import { buildings } from '../packs/hifi/lib/buildings.js';
+import { DRIVE } from '../packs/hifi/lib/traffic.js';
 import { adopt } from '../src/assets.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
@@ -94,4 +95,71 @@ test('a facade tile that loads after a chunk was built still shows on the next c
   const late = new THREE.Texture();
   adopt(path, late);
   assert.ok(maps(buildings(gfx, { z0: 0, length: 120 }, style, rng(4), null)).includes(late), 'the loaded tile replaces the placeholder');
+});
+
+test('furniture stands only on the sidewalk band, never in a lane', () => {
+  let seen = 0;
+  for (const seed of [1, 2, 3, 4]) chunk(seed).traverse((n) => {
+    if (!n.userData.furniture) return;
+    seen++;
+    const m = new THREE.Matrix4(), p = new THREE.Vector3();
+    for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(Math.abs(p.x) >= 4.8 - 1e-6 && Math.abs(p.x) <= 7.3 + 1e-6, `seed ${seed}: x = ${p.x.toFixed(2)}`); }
+  });
+  assert.ok(seen > 0, 'furniture was built');
+});
+
+test('side-street traffic never enters the avenue', () => {
+  let seen = 0;
+  chunk(6).traverse((n) => { if (n.userData.traffic) { seen++; const m = new THREE.Matrix4(), p = new THREE.Vector3(); for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(Math.abs(p.x) >= 9, `x = ${p.x}`); } } });
+  assert.ok(seen > 0, 'traffic was built');
+});
+
+test('board 15: nothing but the traffic lights within 2 m of the side street, at most one shelter or subway a chunk', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const g = chunk(seed), cz = g.userData.cross.z, rare = new Set();
+    g.traverse((n) => {
+      const kind = n.userData.furniture;
+      if (!kind || kind === 'traffic_light') return;
+      const m = new THREE.Matrix4(), p = new THREE.Vector3();
+      for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(p.z <= cz - 2 || p.z >= cz + CROSS.width + 2, `seed ${seed}: ${kind} at z ${p.z.toFixed(2)}, side street at ${cz}`); if (kind === 'bus_shelter' || kind === 'subway') rare.add(`${p.x},${p.z}`); }
+    });
+    assert.ok(rare.size <= 1, `seed ${seed}: ${rare.size} shelters or subways`);
+  }
+});
+
+test('two hundred dropped chunks free every instanced mesh they made and no shared material', () => {
+  const made = [], freedShared = [];
+  const orig = THREE.InstancedMesh.prototype.dispose;
+  THREE.InstancedMesh.prototype.dispose = function () { made.push(this); return orig.call(this); };
+  try {
+    let instancedBuilt = 0;
+    for (let i = 0; i < 200; i++) {
+      const g = chunk(i, (i % 10) * 120);
+      g.traverse((n) => { if (n.isInstancedMesh) instancedBuilt++; if (n.material?.userData?.shared) { const d = n.material.dispose; n.material.dispose = () => { freedShared.push(n.material); d.call(n.material); }; } });
+      gfx.dispose(g);
+    }
+    assert.equal(made.length, instancedBuilt, 'every instanced mesh freed its buffers');
+    assert.equal(freedShared.length, 0, 'no shared material freed');
+  } finally { THREE.InstancedMesh.prototype.dispose = orig; }
+});
+
+test('a loaded car model drives along the cross street whatever its own frame, and stays on the paving', () => {
+  // a stand-in for the generated taxi: centimetres, long along x, its node turned half round (the kit's yaw makes x ahead z)
+  const body = new THREE.Mesh(new THREE.BoxGeometry(450, 208, 190), new THREE.MeshStandardMaterial());
+  body.scale.setScalar(0.01); body.rotation.y = Math.PI;
+  adopt('hifi/taxi.glb', new THREE.Group().add(body));
+  const kinds = new Set();
+  for (let seed = 1; seed <= 20; seed++) chunk(seed).traverse((n) => {
+    if (!n.userData.traffic) return;
+    kinds.add(n.userData.traffic);
+    n.geometry.computeBoundingBox();
+    const b = n.geometry.boundingBox, m = new THREE.Matrix4(), p = new THREE.Vector3(), ahead = new THREE.Vector3();
+    assert.ok(b.max.z - b.min.z > b.max.x - b.min.x, `${n.userData.traffic}: its length lies along the drive axis (+z)`);
+    assert.ok(DRIVE.to + b.max.z <= 4.5 + CROSS.reach + 1e-6, `${n.userData.traffic}: its nose leaves the paving at ${(DRIVE.to + b.max.z).toFixed(2)}`);
+    for (let i = 0; i < n.count; i++) {
+      n.getMatrixAt(i, m); p.setFromMatrixPosition(m); ahead.set(0, 0, 1).applyMatrix4(m).sub(p); // the drive's +z in the world, unscaled
+      assert.ok(Math.abs(ahead.x - Math.sign(p.x)) < 1e-6 && Math.abs(ahead.y) < 1e-6 && Math.abs(ahead.z) < 1e-6, `${n.userData.traffic}: drives along ${ahead.toArray().map((v) => v.toFixed(2))} from x ${p.x}`);
+    }
+  });
+  assert.ok(kinds.has('taxi'), 'the loaded taxi drove');
 });
