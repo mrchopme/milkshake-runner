@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PALETTE } from './palette.js';
+export { asset } from './assets.js'; // a preloaded GLB as a synchronous copy (src/assets.js)
 
 // Toon primitives for content modules. Materials are cached and shared; dispose() never touches them.
 export const palette = PALETTE;
@@ -62,7 +63,16 @@ export function bendable(material) {
   material.needsUpdate = true;
   return material;
 }
-export function bend(object) { object.traverse((n) => { for (const m of [].concat(n.material ?? [])) bendable(m); }); return object; } // a mesh may carry a material array
+// Every object the engine adds goes through here once, so it also marks opaque meshes as shadow casters and receivers.
+// The flags do nothing while the shadow map is off (low-fi). Transparent glows, blob shadows and sprites stay out of it.
+export function bend(object) {
+  object.traverse((n) => {
+    const mats = [].concat(n.material ?? []); // a mesh may carry a material array
+    for (const m of mats) bendable(m);
+    if (n.isMesh) n.castShadow = n.receiveShadow = mats.every((m) => !m.transparent);
+  });
+  return object;
+}
 // The stretches in view, nearest first, as { from, to, turn, hill } (metres, -1..1). No stretches straightens the street.
 export function setBend({ origin = 0, segments = [] } = {}) {
   bendStart.value = origin + DEAD;
@@ -135,9 +145,11 @@ export function orb(def) {
   return g;
 }
 
-// Frees geometry and per-object textures. Shared toon materials from mat() stay alive on purpose.
+// Frees geometry and per-object textures. Shared toon materials from mat() stay alive on purpose, and so does anything
+// flagged userData.shared: a preloaded asset's meshes, which every copy of it uses.
 export function dispose(object) {
   object.traverse((n) => {
+    if (n.userData.shared) return;
     n.geometry?.dispose();
     if (n.isSprite || n.isPoints || n.material?.map) { n.material.map?.dispose(); n.material.dispose(); }
   });

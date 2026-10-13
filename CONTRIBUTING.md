@@ -71,6 +71,9 @@ Content is a one-file ES module with a default export. Pick a handle (your GitHu
 `content/<kind>s/<handle>/<name>.js` with `id: "<handle>/<name>"`. The registry rejects a wrong path, a duplicate id or missing fields, and tells you exactly what is wrong.
 
 Modules receive `gfx` when they draw: `gfx.box(w, h, d, color, x, y, z)`, `gfx.cyl`, `gfx.sphere`, `gfx.capsule`, `gfx.cone`, `gfx.roundedBox`, `gfx.group(...)`, `gfx.blobShadow(r)`, `gfx.glow(r, color)`, `gfx.sprite`, `gfx.textTexture`, `gfx.palette` (the game's colours) and `gfx.three` if you need Three.js itself. Do not import `three` at the top of your file; tests import your module in Node. The world bends in the distance (a level's `curve`); build long pieces with `gfx.box`, which subdivides along z, because raw geometry longer than about 6 m stays a straight chord. Materials from these helpers bend by themselves, and the engine runs `gfx.bend(object)` over everything `createView` and `createChunk` return, so a material you build from `gfx.three` bends too. Anything you add later, in `update()`, is yours to pass through `gfx.bend`; it keeps a material's own `onBeforeCompile` and runs it before the bend.
+A module may also list `.glb` files from `public/` in `assets` (for example `assets: ['hifi/taxi.glb']`). The game
+loads them before play, and `gfx.asset(path)` returns a copy that shares geometry and materials with every other copy,
+so your view stays synchronous. Do not dispose an asset's geometry or materials yourself; `gfx.dispose` leaves them alone.
 
 Complete, working examples live in `test/fixtures/content/` (a boulder, a 3× pickup, an arch prop, a forest theme that replaces the street, a robot character, a banner ending) and `test/fixtures/levels/`. Run `npm run dev` and open `http://localhost:5173/milkshake-runner/?fixtures` to play them.
 
@@ -131,6 +134,10 @@ export default {
 };
 ```
 
+A theme may also carry a `look`, used only in HiFi: `{ exposure, sun: { color, intensity }, ambient, env, skyTop,
+bloom: { strength, threshold, radius } }`, every field optional and range-checked like the rest. `skyTop` is the top of
+the sky gradient; the horizon is the level's sky colour. Low-fi ignores it.
+
 ### Character
 
 ```js
@@ -163,6 +170,15 @@ export default {
   },
 };
 ```
+
+### Packs: a new look for existing content
+
+A pack re-skins modules that are already registered, without changing how they play. It lives at
+`packs/<pack>/<kind>s/<id>.js`, mirrors the module's id, and may set only `createView` (obstacle, pickup, prop,
+character), `createChunk` and `look` (theme), and `assets`. Anything else, a box, a speed or an effect, is rejected:
+packs change how things look, not how they play. The game merges the `hifi` pack on devices with a mouse or trackpad;
+add `?hifi` or `?lofi` to the address to force either. A broken overlay disables only itself, and the module
+underneath carries on.
 
 ## What you may change
 

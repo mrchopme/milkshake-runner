@@ -2,6 +2,8 @@
 export const KIND_DIR = { obstacle: 'obstacles', pickup: 'pickups', prop: 'props', theme: 'themes', character: 'characters', ending: 'endings' };
 const KINDS = Object.keys(KIND_DIR);
 const PLAIN = /^[a-z0-9_-]+$/, NAMESPACED = /^[a-z0-9_-]+\/[a-z0-9_-]+$/, HEX = /^#[0-9a-fA-F]{6}$/;
+const ASSET = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.glb$/; // a .glb under public/: lowercase, no leading slash, no ..
+const LOOK_RANGES = { exposure: [0.2, 3], ambient: [0, 3], env: [0, 3] };
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const fn = (v) => typeof v === 'function';
@@ -56,6 +58,7 @@ const CHECKS = {
     const b = m.buildings;
     if (!isObj(b) || !Array.isArray(b.colors) || !b.colors.length || !b.colors.every((c) => HEX.test(c)) || !num(b.minH, 1, 200) || !num(b.maxH, b.minH, 300)) e.push('buildings needs colors[] (hex), minH, maxH');
     if (m.createChunk !== undefined && !fn(m.createChunk)) e.push('createChunk must be a function');
+    if (m.look !== undefined) e.push(...checkLook(m.look));
     return e;
   },
   character(m) {
@@ -77,11 +80,69 @@ const CHECKS = {
   },
 };
 
+// A theme's HiFi look (spec §4), every field optional. Used only when the engine has a look pipeline (src/look.js).
+export function checkLook(l) {
+  if (!isObj(l)) return ['look must be an object'];
+  const e = [];
+  for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'bloom'].includes(k)) e.push(`look: unknown key "${k}"`);
+  for (const [k, [lo, hi]] of Object.entries(LOOK_RANGES)) if (l[k] !== undefined && !num(l[k], lo, hi)) e.push(`look.${k} must be ${lo} to ${hi}`);
+  if (l.skyTop !== undefined && !HEX.test(l.skyTop)) e.push('look.skyTop must be a hex colour');
+  if (l.sun !== undefined) {
+    if (!isObj(l.sun) || Object.keys(l.sun).some((k) => !['color', 'intensity'].includes(k))) e.push('look.sun may only set color and intensity');
+    else {
+      if (l.sun.color !== undefined && !HEX.test(l.sun.color)) e.push('look.sun.color must be a hex colour');
+      if (l.sun.intensity !== undefined && !num(l.sun.intensity, 0, 10)) e.push('look.sun.intensity must be 0 to 10');
+    }
+  }
+  if (l.bloom !== undefined) {
+    if (!isObj(l.bloom) || Object.keys(l.bloom).some((k) => !['strength', 'threshold', 'radius'].includes(k))) e.push('look.bloom may only set strength, threshold and radius');
+    else for (const [k, hi] of [['strength', 3], ['threshold', 1], ['radius', 1]]) if (l.bloom[k] !== undefined && !num(l.bloom[k], 0, hi)) e.push(`look.bloom.${k} must be 0 to ${hi}`);
+  }
+  return e;
+}
+
 export function checkModule(m) {
   if (!isObj(m)) return ['the default export must be an object'];
   if (!KINDS.includes(m.kind)) return [`kind must be one of ${KINDS.join(', ')}`];
   if (typeof m.id !== 'string' || !(PLAIN.test(m.id) || NAMESPACED.test(m.id))) return ['id must be a-z0-9_- (built-in) or handle/name (community)'];
-  return CHECKS[m.kind](m);
+  const e = CHECKS[m.kind](m);
+  // Any module may list files the game preloads before play (src/assets.js); only .glb loads today.
+  if (m.assets !== undefined && !(Array.isArray(m.assets) && m.assets.every((a) => typeof a === 'string' && ASSET.test(a)))) e.push('assets must be a list of .glb files under public/, like "hifi/model.glb" (lowercase)');
+  return e;
+}
+
+// Pack modules (packs/<pack>/<kind>s/<id>.js) re-skin a registered module: how it looks, never how it plays.
+export const SKIN_FIELDS = { obstacle: ['createView'], pickup: ['createView'], prop: ['createView'], character: ['createView'], theme: ['createChunk', 'look'], ending: [] };
+const PACK_PATH = /^packs\/[a-z0-9_-]+\/([a-z]+)\/(.+)\.js$/;
+
+// entries: [{ path: 'packs/<pack>/<kind>s/<id>.js', module }]. Pure. Returns a new registry with each overlay merged over
+// the module it names, plus the overlays that failed; a failed overlay leaves that module exactly as it was.
+export function applyPack(registry, entries) {
+  const reg = Object.fromEntries(KINDS.map((k) => [k, Object.assign(Object.create(null), registry[k])]));
+  const problems = [], done = new Set();
+  for (const { path, module: m } of entries) {
+    const e = [], where = PACK_PATH.exec(path);
+    if (!isObj(m)) e.push('the default export must be an object');
+    else if (!KINDS.includes(m.kind)) e.push(`kind must be one of ${KINDS.join(', ')}`);
+    else if (typeof m.id !== 'string' || !(PLAIN.test(m.id) || NAMESPACED.test(m.id))) e.push('id must name a registered module');
+    else if (!where || where[1] !== KIND_DIR[m.kind] || where[2] !== m.id) e.push(`must be saved as packs/<pack>/${KIND_DIR[m.kind]}/${m.id}.js`);
+    else if (!registry[m.kind]?.[m.id]) e.push(`no registered ${m.kind} "${m.id}" to re-skin`);
+    else if (done.has(`${m.kind}:${m.id}`)) e.push('duplicate overlay');
+    else {
+      for (const k of Object.keys(m)) if (!['kind', 'id', 'assets', ...SKIN_FIELDS[m.kind]].includes(k)) e.push(`"${k}" is not a looks-only field of ${m.kind} modules: packs change how things look, not how they play`);
+      const merged = { ...registry[m.kind][m.id], ...m };
+      if (!e.length) e.push(...checkModule(merged));
+      if (!e.length) { reg[m.kind][m.id] = merged; done.add(`${m.kind}:${m.id}`); }
+    }
+    if (e.length) problems.push(`${isObj(m) && m.id ? `${m.kind} "${m.id}" (${path})` : path}: ${e.join('; ')}`);
+  }
+  return { registry: reg, problems };
+}
+
+// Browser loader for one pack. Lazy: a low-fi session never downloads pack code.
+export async function loadPack(name, files = import.meta.glob('../packs/**/*.js', { import: 'default' })) {
+  const mine = Object.entries(files).filter(([p]) => p.startsWith(`../packs/${name}/`));
+  return Promise.all(mine.map(async ([p, load]) => ({ path: p.replace(/^(\.\.\/)+/, ''), module: await safeLoad(p, load) }))); // a file that fails to load comes back empty, and applyPack lists it
 }
 
 // entries: [{ path: 'content/<kind>s/...js', module }]. Pure. Only modules with no problem are registered;
@@ -132,4 +193,9 @@ export function loadRegistry({ fixtures = false } = {}) {
 // A hook written by someone else may throw; the game must not freeze because of it.
 export function safeCall(label, fn, fallback) {
   try { return fn(); } catch (err) { console.warn(`${label} failed:`, err); return fallback; }
+}
+
+// The async twin, for code loaded on demand (a pack file, the HiFi look): a 404 or a network drop skips it, never blanks the page.
+export async function safeLoad(label, load) {
+  try { return await load(); } catch (err) { console.warn(`${label} failed to load:`, err); return undefined; }
 }

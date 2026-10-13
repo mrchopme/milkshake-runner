@@ -1,7 +1,8 @@
 import './style.css';
 import * as gfx from './gfx.js';
 import { createEngine } from './engine.js';
-import { loadRegistry } from './registry.js';
+import { loadRegistry, applyPack, loadPack, safeLoad } from './registry.js';
+import { preload, gate } from './assets.js';
 import { loadLevels } from './levels.js';
 import { loadCharacter } from './character.js';
 import { createHud, pickupIcon, pickupName } from './hud.js';
@@ -24,13 +25,28 @@ function showErrors(errors) {
   show('error');
 }
 
+// HiFi is a looks-only pack over the shipped content: on with a mouse or trackpad, off on touch. ?hifi or ?lofi forces it.
+const params = new URLSearchParams(location.search);
+const quality = params.has('hifi') ? 'hifi' : params.has('lofi') ? 'lofi' : matchMedia('(pointer: fine)').matches ? 'hifi' : 'lofi';
+
 async function main() {
   const engine = createEngine($('game'));
+  const look = quality === 'hifi' && await safeLoad('the HiFi look', () => import('./look.js')); // loads only for HiFi; if it fails, low-fi draws
+  if (look) engine.useLook(look.createLook(engine));
   const hud = createHud();
   const save = loadSave();
   const fixtures = import.meta.env.DEV && location.search.includes('fixtures');
-  const { registry, problems } = loadRegistry({ fixtures }); // a broken content module disables only itself
+  let { registry, problems } = loadRegistry({ fixtures }); // a broken content module disables only itself
+  if (quality === 'hifi') {
+    const pack = applyPack(registry, await loadPack('hifi')); // a broken overlay disables only itself; the module underneath carries on
+    registry = pack.registry;
+    problems = [...problems, ...pack.problems];
+  }
   if (problems.length) console.warn('Some content files are disabled:', problems);
+  // Every file the registered modules list (low-fi lists none). ponytail: all at boot; per level once a pack passes ~30 MB.
+  const paths = Object.values(registry).flatMap((byId) => Object.values(byId).flatMap((m) => m.assets ?? []));
+  const loaded = preload(paths), ready = gate(loaded);
+  if (paths.length) { $('play').textContent = 'LOADING…'; loaded.then(() => ($('play').textContent = 'RUN')); }
   const { levels, campaign, order, errors, valid } = loadLevels(registry, { fixtures });
   if (errors['campaign.json'] || errors['index.json'] || !valid(campaign.start)) return showErrors(errors);
   if (Object.keys(errors).length) console.warn('Some levels are disabled:', errors);
@@ -100,6 +116,7 @@ async function main() {
   }
 
   async function startLevel(id, carry = {}) {
+    if (!(await ready())) return; // a view needs its files before the street is built; a second click while they load is dropped
     if (!save.helpSeen) { save.helpSeen = true; writeSave(save); return help(() => startLevel(id, carry)); } // once per browser, before the first run however it starts (spec §4)
     show(null);
     if (backdrop) { backdrop.dispose(); backdrop = null; }
