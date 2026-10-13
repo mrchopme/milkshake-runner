@@ -14,15 +14,16 @@ export function placeholderTile(T, wallHex, glassHex, n = 64) {
   return t;
 }
 const tile = (gfx, path) => { try { const t = gfx.texture(path); t.wrapS = t.wrapT = gfx.three.RepeatWrapping; return t; } catch { return null; } };
+// A tile not loaded yet falls back to the placeholder under its own key, so the real tile still gets built once it lands.
 export function facadeMaterial(gfx, style, i) {
-  const T = gfx.three, path = style.facades?.[i], colors = style.buildings.colors;
-  return material(`${style.id}/facade/${path ?? i}`, () => new T.MeshStandardMaterial({
-    map: (path && tile(gfx, path)) || placeholderTile(T, colors[i % colors.length], '#2c3a63'), roughness: 0.5, metalness: 0.05,
+  const T = gfx.three, map = style.facades?.[i] && tile(gfx, style.facades[i]), colors = style.buildings.colors;
+  return material(`${style.id}/facade/${map ? style.facades[i] : `placeholder/${i}`}`, () => new T.MeshStandardMaterial({
+    map: map || placeholderTile(T, colors[i % colors.length], '#2c3a63'), roughness: 0.5, metalness: 0.05,
   }));
 }
 export function shopMaterial(gfx, style, i) {
-  const T = gfx.three, path = style.shops?.[i];
-  return material(`${style.id}/shop/${path ?? i}`, () => new T.MeshStandardMaterial({
-    map: (path && tile(gfx, path)) || placeholderTile(T, '#3b3f55', '#9ad0ff', 32), roughness: 0.4, metalness: 0.1,
+  const T = gfx.three, map = style.shops?.[i] && tile(gfx, style.shops[i]);
+  return material(`${style.id}/shop/${map ? style.shops[i] : `placeholder/${i}`}`, () => new T.MeshStandardMaterial({
+    map: map || placeholderTile(T, '#3b3f55', '#9ad0ff', 32), roughness: 0.4, metalness: 0.1,
   }));
 }
