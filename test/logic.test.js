@@ -536,3 +536,20 @@ test('a snap keeps the felt speed and switches the streaks off, so the frame a B
   assert.ok(Math.abs(streakOpacity(24) - (0.6 * 8) / 14) < 1e-9, 'a frame at 24 m/s draws the streaks');
   assert.equal(streakOpacity(24, Infinity), 0, 'a snap is a still: no motion lines');
 });
+
+test('the bend keeps instanced and batched copies where three puts them: batching, then instancing, then the model, then the street', () => {
+  const shader = { uniforms: {}, vertexShader: gfx.three.ShaderLib.standard.vertexShader };
+  gfx.bendable(new gfx.three.MeshStandardMaterial()).onBeforeCompile(shader, null);
+  const v = shader.vertexShader;
+  assert.ok(!v.includes('#include <project_vertex>'), 'three\'s projection is replaced');
+  const at = ['bentWorld = batchingMatrix * bentWorld', 'bentWorld = instanceMatrix * bentWorld', 'bentWorld = modelMatrix * bentWorld', 'bendOffset( bentWorld.z )'].map((s) => v.indexOf(s));
+  assert.ok(at.every((i, k) => i > 0 && (k === 0 || i > at[k - 1])), `in three's order: ${at}`);
+  assert.deepEqual(gfx.three.ShaderChunk.project_vertex.match(/\w+Matrix(?= \*)/g), ['batchingMatrix', 'instanceMatrix', 'modelViewMatrix', 'projectionMatrix'], 'three applies the same matrices in the same order; a three upgrade that changes them fails here');
+});
+
+test('a clone of a bent material is bent too, instead of silently rendering straight', () => {
+  const clone = gfx.bendable(new gfx.three.MeshStandardMaterial()).clone();
+  const shader = { uniforms: {}, vertexShader: 'void main() {\n#include <project_vertex>\n}' };
+  gfx.bendable(clone).onBeforeCompile(shader, null);
+  assert.ok(shader.vertexShader.includes('bendOffset'), 'the clone is patched');
+});

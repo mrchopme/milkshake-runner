@@ -3,8 +3,14 @@
 // leaves them alone. Skinned scenes (sub-project 3) will need SkeletonUtils.clone instead of clone().
 const cache = new Map(); // path under public/ -> loaded scene
 
+const share = (o) => { if (o) o.userData.shared = true; };
+// Flags every node and every part a copy shares (geometry, materials, their textures), so gfx.dispose leaves them alone
+// even when a module rebuilds them into its own meshes (an InstancedMesh over a model's geometry).
 export function adopt(path, scene) {
-  scene.traverse((n) => { n.userData.shared = true; });
+  scene.traverse((n) => {
+    share(n); share(n.geometry);
+    for (const m of [].concat(n.material ?? [])) { share(m); for (const v of Object.values(m)) if (v?.isTexture) share(v); }
+  });
   cache.set(path, scene);
 }
 
