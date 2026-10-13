@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PALETTE } from './palette.js';
-export { asset } from './assets.js'; // a preloaded GLB as a synchronous copy (src/assets.js)
+export { asset, texture } from './assets.js'; // a preloaded GLB as a synchronous copy, a preloaded image as a shared texture
 
 // Toon primitives for content modules. Materials are cached and shared; dispose() never touches them.
 export const palette = PALETTE;

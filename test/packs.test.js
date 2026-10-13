@@ -53,10 +53,15 @@ test('a community module is re-skinned at its namespaced path', () => {
 
 test('the merged module passes the same checks as any module', () => {
   assert.match(applyPack(shipped, taxi({ createView: 'nope' })).problems.join(), /createView/);
-  assert.match(applyPack(shipped, taxi({ assets: ['/etc/passwd'] })).problems.join(), /assets must be a list of \.glb files/);
+  assert.match(applyPack(shipped, taxi({ assets: ['/etc/passwd'] })).problems.join(), /assets must be a list of \.glb, \.webp or \.png files/);
   assert.match(applyPack(shipped, taxi({ assets: 'hifi/taxi.glb' })).problems.join(), /assets must be a list/);
   assert.match(checkModule({ ...shipped.obstacle.taxi, assets: ['../secrets.glb'] }).join(), /assets/);
   assert.equal(checkModule({ ...shipped.obstacle.taxi, assets: ['hifi/taxi.glb'] }).length, 0);
+});
+
+test('a module may list .webp and .png images as well as .glb models', () => {
+  assert.equal(checkModule({ ...shipped.obstacle.taxi, assets: ['hifi/taxi.glb', 'hifi/city/sky/downtown-01.webp', 'hifi/x.png'] }).length, 0);
+  assert.match(checkModule({ ...shipped.obstacle.taxi, assets: ['hifi/x.jpg'] }).join(), /assets must be a list of \.glb, \.webp or \.png files/);
 });
 
 test('no pack, no change', () => {
