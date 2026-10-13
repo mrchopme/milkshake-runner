@@ -796,7 +796,8 @@ above differs from the file, the file is right:
 
 - Task 2, `src/gfx.js`: `s = max(uBendStart, from − BEND_LEAD)` with `BEND_LEAD` = 40 m, in the GLSL and in `bendOffset`
   (3950926; spec addendum 1).
-- Task 2, `src/world.js`: `curveSegments(norm, run.z, builtTo, seed)`, not `run.z + AHEAD` (62ee1ea; spec addendum 2).
+- Task 2, `src/world.js`: `curveSegments(norm, run.z, builtTo + gfx.BEND_LEAD, seed)`, not `run.z + AHEAD` (62ee1ea, then
+  f483688 via PR #7 on 2026-10-09; spec addendum 2 and the ledger's Live tuning entry of 2026-10-09).
 - Task 1, `src/generator.js`: `push` extends the last stretch when the next one touches it with the same `turn` and `hill`,
   `"random"` picks included, so the step's assertion that every random stretch is exactly 240 m reads "cut on a 240 m line, a
   multiple of 240 m long" (d9679b5; spec addendum 3).
