@@ -98,6 +98,9 @@ export function bendOffset(z) {
   }
   return { x, y };
 }
+// Seconds of run time for shader animation (LED faces, marquees, blinking signs, traffic): world.update sets it, so pause
+// freezes it and a still (run.time = 0) pins it.
+export const time = { value: 0 };
 
 const mats = new Map();
 export function mat(color, opts = {}) {

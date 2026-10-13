@@ -127,3 +127,13 @@ test('a level-wide curve is fully straight at the finish line, not just aiming t
   assert.deepEqual(gfx.bendOffset(650), { x: 0, y: 0 }, 'the ending\'s street is straight');
   world.dispose();
 });
+
+test('the world hands shaders the run clock, so pause freezes animation and stills pin it', () => {
+  const registry = { obstacle: {}, pickup: {}, prop: {}, theme: { t: theme }, character: {}, ending: {} };
+  const world = createWorld(new THREE.Scene(), { ...level, obstacles: {} }, { registry, rules, seed: 1, end: 600 });
+  const run = createRun(rules, { height: 1.9, width: 1 });
+  run.time = 12.5;
+  world.update(run, 0);
+  assert.equal(gfx.time.value, 12.5);
+  world.dispose();
+});

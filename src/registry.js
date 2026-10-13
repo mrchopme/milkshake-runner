@@ -141,7 +141,7 @@ export function applyPack(registry, entries) {
 
 // Browser loader for one pack. Lazy: a low-fi session never downloads pack code.
 export async function loadPack(name, files = import.meta.glob('../packs/**/*.js', { import: 'default' })) {
-  const mine = Object.entries(files).filter(([p]) => p.startsWith(`../packs/${name}/`));
+  const mine = Object.entries(files).filter(([p]) => p.startsWith(`../packs/${name}/`) && !p.startsWith(`../packs/${name}/lib/`)); // lib/ holds the pack's helpers
   return Promise.all(mine.map(async ([p, load]) => ({ path: p.replace(/^(\.\.\/)+/, ''), module: await safeLoad(p, load) }))); // a file that fails to load comes back empty, and applyPack lists it
 }
 

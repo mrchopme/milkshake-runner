@@ -20,6 +20,8 @@ last-verified: never
 | 7 | `src/registry.js` | `assets` may list `.webp` and `.png` images as well as `.glb` models | The city's facade tiles and skylines are listed and preloaded like the models | Generic hook | No: the loader and the asset rule live in the engine |
 | 7 | `src/assets.js` | `preload` loads images as sRGB textures through `adopt` (flagged shared); `texture(path)` hands out the shared texture; `release(keep)` frees every cached file not kept | Images preload like models, and a level's files can be freed later (Task 16 wires `release`) | Generic hook | No: the loader and the asset rule live in the engine |
 | 7 | `src/gfx.js` | re-exports `texture` beside `asset` | Modules reach preloaded images through `gfx`, never importing `src/` | Generic hook | No: the loader and the asset rule live in the engine |
+| 8 | `src/registry.js` | `loadPack` skips files under `packs/<pack>/lib/` | A pack's helpers (the city generator) are imported by modules, never loaded as overlays | Generic hook | No |
+| 8 | `src/gfx.js`, `src/world.js` | `gfx.time = { value }`, set to `run.time` first thing in `world.update` | Shaders animate LED faces, marquees and traffic from the run clock; pause freezes it and stills pin it | Generic hook | No: no module has a per-frame hook for a chunk |
 
 ## Assets
 
