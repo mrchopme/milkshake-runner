@@ -84,14 +84,17 @@ const CHECKS = {
 export function checkLook(l) {
   if (!isObj(l)) return ['look must be an object'];
   const e = [];
-  for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'bloom'].includes(k)) e.push(`look: unknown key "${k}"`);
+  for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'bloom', 'skyline'].includes(k)) e.push(`look: unknown key "${k}"`);
   for (const [k, [lo, hi]] of Object.entries(LOOK_RANGES)) if (l[k] !== undefined && !num(l[k], lo, hi)) e.push(`look.${k} must be ${lo} to ${hi}`);
   if (l.skyTop !== undefined && !HEX.test(l.skyTop)) e.push('look.skyTop must be a hex colour');
+  const IMAGE = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.(?:webp|png)$/;
+  if (l.skyline !== undefined) { const s = [].concat(l.skyline); if (!(s.length >= 1 && s.length <= 2 && s.every((p) => typeof p === 'string' && IMAGE.test(p)))) e.push('look.skyline must be one or two image paths under public/'); }
   if (l.sun !== undefined) {
-    if (!isObj(l.sun) || Object.keys(l.sun).some((k) => !['color', 'intensity'].includes(k))) e.push('look.sun may only set color and intensity');
+    if (!isObj(l.sun) || Object.keys(l.sun).some((k) => !['color', 'intensity', 'dir'].includes(k))) e.push('look.sun may only set color, intensity and dir');
     else {
       if (l.sun.color !== undefined && !HEX.test(l.sun.color)) e.push('look.sun.color must be a hex colour');
       if (l.sun.intensity !== undefined && !num(l.sun.intensity, 0, 10)) e.push('look.sun.intensity must be 0 to 10');
+      if (l.sun.dir !== undefined && !(Array.isArray(l.sun.dir) && l.sun.dir.length === 3 && l.sun.dir.every((v) => Number.isFinite(v)) && l.sun.dir[1] < 0)) e.push('look.sun.dir must be [x, y, z] pointing down (y < 0)');
     }
   }
   if (l.bloom !== undefined) {

@@ -17,7 +17,7 @@ test('a look fills its defaults, and the sky fades to the level colour at the ho
   const s = lookState({ sky: '#9fd3f5', look: { exposure: 1.2, bloom: { strength: 0.8 } } });
   assert.equal(s.exposure, 1.2);
   assert.deepEqual(s.bloom, { strength: 0.8, threshold: 0.85, radius: 0.4 });
-  assert.deepEqual(s.sun, { color: '#ffffff', intensity: 3 });
+  assert.deepEqual(s.sun, { color: '#ffffff', intensity: 3, dir: null });
   assert.equal(s.skyTop, '#9fd3f5', 'no skyTop: a flat sky in the level colour');
   assert.equal(s.skyBottom, '#9fd3f5');
   assert.equal(lookState({ sky: '#9fd3f5', look: LOOK }).skyTop, '#5ea9ec');
@@ -27,7 +27,7 @@ test('look values are checked on themes', () => {
   assert.deepEqual(checkLook(LOOK), []);
   assert.match(checkLook({ exposure: 9 }).join(), /look.exposure must be 0.2 to 3/);
   assert.match(checkLook({ sun: { color: 'warm' } }).join(), /look.sun.color must be a hex colour/);
-  assert.match(checkLook({ sun: { tint: '#ffffff' } }).join(), /look.sun may only set color and intensity/);
+  assert.match(checkLook({ sun: { tint: '#ffffff' } }).join(), /look.sun may only set color, intensity and dir/);
   assert.match(checkLook({ bloom: { glow: 1 } }).join(), /look.bloom may only set strength, threshold and radius/);
   assert.match(checkLook({ fogColor: '#ffffff' }).join(), /look: unknown key "fogColor"/);
   assert.match(checkLook('bright').join(), /look must be an object/);
@@ -55,4 +55,16 @@ test('opaque meshes cast and receive shadows; glows and blob shadows do not', ()
   assert.ok(box.castShadow && box.receiveShadow);
   assert.ok(!glow.castShadow && !glow.receiveShadow);
   assert.ok(!blob.castShadow && !blob.receiveShadow);
+});
+
+test('a look may name its skyline and the sun\'s direction', () => {
+  assert.deepEqual(checkLook({ skyline: 'hifi/city/sky/downtown-01.webp', sun: { dir: [6, -16, 12] } }), []);
+  assert.deepEqual(checkLook({ skyline: ['hifi/city/sky/downtown-01.webp', 'hifi/city/sky/downtown-02.webp'] }), []);
+  assert.match(checkLook({ skyline: ['a.webp', 'b.webp', 'c.webp'] }).join(), /look.skyline must be one or two image paths/);
+  assert.match(checkLook({ skyline: 'sky.jpg' }).join(), /look.skyline must be one or two image paths/);
+  assert.match(checkLook({ sun: { dir: [0, 1, 0] } }).join(), /look.sun.dir must be \[x, y, z\] pointing down/);
+  const s = lookState({ sky: '#9fd3f5', look: { skyline: 'hifi/city/sky/downtown-01.webp', sun: { dir: [1, -2, 1] } } });
+  assert.deepEqual(s.skyline, ['hifi/city/sky/downtown-01.webp']);
+  assert.deepEqual(s.sun.dir, [1, -2, 1]);
+  assert.equal(lookState({ sky: '#000000', look: {} }).sun.dir, null);
 });
