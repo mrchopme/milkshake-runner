@@ -121,3 +121,8 @@ Every task against itself:
 - Task 2: Step 5 (main session): `t2-16x9` (3840×2160, 677f151c…), `t2-midtown` (2160×3840, c793d904…) and `t2-lineup` (the taxi on the road) render; `?lofi` re-shot after merging Tasks 2 and 6: 3d77a939…, unchanged. Found: switching shot levels in one page left the previous level's world in the scene (two cities z-fighting at the facade line) → fix round 1.
 - Task 2: fix round 1/5 (1 addressed, 0 open — shotLevel started a level on top of a running one; commits cb0d741..b10710c)
 - Task 2: complete (commits 8a7b33a..b10710c, merged as fe47ba2 and the fix after it; review clean)
+- Task 2: fix round 1 checked in the browser: midtown then downtown in one page, downtown clean (no second city), 5bcc4045… at 540×960.
+- Task 7: complete (commits fe47ba2..b8696ba, review clean; npm test 124)
+- Task 7: minor (deferred, carry to Task 16): a path still loading when `release` runs is adopted afterwards and stays cached outside `keep`; run `release` only after the level's `preload` has settled.
+- Task 7: minor (deferred, carry to Task 16): a `gfx.texture` image put on a material cloned from a cached `.glb` would be disposed when that `.glb` is released, even if another level keeps the image.
+- Task 7: minor (deferred): the `release` test empties the module cache for every later test in `test/assets.test.js`; it passes only because it runs last.
