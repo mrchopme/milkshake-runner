@@ -53,6 +53,20 @@ test('dust puffs hold their place on the road when Milkshake changes lane or jum
   assert.ok(Math.abs(now.z - born.z) < 1e-9, 'z is still held');
 });
 
+test('a dust puff from an earlier clock hides instead of flaring when the run restarts under a living view', async () => {
+  const view = await milkshake.createView(gfx);
+  const puffs = view.object.children.find((c) => c.children.length === 6);
+  const run = createRun(resolveRules(), milkshake);
+  for (let i = 0; i < 15; i++) { step(run, 1 / 60, 12); view.update(run); }
+  const live = puffs.children.filter((p) => p.visible);
+  assert.ok(live.length > 0 && run.time > 0.2, 'puffs are in the air a quarter second in');
+  run.time = 0; // a new run reuses the view: its clock starts again, behind every puff's birth
+  view.update(run);
+  const flared = puffs.children.filter((p) => p.visible && p.material.opacity > 0.5);
+  assert.deepEqual(flared.map((p) => p.material.opacity), [], 'no visible puff is brighter than a fresh one');
+  assert.ok(live.every((p) => !p.visible), 'a puff born in the clock\'s future hides, like an expired one');
+});
+
 // Board 14: the silhouette says the move. The boxes must agree with it: a barrier you can jump, a beam you can slide under, a taxi you cannot jump.
 test('the shipped obstacle boxes match their moves', () => {
   const R = resolveRules();

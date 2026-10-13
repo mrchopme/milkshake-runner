@@ -38,6 +38,7 @@ last-verified: never
 | 15 (fix 1) | `src/gfx.js` | `hook.cutFog`: `cutFog` patches a bent shader only once the HiFi look has set it (in `createLook`, before anything compiles); the test-only `fragmentShader` guard is gone | Low-fi's fragment shaders stay three's, with no `discard` (Apple, Mali and Adreno GPUs treat a shader that can discard as alpha-tested) | HiFi-only (only the look sets it) | No: the fog is three's, patched where the bend is |
 | 15 (fix 1) | `src/look.js` | `cascadeHook(csm)`: CSM's `setupMaterial` for lit materials only (Standard/Physical, Toon, Lambert, Phong), and a `dispose` listener deletes each from `csm.shaders`; the look sets `hook.cutFog`; its uncalled `dispose()` is removed | CSM's Map is strong and kept every bent material, several per spawn (jug blob and glow, orb and billboard sprites, the shield bubble) | HiFi-only | No |
 | 15 (fix 1) | `src/engine.js` | Comment only: the sun's placement comment names the look's cascades instead of the old shadow box | The box is gone | No behaviour change | — |
+| 18 | `content/characters/milkshake.js` | A dust puff with a negative age hides, like an expired one | A run's clock restarting while the view lives on left puffs with `age < 0`, so `opacity = 0.5 * (1 - age / 0.35)` reached about 6.7: a white bloom flare in HiFi (Task 15's midtown frame) | Generic (the shipped character module; the only low-fi difference is a puff that would have drawn at full opacity after a clock restart) | n/a: it is the module's own bug |
 
 ## Assets
 
