@@ -179,3 +179,4 @@ Every task against itself:
 - Task 19: complete (commits d968787..fb28fe8, review clean; npm test 144 after merge; no `src/` change)
 - Task 19: minor (deferred): `const LEG_SWING =0.7` spacing; `cowView`'s `skin` parameter shadows the module's `skin()` function; `BONES` legs read the default `SKIN.crotch`, so a caller that changes `crotch` must pass bones too; a HiFi `load`/`dress` that throws falls back to the shape cow silently (a `console.warn` would help Task 23).
 - Task 11: review found 3 Important (traffic: the preloaded taxi GLB drives sideways in its own frame; frozen car shadows; cars past the end of the paving) → fix round 1 sent.
+- Task 17: fix round 1/5 (2 addressed, 0 open — rim alpha; a view without an object; commits 72bbb61..896c385). Task 17: complete (commits 3ec8658..896c385); rim crop re-shot after merge (see Stills).
