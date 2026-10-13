@@ -58,10 +58,20 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
 
   // The skyline (round 2): up to two camera-centred open cylinders wearing look.skyline, far side first, between the dome and
   // the far plane; unbent, unfogged, no shadows. A missing image hides its ring. ponytail: calibration knobs.
-  const RING = { radius: [360, 330], base: -14, yaw: 0 };
+  // Its foot fades to the level sky over the lowest `fade` of the ring (the spec's "tinted to the level sky at its base"),
+  // so it meets the fogged street and buildings without a band; apply() re-tints it on every theme switch.
+  const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08 };
+  const tint = { value: new THREE.Color() };
   const rings = RING.radius.map((r, i) => {
     const geo = new THREE.CylinderGeometry(r, r, 1, 96, 1, true).translate(0, 0.5, 0);
-    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ transparent: true, side: THREE.BackSide, depthWrite: false, fog: false }));
+    const mat = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
+    mat.onBeforeCompile = (sh) => { // uv.y runs 0 at the ring's foot to 1 at its top
+      sh.uniforms.tint = tint;
+      sh.vertexShader = sh.vertexShader.replace('void main() {', 'varying float vRingY;\nvoid main() {\n  vRingY = uv.y;');
+      sh.fragmentShader = sh.fragmentShader.replace('void main() {', `uniform vec3 tint;\nvarying float vRingY;\nvoid main() {`)
+        .replace('#include <map_fragment>', `#include <map_fragment>\n  diffuseColor.rgb = mix( tint, diffuseColor.rgb, smoothstep( 0.0, ${RING.fade.toFixed(3)}, vRingY ) );`);
+    };
+    const m = new THREE.Mesh(geo, mat);
     m.renderOrder = -0.9 + i * 0.1; m.frustumCulled = false; m.visible = false; m.rotation.y = RING.yaw;
     scene.add(m);
     return m;
@@ -94,7 +104,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       sun.castShadow = !!s; // toggled with the shadow map, so the light state changes and materials recompile once
       scene.environment = s ? env : null;
       dome.visible = !!s;
-      for (const r of rings) r.visible = false; // shown below when the look names an image that is loaded
+      for (const r of rings) { r.visible = false; r.material.map = null; } // shown below when the look names a loaded image; unbound, so a later release() of the old image leaves nothing disposed bound
       if (!s) return;
       scene.environmentIntensity = s.env;
       sun.color.set(s.sun.color);
@@ -103,6 +113,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       dome.material.uniforms.top.value.set(s.skyTop);
       dome.material.uniforms.bottom.value.set(s.skyBottom);
       Object.assign(bloom, s.bloom);
+      tint.value.set(s.skyBottom); // the colour the fog and the dome's horizon fade to
       if (s.sun.dir) sunDir.set(...s.sun.dir).normalize();
       rings.forEach((ring, i) => {
         const list = s.skyline, path = list.length === 2 ? list[i] : i === 1 ? list[0] : undefined; // two images: far, near; one: the near ring
@@ -110,6 +121,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
         try { if (path) map = texture(path); } catch { /* not loaded: no ring */ }
         ring.visible = !!map;
         if (!map) return;
+        // ponytail: wrap and repeat are set on the shared preloaded texture; fine while only the ring uses skyline images
         map.wrapS = THREE.MirroredRepeatWrapping; map.repeat.x = 2; // the image covers half the ring, mirrored round the back
         ring.material.map = map; ring.material.needsUpdate = true;
         ring.scale.y = (Math.PI * RING.radius[i] * map.image.height) / map.image.width; // the image keeps its aspect over half the ring

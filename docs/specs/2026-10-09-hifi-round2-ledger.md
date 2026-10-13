@@ -68,6 +68,7 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 - Task 3: Ruling: facades, storefronts, party walls, trims and skylines are 2k at quality medium, the other image sets 1k at quality low; party walls and trims are 1:1 — the brief gives sizes only for facades and storefronts and names the probe "2k medium" — cost if wrong: the probe's price re-quotes wave 2.
 - Task 13: Ruling: `apply` hides both rings before its no-look early return, and the ring loop reads `s.skyline` (not `s?.skyline`) after it — the brief's loop sat after `if (!s) return`, so a switch to a theme with no look would have left the last skyline showing — cost if wrong: none, the rings are hidden either way when there is no look.
 - Task 13: Ruling: two sub-project 1 tests in `test/look.test.js` now expect the new shape (`lookState(...).sun` gains `dir: null`; the unknown-sun-key message reads "color, intensity and dir") — the brief changes both and the old expectations pinned the old shape — cost if wrong: none.
+- Task 13: Ruling: the ring's foot is tinted to the level sky (`lookState(...).skyBottom`, the colour the fog and the dome's horizon fade to) with an `onBeforeCompile` patch, a smoothstep over the lowest 8% of the ring (`RING.fade`), not vertex colours — vertex colours multiply the image and cannot blend it toward a colour; no Node test, since `createLook` needs a WebGL renderer (PMREM, composer) — cost if wrong: the 8% knob is re-tuned from the main session's frames.
 
 ## Progress
 
