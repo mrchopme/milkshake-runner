@@ -79,6 +79,11 @@ last-verified: never
 | sedan | 1 (pick) | bdb850bd-932f-4f33-8fa3-2238d62034df (1) | — | — | — | picked 2026-10-13 |
 | van | 1 (pick) | 6f4ff7f8-1cf1-47ca-b2fb-f728cef42fa4 (3) | — | — | — | picked 2026-10-13 |
 | milkshake | 1 (pick) | 7fb9ffe8-1bce-4441-9b12-900e80f1a05b (4) | — | — | — | picked 2026-10-13 |
+| city images: facades (15) | 2 | picks #52 #55 #58 #62 #64 · #67 #70 #73 #78 #81 · #82 #85 #88 #93 #96 (`scratchpad/w2/jobs.tsv`) | in wave 2 | `public/hifi/city/facades/<theme>-0N.webp` | 1024² | accepted all 2026-10-13 (board 16b) |
+| city images: storefronts (12) | 2 | #98 #101 #104 #107 · #110 #113 #116 #119 · #122 #125 #128 #131 | in wave 2 | `public/hifi/city/shops/<theme>-0N.webp` | 1024×439 | accepted all 2026-10-13 |
+| city images: party walls, trims (3 + 3) | 2 | #133 #135 #137 · #140 #141 #144 | in wave 2 | `facades/<theme>-party.webp`, `facades/<theme>-trims.webp` | 1024² | accepted all 2026-10-13 |
+| city images: posters, blade signs, LED faces (12 + 6 + 3) | 2 | #146 #147 #149 #151 #153 #155 #157 #159 #161 #163 #166 #167 · #170 #172 #173 #175 #178 #179 · #182 #183 #185 | in wave 2 | `public/hifi/city/signs/{poster,blade,led}-0N.webp` | 1024 long side | accepted all 2026-10-13 |
+| city images: skylines (8) | 2 | #187 #189 · #3910 #3932 (midtown, redone without the sun glow) · #195 #198 · #199 #201 | in wave 2 + redo | `public/hifi/city/sky/<theme>-01.webp` (far), `-02` (near) | 2048 wide, mirrored, cropped to the tower band | accepted all 2026-10-13 |
 
 ## Credits
 
@@ -94,6 +99,7 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 
 | Task | What | Source | Size | Approved by Caedon |
 |---|---|---|---|---|
+| 20 | 62 picked wave 2 PNGs (index in `scratchpad/raw/images/index.json`) | d8j0ntlcm91z4.cloudfront.net (Higgsfield CDN) → `scratchpad/raw/images/` | 166.5 MB (sizes checked against HEAD); tiled WebPs in the repo: 62 files, 3.2 MB | Caedon: "Download (166.5 MB)", 2026-10-13 |
 
 ## Stills and measurements
 
@@ -110,6 +116,7 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 | 15 | `t15-lofi.png`, 2160×3840 | `?fixtures&lofi` after merging Task 15 (2012105) | 464,350 bytes, byte-identical to the baseline | 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3 |
 | 15 | `hifiProbe` downtown and midtown, fog cut + 2 CSM cascades together | `?fixtures&hifi`, 150 frames at 3024×1964 | downtown 7.74 ms mean / 11.2 p95, 527 calls, 352,622 tris; midtown 5.93 / 10.4, 519, 293,115 (Task 14 base: 5.98 / 11.3 and 5.55 / 9.8) | — |
 | 15 | `t15-downtown-16x9`, `t15-midtown-clean` (1080×1920), `t15-bridge-16x9` | `?fixtures&hifi` on 2012105 | the skyline sits low at the avenue's end (ring × 0.3); cascaded shadows; white paint and the taxi's lamps still bloom (Task 24) | — |
+| 18 | `t18-lofi.png`, `t18-midtown-1080` | after merging Task 18 (f63abc0) | low-fi 3d77a939…, unchanged; HiFi midtown before/after the MSAA change compared by eye: edges stay smooth, taxi lamps still glow in their own shape (max pixel difference 59, the paint's physical define) | 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3 |
 
 ## Rulings
 
@@ -145,6 +152,8 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 - Task 20: Ruling: views are checked against the convention that a left view shows the object's front pointing to the left edge of the frame (camera at the object's left); 18 of 52 drew the wrong side (a rear drawn as a second front, both sides facing the same way, an end drawn as a long side) and were redone with the side spelled out in the view clause (Caedon approved, 4.5); the newsstand's left and right are mirror-consistent but swapped, so they go to Tripo swapped, free — cost if wrong: a mirrored model, harmless for these left-right symmetric props.
 - Task 18: Ruling: `gloss` applies its extras with `material.setValues(extra)`, not the brief's `Object.assign(p, extra)` — `Object.assign` replaced the material's `emissive` Color with the string `'#ffffff'` the taxi passes (a test shows `emissive.isColor` false), which would reach the shader as NaN; `setValues` is the constructor's own path and turns the string into the Color — cost if wrong: none.
 - Task 18: Ruling: the taxi's exported `lampMask(px)` (a loop over RGBA bytes) became `isLamp(r, g, b)`, the predicate `glowMap` takes, since the loop now lives in `glowMap`; the lamp test checks the predicate on the same four texels (lamp kept, yellow paint, white bumper and orange shadow rejected) and keeps its no-red-plates assertion — cost if wrong: restore a three-line wrapper beside `isLamp`.
+- Task 20: Ruling: the spec's four image folders hold everything: party walls and trim sheets go to `facades/<theme>-party.webp` and `facades/<theme>-trims.webp`; posters, blade signs and LED faces to `signs/{poster,blade,led}-0N.webp` (shared by every theme); each skyline is cropped to its band of towers (full width, from 8 px above the alpha bounding box to the bottom), mirrored and sized to 2048 wide — the empty transparent sky would only have made the ring taller — cost if wrong: re-run `scripts/tile-image.py` from `scratchpad/raw/images/` (kept).
+- Task 25: note: downtown's near skyline (`sky/downtown-02.webp`) has a stepped crown with a needle spire; generic to my eye, but it goes on board 17 for Caedon's landmark check before it ships.
 
 ## Progress
 
@@ -197,6 +206,8 @@ Every task against itself:
 - Task 15: complete (commits 841b3b2..141acba, merged as 2012105; fix round 1: CSM forgets disposed materials and sees only lit ones, the fog cut compiles only when a HiFi look exists, uncalled `dispose()` removed, stale comments; re-review clean; npm test 154; `?lofi` 3d77a939…, unchanged)
 - Task 15: minors (re-review, parked): N1 the CSM test stands in for `csm.shaders`, so a three rename would slip by (three pinned ^0.186.1); N2 the first Task 15 Engine-changes row reads in pre-fix terms, superseded by the `15 (fix 1)` rows.
 - Task 20: Steps 1–3 done (203 generated, 0 failed; 18 views and 4 midtown skylines redone). Step 4: Caedon asked for the contact sheet and picks on a Paper board beside the others, not a separate HTML page; download not yet approved.
+- Task 18: complete (commits 45ad80e..2384f5b, merged as f63abc0; fix round 1: gloss keeps the physical define, glowMap's pixel path tested; re-review clean; npm test 159; `?lofi` 3d77a939…, unchanged)
+- Task 20: Step 4 done (board 16b on its own Paper page; Caedon accepted all 62 picks; two views redone a second time, 0.5); Step 5 done (download approved, 62 PNGs); Step 6 done (62 WebPs tiled, 3.2 MB). Boards 16 and 16b moved to their own Paper pages at Caedon's request (the main page crashed with that many images).
 
 ## Final review
 
