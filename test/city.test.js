@@ -9,6 +9,9 @@ import { street, CROSS } from '../packs/hifi/lib/street.js';
 import { buildings } from '../packs/hifi/lib/buildings.js';
 import { DRIVE } from '../packs/hifi/lib/traffic.js';
 import { adopt } from '../src/assets.js';
+import bridge from '../packs/hifi/themes/bridge.js';
+import shippedBridge from '../content/themes/bridge.js';
+import { waterMaterial } from '../packs/hifi/lib/bridge.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 const chunk = (seed, z0 = 0, length = 120) => downtown.createChunk.call({ ...shipped, ...downtown }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shipped, ...downtown } });
@@ -162,4 +165,22 @@ test('a loaded car model drives along the cross street whatever its own frame, a
     }
   });
   assert.ok(kinds.has('taxi'), 'the loaded taxi drove');
+});
+
+test('the HiFi bridge stays inside its chunk and keeps a road', () => {
+  for (const seed of [1, 2, 3]) for (const z0 of [1080, 1200]) { // 1200 % 240 === 0: the chunk with a tower pair and its cables
+    const g = bridge.createChunk.call({ ...shippedBridge, ...bridge }, gfx, { z0, length: 120, lanes, rng: rng(seed), theme: { ...shippedBridge, ...bridge } });
+    const [lo, hi] = zSpan(g);
+    assert.ok(lo >= z0 - 1e-6 && hi <= z0 + 120 + 1e-6, `${lo}..${hi}`);
+    let road = false, meshes = 0; g.traverse((n) => { if (n.userData.road) road = true; if (n.isMesh) meshes++; });
+    assert.ok(road);
+    assert.ok(meshes <= 45, `${meshes} meshes`);
+  }
+});
+
+test('the bridge water ripples through its own normal map, scrolled by the run clock', () => {
+  const m = waterMaterial(gfx), s = { uniforms: {}, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
+  m.onBeforeCompile(s);
+  assert.equal(s.uniforms.uTime, gfx.time);
+  assert.ok(!s.fragmentShader.includes('#include <normal_fragment_maps>') && s.fragmentShader.includes('vNormalMapUv + vec2( 0.0, uTime * 0.03 )'));
 });
