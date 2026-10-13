@@ -2,7 +2,7 @@ import './style.css';
 import * as gfx from './gfx.js';
 import { createEngine } from './engine.js';
 import { loadRegistry, applyPack, loadPack, safeLoad } from './registry.js';
-import { preload, gate } from './assets.js';
+import { gateLoads, levelAssets, release } from './assets.js';
 import { loadLevels } from './levels.js';
 import { loadCharacter } from './character.js';
 import { createHud, pickupIcon, pickupName } from './hud.js';
@@ -43,16 +43,19 @@ async function main() {
     problems = [...problems, ...pack.problems];
   }
   if (problems.length) console.warn('Some content files are disabled:', problems);
-  // Every file the registered modules list (low-fi lists none). ponytail: all at boot; per level once a pack passes ~30 MB.
-  const paths = Object.values(registry).flatMap((byId) => Object.values(byId).flatMap((m) => m.assets ?? []));
-  const loaded = preload(paths), ready = gate(loaded);
-  if (paths.length) { $('play').textContent = 'LOADING…'; loaded.then(() => ($('play').textContent = 'RUN')); }
   const { levels, campaign, order, errors, valid } = loadLevels(registry, { fixtures });
   if (errors['campaign.json'] || errors['index.json'] || !valid(campaign.start)) return showErrors(errors);
   if (Object.keys(errors).length) console.warn('Some levels are disabled:', errors);
 
   const defaultRules = resolveRules();
   let backdrop = null;
+  // Per level (round 2): a level's files load before it starts, behind LOADING…; the previous level's leave once its world is gone.
+  const loads = gateLoads();
+  async function prepare(id) {
+    const paths = levelAssets(levels[id], registry), play = $('play');
+    play.textContent = 'LOADING…';
+    try { return await loads(paths); } finally { play.textContent = 'RUN'; }
+  }
   // One character in the scene at a time: a level's character replaces the previous one.
   const character = async (level) => {
     const view = await loadCharacter(registry.character[level.character?.id ?? 'milkshake']);
@@ -63,14 +66,17 @@ async function main() {
 
   async function menu() {
     const level = levels[campaign.start];
-    if (!backdrop) backdrop = createWorld(engine.scene, level, { registry, rules: defaultRules, seed: 1, end: 400 });
+    $('endless').hidden = !levels.endless || isLocked(campaign, save, 'endless');
+    show('menu'); // the buttons appear first; the street when its files land, the character after its model
+    if (!backdrop) {
+      if (!(await prepare(campaign.start))) return; // the menu's own load counts as the one running load
+      backdrop = createWorld(engine.scene, level, { registry, rules: defaultRules, seed: 1, end: 400 });
+    }
     const idle = createRun(defaultRules, registry.character[level.character?.id ?? 'milkshake']);
     backdrop.update(idle, 0);
     engine.setSky(backdrop.skyAt(0));
     engine.follow(idle, {}, Infinity); // a still: the felt speed of the last run does not carry into the menu
     engine.render();
-    $('endless').hidden = !levels.endless || isLocked(campaign, save, 'endless');
-    show('menu'); // the street and the buttons appear before the character model has downloaded
     const view = await character(level);
     view.update(idle);
     engine.render();
@@ -116,10 +122,11 @@ async function main() {
   }
 
   async function startLevel(id, carry = {}) {
-    if (!(await ready())) return; // a view needs its files before the street is built; a second click while they load is dropped
+    if (!(await prepare(id))) return; // a level's files before its street is built; a second click while they load is dropped
     if (!save.helpSeen) { save.helpSeen = true; writeSave(save); return help(() => startLevel(id, carry)); } // once per browser, before the first run however it starts (spec §4)
     show(null);
     if (backdrop) { backdrop.dispose(); backdrop = null; }
+    release(levelAssets(levels[id], registry)); // after the old world is gone and before this level's sky: nothing drawn holds a freed file
     const level = levels[id];
     const view = await character(level);
     let result;

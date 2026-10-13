@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { adopt, preload, asset, gate, release } from '../src/assets.js';
+import { adopt, preload, asset, gateLoads, levelAssets, release } from '../src/assets.js';
 
 const model = () => gfx.group(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ map: new THREE.Texture() })));
 
@@ -44,13 +44,23 @@ test('preload loads each file once and never rejects when one fails', async () =
   assert.equal(asked.length, 2, 'a cached file is not loaded again');
 });
 
-test('while the files load, a second start is dropped, so a double click on LOADING… starts one level', async () => {
-  let loaded;
-  const start = gate(new Promise((r) => { loaded = r; }));
-  const first = start(), second = start();
-  loaded();
+test('a level\'s files include every module it names, section themes, the default jug and its character', () => {
+  const reg = {
+    theme: { a: { assets: ['t/a.webp'] }, b: { assets: ['t/b.webp'] } }, obstacle: { o: { assets: ['o.glb'] }, unused: { assets: ['no.glb'] } },
+    pickup: { jug: { assets: ['jug.glb'] }, s: { assets: ['s.glb'] } }, prop: { p: { assets: ['p.glb'] }, q: { assets: ['q.glb'] } },
+    character: { milkshake: { assets: ['m.glb'] } }, ending: { finish: {} },
+  };
+  const level = { theme: { id: 'a' }, obstacles: { o: 1 }, jugs: { powerups: ['s'] }, props: { ids: { p: 1 } }, sections: [{ theme: { id: 'b' }, placements: [{ kind: 'prop', id: 'q' }] }] };
+  assert.deepEqual(levelAssets(level, reg).sort(), ['jug.glb', 'm.glb', 'o.glb', 'p.glb', 'q.glb', 's.glb', 't/a.webp', 't/b.webp']);
+});
+
+test('a second start while a level\'s files load is dropped', async () => {
+  let done;
+  const start = gateLoads(() => new Promise((r) => { done = r; }));
+  const first = start(['x.glb']), second = start(['x.glb']);
+  done();
   assert.deepEqual(await Promise.all([first, second]), [true, false]);
-  assert.equal(await start(), true, 'once the files are in, the next start goes through');
+  assert.equal(await gateLoads(async () => {})(['y.glb']), true);
 });
 
 test('dropping an instanced copy frees its instance buffers, never the shared model or a shared texture', () => {
@@ -88,4 +98,11 @@ test('release frees every cached file a level does not keep, and keeps the rest'
   assert.deepEqual(freed.sort(), ['geometry', 'map', 'material', 'texture']);
   assert.ok(asset('test/keep.glb'));
   assert.throws(() => asset('test/drop.glb'), /not loaded/);
+});
+
+test('release keeps what the next level needs', () => {
+  adopt('test/next.glb', model()); adopt('test/old.glb', model());
+  release(levelAssets({ theme: { id: 'a' } }, { theme: { a: { assets: ['test/next.glb'] } }, obstacle: {}, pickup: {}, prop: {}, character: {}, ending: {} }));
+  assert.ok(asset('test/next.glb'));
+  assert.throws(() => asset('test/old.glb'), /not loaded/);
 });
