@@ -23,8 +23,10 @@ test('a power-up\'s worn look rides on the character while its effect lasts, and
 test('a power-up without a worn look, or one whose createWorn throws, changes nothing', () => {
   const warn = console.warn; console.warn = () => {};
   try {
-    const parent = gfx.group(), worn = wornLooks({ pickup: { a: {}, b: { createWorn() { throw new Error('x'); } } } }, gfx);
-    worn.update({ effects: { a: {}, b: {} } }, parent);
+    const parent = gfx.group(), worn = wornLooks({ pickup: { a: {}, b: { createWorn() { throw new Error('x'); } }, c: { createWorn: (g) => g.group() } } }, gfx);
+    worn.update({ effects: { a: {}, b: {}, c: {} } }, parent);
     assert.equal(parent.children.length, 0);
+    worn.update({ effects: {} }, parent);
+    worn.dispose(); // a bare Group (no .object) from createWorn must not make either throw
   } finally { console.warn = warn; }
 });
