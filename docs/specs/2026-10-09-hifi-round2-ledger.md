@@ -137,6 +137,8 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 | 23 | `hifiProbe` downtown | `?fixtures&hifi`, 150 frames at 3024×1964, kit loaded | 6.37 ms mean / 10.8 p95, 366 calls, 2,521,922 tris (Task 15 base: 7.74 / 11.2, 527 calls, 352,622 tris) | — |
 | 23 | `t23-cart-v2`, `t23-overpass`, `t23-tunnel` (1920×1080; strip `t23-cart-props`) | `compareViews` of the merged overlays | the cart (body fills the jump box, umbrella above) now reads about 1.5 m across beside the 2 m barrier; the overpass reads as a stone gateway, deck at 5 m, pillars on the sidewalks; the tunnel is a cream stone vault, mouth to the player, its light rim blooming a little (Task 24) | — |
 | 23 | `t23-scaffold-v2` (+ crop), 1920×1080 | the merged scaffold v2 overlay at z 66 and 72 | a striped plank on two round posts with orange feet, open space below across the lane (the doorway 1.58 m at the feet); the stretched middle stripes read as normal at game distance, no visible kink at the seams | — |
+| 23 | `t23-lofi.png`, 2160×3840 | `?fixtures&lofi` after merging Milkshake v2 (977239d; `skinWeights` gained the optional `armFloor`/`armBack`) | 464,350 bytes, byte-identical to the baseline | 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3 |
+| 23 | `t23-ms-stride-0..3` (strip `t23-ms-stride`), 900×900 | `?fixtures&hifi`, Milkshake v2 posed on the road at stride phases ¼, ½, ¾, 0 (`run.time`), side camera | Milkshake faces its running direction; legs and arms swing in opposition (hands forward and back), the tail holds still; a slight crotch pinch and a small dark seam where the arm meets the body at the stride's peak (the agent's "rubbery" note), acceptable for a toy at run speed | — |
 
 ## Rulings
 
