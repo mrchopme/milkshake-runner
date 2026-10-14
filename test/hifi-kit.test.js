@@ -181,6 +181,9 @@ test('a lit kit piece glows through an emissive map of its own texels; an unlit 
     const lamp = kitParts(gfx, { ...KIT.lamp }, placeholder('lamp'))[0].material;
     assert.deepEqual([...lamp.emissiveMap.image.px], [210, 184, 129, 255, 0, 0, 0, 255], 'the lens alone');
     assert.ok(lamp.emissive.getHexString() === 'ffffff' && lamp.emissiveIntensity > 1);
+    adopt(KIT.traffic_light.path, standIn([1, 0, 0], map));
+    assert.equal(kitParts(gfx, { ...KIT.traffic_light }, placeholder('traffic_light'))[0].material.emissiveIntensity, 1.2, 'the signal glows softer than the lamps (board 17c)');
+    assert.ok(lamp.emissiveIntensity > 1.2, 'the lamps keep GLOW');
     adopt(KIT.bench.path, standIn([1, 0, 0], map));
     assert.equal(kitParts(gfx, { ...KIT.bench }, placeholder('bench'))[0].material.emissiveMap, null);
   });

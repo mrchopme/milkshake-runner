@@ -7,13 +7,15 @@ const globe = (r, g, b) => r > 245 && g > 245 && b > 245;                     //
 const red = (r, g, b) => r > 150 && g < 90 && b < 90;                         // a red tail lamp (the taxi's isLamp)
 // Furniture and side-street vehicles. path: the generated model; h: its height in metres (board 15); yaw: turns its front
 // (+x on every generated model; the lamp's arm reaches -z) to +z, the way the piece faces; glow: the texel test of its lights;
-// repaint: texels recoloured before the glow (see recolour). Until the model loads, a code placeholder stands in.
+// repaint: texels recoloured before the glow (see recolour); bright: its glow strength, GLOW unless set. Until the model loads,
+// a code placeholder stands in.
 // ponytail: calibration knobs.
 const FRONT = -Math.PI / 2;
 export const KIT = {
   lamp: { path: 'hifi/furniture/lamp.glb', h: 6.5, yaw: Math.PI, glow: warm },
   lamp_double: { path: 'hifi/furniture/lamp_double.glb', h: 6.5, yaw: FRONT, glow: warm }, // arms along the street, clear of the facades
-  traffic_light: { path: 'hifi/furniture/traffic_light.glb', h: 5.5, yaw: FRONT, glow: signal },
+  // bright 1.2 (Caedon, 2026-10-14, board 17c): at GLOW the red lens washes out to pink and the green throws a halo over the housing
+  traffic_light: { path: 'hifi/furniture/traffic_light.glb', h: 5.5, yaw: FRONT, glow: signal, bright: 1.2 },
   hydrant: { path: 'hifi/furniture/hydrant.glb', h: 0.8, yaw: FRONT, glow: null },
   bench: { path: 'hifi/furniture/bench.glb', h: 0.9, yaw: FRONT, glow: null },
   bin: { path: 'hifi/furniture/bin.glb', h: 0.9, yaw: FRONT, glow: null },
@@ -88,9 +90,9 @@ function build(T, model, entry) {
 }
 // The generated material without Tripo's random metal (it reads as dark paint; main session's ruling), its lights lit from
 // their own texels. gloss copies the source's shared flag, so dropping a chunk never frees it.
-function dress(T, mesh, { glow, repaint }) {
+function dress(T, mesh, { glow, repaint, bright = GLOW }) {
   const map = repaint ? recolour(T, mesh, repaint) : mesh.material.map, lights = glow && glowMap(T, map, glow);
-  return gloss(T, mesh.material, { map, metalness: 0, metalnessMap: null, ...(lights && { emissive: '#ffffff', emissiveMap: lights, emissiveIntensity: GLOW }) });
+  return gloss(T, mesh.material, { map, metalness: 0, metalnessMap: null, ...(lights && { emissive: '#ffffff', emissiveMap: lights, emissiveIntensity: bright }) });
 }
 // A copy of the colour map with the texels `test` accepts painted `to`, on the triangles wholly inside the rear fraction
 // `rear` of the mesh (-x in its own frame; the generated GLBs carry only a uniform scale on the node). The source map is
