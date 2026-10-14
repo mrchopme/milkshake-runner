@@ -78,6 +78,7 @@ test('a look may name its skyline and the sun\'s direction', () => {
   assert.deepEqual(checkLook({ skyline: ['hifi/city/sky/downtown-01.webp', 'hifi/city/sky/downtown-02.webp'] }), []);
   assert.match(checkLook({ skyline: ['a.webp', 'b.webp', 'c.webp'] }).join(), /look.skyline must be one or two image paths/);
   assert.match(checkLook({ skyline: 'sky.jpg' }).join(), /look.skyline must be one or two image paths/);
+  assert.match(checkLook({ skyline: 'hifi/sky.glb' }).join(), /look.skyline must be one or two image paths/, 'an asset, but a model');
   assert.match(checkLook({ sun: { dir: [0, 1, 0] } }).join(), /look.sun.dir must be \[x, y, z\] pointing down/);
   const s = lookState({ sky: '#9fd3f5', look: { skyline: 'hifi/city/sky/downtown-01.webp', sun: { dir: [1, -2, 1] } } });
   assert.deepEqual(s.skyline, ['hifi/city/sky/downtown-01.webp']);

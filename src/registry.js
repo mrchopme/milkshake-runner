@@ -88,8 +88,7 @@ export function checkLook(l) {
   for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'bloom', 'skyline', 'skylineHeight'].includes(k)) e.push(`look: unknown key "${k}"`);
   for (const [k, [lo, hi]] of Object.entries(LOOK_RANGES)) if (l[k] !== undefined && !num(l[k], lo, hi)) e.push(`look.${k} must be ${lo} to ${hi}`);
   if (l.skyTop !== undefined && !HEX.test(l.skyTop)) e.push('look.skyTop must be a hex colour');
-  const IMAGE = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.(?:webp|png)$/;
-  if (l.skyline !== undefined) { const s = [].concat(l.skyline); if (!(s.length >= 1 && s.length <= 2 && s.every((p) => typeof p === 'string' && IMAGE.test(p)))) e.push('look.skyline must be one or two image paths under public/'); }
+  if (l.skyline !== undefined) { const s = [].concat(l.skyline); if (!(s.length >= 1 && s.length <= 2 && s.every((p) => typeof p === 'string' && ASSET.test(p) && !p.endsWith('.glb')))) e.push('look.skyline must be one or two image paths under public/'); }
   if (l.skylineHeight !== undefined && !(Array.isArray(l.skylineHeight) && l.skylineHeight.length === 2 && l.skylineHeight.every((h) => num(h, 10, 400)))) e.push('look.skylineHeight must be [far, near], each 10 to 400 metres');
   if (l.sun !== undefined) {
     if (!isObj(l.sun) || Object.keys(l.sun).some((k) => !['color', 'intensity', 'dir'].includes(k))) e.push('look.sun may only set color, intensity and dir');
