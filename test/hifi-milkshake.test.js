@@ -2,35 +2,46 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as gfx from '../src/gfx.js';
 import { adopt } from '../src/assets.js';
-import milkshake, { skinWeights } from '../content/characters/milkshake.js';
+import milkshake, { skinWeights, SKIN as SHIPPED } from '../content/characters/milkshake.js';
 
-const [HIPS, HEAD, , , LEG_L, LEG_R] = [0, 1, 2, 3, 4, 5]; // the arms' slots are 2 and 3
+const [HIPS, HEAD, ARM_L, ARM_R, LEG_L, LEG_R] = [0, 1, 2, 3, 4, 5];
 
-// Points on public/hifi/milkshake.glb in its geometry frame (y -1..1, +x the muzzle, z left-right), read with gltf-transform
-// on 2026-10-13: each must land on the right bone, the tail and the belly never on an arm.
+// Points on public/hifi/milkshake.glb (v2, arms down) in its geometry frame (y -1..1, +x the muzzle, z left-right), read with
+// gltf-transform on 2026-10-14: each must land on the right bone; the tail and the belly never on an arm.
 test('the HiFi Milkshake\'s skin knobs give each part of the generated mesh to its bone', async () => {
   const { SKIN, BONES } = await import('../packs/hifi/characters/milkshake.js');
-  const on = (y, z, bone, what) => assert.equal(skinWeights(y, z, SKIN)[bone], 1, what);
-  on(-0.95, 0.27, LEG_L, 'a hoof is all one leg'); on(-0.95, -0.27, LEG_R, 'the other hoof the other leg');
-  on(-0.75, 0.2, LEG_L, 'a leg up to the blend under where the legs join'); on(-0.75, -0.2, LEG_R, 'and the other');
-  on(-0.56, 0.36, HIPS, 'the belly\'s flank, wider than the chest');
-  on(-0.33, -0.55, HIPS, 'the tail\'s tip, out to the side below the arms, never swings with an arm');
-  on(-0.5, -0.4, HIPS, 'the tail\'s root');
-  on(0.015, 0.66, HIPS, 'an arm rides the torso'); on(0.015, -0.66, HIPS, 'and the other');
-  on(0.3, 0, HEAD, 'the muzzle'); on(0.66, 0.55, HEAD, 'an ear'); on(0.95, 0.23, HEAD, 'a horn');
-  const crotch = skinWeights(SKIN.crotch, 0.2, SKIN);
+  const on = ([x, y, z], bone, what) => assert.equal(skinWeights(y, z, SKIN, x)[bone], 1, what);
+  on([0.02, -0.95, 0.25], LEG_L, 'a hoof is all one leg'); on([0.03, -0.95, -0.24], LEG_R, 'the other hoof the other leg');
+  on([0.01, -0.73, 0.2], LEG_L, 'a leg up to the blend under where the legs join'); on([0.01, -0.73, -0.2], LEG_R, 'and the other');
+  on([0, -0.2, 0.44], ARM_L, 'an arm hanging at the side'); on([0, -0.2, -0.43], ARM_R, 'and the other');
+  on([0, -0.38, 0.42], ARM_L, 'a hand'); on([0, -0.38, -0.42], ARM_R, 'the other hand');
+  on([0, -0.55, 0.355], HIPS, 'the belly\'s flank under a hand, as wide as the arm\'s root');
+  on([-0.42, -0.36, -0.55], HIPS, 'the tail\'s tip, at the hands\' height and further out, never swings with an arm');
+  on([-0.3, -0.35, -0.42], HIPS, 'the tail where it passes behind the right arm');
+  on([0, 0.09, 0.35], HIPS, 'the top of the shoulder, between the arm and the head, is neither');
+  on([0.4, 0.3, 0], HEAD, 'the muzzle'); on([-0.05, 0.67, 0.55], HEAD, 'an ear'); on([-0.03, 0.95, 0.25], HEAD, 'a horn');
+  const crotch = skinWeights(SKIN.crotch, 0.2, SKIN, 0);
   assert.ok(crotch[LEG_L] > 0.4 && crotch[LEG_L] < 0.6 && crotch[HIPS] > 0.4, 'the crotch band blends leg into hips');
+  assert.ok(SKIN.shoulder + SKIN.shoulderBand <= SKIN.neck, 'the arm-top and neck bands do not overlap: no vertex is torn between a swinging arm and a nodding head');
   assert.ok(BONES.legL[1] === SKIN.crotch && BONES.legR[1] === SKIN.crotch, 'the legs swing from where they join');
   assert.ok(BONES.head[1] > SKIN.neck && BONES.head[1] < SKIN.neck + SKIN.neckBand, 'the head nods from inside its neck band');
+  assert.ok([BONES.armL, BONES.armR].every((b) => Math.abs(b[2]) > SKIN.armZ && b[0] > SKIN.armBack && b[1] <= SKIN.shoulder + SKIN.shoulderBand), 'each arm swings from its own shoulder');
 });
 
-test('the HiFi Milkshake wears the generated model: skinned, glossy, unshadowed by a blob, 1.9 m tall, face ahead', async () => {
+test('the arm floor and back knobs are off for the shipped Milkshake, so its weights (and ?lofi) do not change', () => {
+  for (const [y, z] of [[-0.49, 0.1], [-0.1, 0.22], [-0.1, -0.22], [0.05, 0.2], [0.4, 0], [-0.3, 0.3]]) {
+    for (const x of [-0.4, 0, 0.4]) assert.deepEqual(skinWeights(y, z, SHIPPED, x), skinWeights(y, z), `y ${y}, z ${z}, x ${x}`);
+  }
+});
+
+test('the HiFi Milkshake wears the generated model: skinned, glossy, unshadowed by a blob, 1.9 m tall, face ahead, arms swinging', async () => {
   const T = gfx.three;
   // A stand-in in the optimised GLB's shape: positions in the quantised frame (y -1..1), the node scaling them down.
   const map = new T.Texture(), orm = new T.Texture();
   const source = new T.MeshStandardMaterial({ map, roughnessMap: orm, metalnessMap: orm, metalness: 1, roughness: 1 });
-  const mesh = new T.Mesh(new T.BoxGeometry(1.02, 2, 1.38, 2, 16, 4), source);
-  mesh.scale.setScalar(0.4894);
+  const verts = [[0, -0.38, 0.42], [0, -0.38, -0.42], [-0.42, -0.36, -0.55], [0, -0.55, 0.355], [0.02, -0.95, 0.25], [0.46, 1, 0.596], [-0.46, -1, -0.596]]; // two hands, the tail, the belly, a hoof, the extents
+  const mesh = new T.Mesh(new T.BufferGeometry().setAttribute('position', new T.Float32BufferAttribute(verts.flat(), 3)), source);
+  mesh.scale.setScalar(0.4897);
   adopt('hifi/milkshake.glb', new T.Group().add(mesh));
   const { default: hifi } = await import('../packs/hifi/characters/milkshake.js');
   assert.deepEqual(hifi.assets, ['hifi/milkshake.glb']);
@@ -48,5 +59,11 @@ test('the HiFi Milkshake wears the generated model: skinned, glossy, unshadowed 
   assert.ok(Math.abs(box.max.y - box.min.y - milkshake.height) < 1e-6 && Math.abs(box.min.y) < 1e-6, 'fitted to 1.9 m and standing on the road');
   const face = new T.Vector3(1, 0, 0).transformDirection(skinned[0].matrixWorld);
   assert.ok(face.distanceTo(new T.Vector3(0, 0, 1)) < 1e-6, `the muzzle (+x in the GLB) faces +z, the way Milkshake runs; got ${face.toArray().map((v) => v.toFixed(2))}`);
+  view.pose(Math.PI / 28); // the stride's peak at the base pace
+  view.object.updateMatrixWorld(true);
+  const moved = verts.map((v, i) => skinned[0].getVertexPosition(i, new T.Vector3()).distanceTo(new T.Vector3(...v)));
+  assert.ok(moved[0] > 0.1 && moved[1] > 0.1, `both hands swing with their arm bones (${moved[0].toFixed(3)}, ${moved[1].toFixed(3)})`);
+  assert.ok(moved[2] < 1e-6 && moved[3] < 1e-6, `the tail and the belly hold still (${moved[2].toFixed(3)}, ${moved[3].toFixed(3)})`);
+  assert.ok(moved[4] > 0.1, 'the hoof swings with its leg');
   assert.doesNotThrow(() => view.update({ x: 0, y: 0, z: 0, lane: 1, time: 0.3, slideT: 0, over: false, speed: 12, rules: { laneWidth: 2.5 } }));
 });
