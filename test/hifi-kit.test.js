@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
-import { adopt } from '../src/assets.js';
+import { adopt, release } from '../src/assets.js';
 import { KIT, KIT_FILES, kitParts, placeholder } from '../packs/hifi/lib/kit.js';
 import { furniture } from '../packs/hifi/lib/furniture.js';
 import { FACADE_X } from '../packs/hifi/lib/buildings.js';
@@ -107,10 +107,12 @@ test('the street themes load every kit file before play', () => {
   assert.equal(KIT_FILES.length, Object.keys(KIT).length);
 });
 
-test('a kit file that never loaded builds its code stand-in, and the model replaces it once it lands', () => {
+test('a kit file that never loaded builds its code stand-in, and the model replaces it once it lands', (t) => {
+  const warn = t.mock.method(console, 'warn', () => {});
   const entry = { path: 'hifi/furniture/not-generated.glb', h: 1, yaw: 0, glow: null };
   const before = kitParts(gfx, entry, placeholder('bench'));
   assert.ok(before.length > 0 && before.every((p) => p.matrix.equals(new THREE.Matrix4())), 'the bench stand-in');
+  assert.equal(warn.mock.callCount(), 0, 'not loaded yet is not an error');
   adopt(entry.path, standIn());
   assert.ok(kitParts(gfx, entry, placeholder('bench'))[0].material.isMeshPhysicalMaterial, 'the model');
 });
@@ -174,4 +176,26 @@ test('the sedan paints its cream rear lamp red on a copy of its colour map, keep
     assert.ok(m.map !== map && m.map.flipY === false && m.map.colorSpace === THREE.SRGBColorSpace, 'a copy, read the way the source is');
     assert.deepEqual([...m.emissiveMap.image.px], [...rear, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255], 'the rear lamp glows, nothing else');
   });
+});
+
+test('a kit file released and loaded again is built from the new model, not the freed one', () => {
+  adopt(KIT.bin.path, standIn());
+  const before = kitParts(gfx, KIT.bin, placeholder('bin'));
+  release(KIT_FILES.filter((p) => p !== KIT.bin.path)); // a level without bins frees the file
+  adopt(KIT.bin.path, standIn()); // a later level loads it again: new geometry and materials
+  const after = kitParts(gfx, KIT.bin, placeholder('bin'));
+  assert.notEqual(after[0].geometry, before[0].geometry, 'the reloaded geometry');
+  assert.ok(after[0].material !== before[0].material && after[0].material.isMeshPhysicalMaterial, 'fresh paint');
+  assert.equal(kitParts(gfx, KIT.bin, placeholder('bin')), after, 'built once per load');
+});
+
+test('a loaded kit model whose build throws warns once and stays a stand-in, without building again every chunk', (t) => {
+  const warn = t.mock.method(console, 'warn', () => {});
+  let builds = 0;
+  const entry = { path: 'hifi/furniture/broken.glb', h: 1, get yaw() { builds++; return 0; }, glow: null };
+  adopt(entry.path, new THREE.Group().add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()))); // gloss takes a MeshStandardMaterial
+  for (let chunk = 0; chunk < 3; chunk++) assert.ok(kitParts(gfx, entry, placeholder('bench')).every((p) => p.matrix.equals(new THREE.Matrix4())), 'the bench stand-in');
+  assert.equal(builds, 1, 'built once, not every chunk');
+  assert.equal(warn.mock.callCount(), 1, 'one warning');
+  assert.match(String(warn.mock.calls[0].arguments[0]), /broken\.glb/);
 });
