@@ -89,6 +89,7 @@ last-verified: never
 | city images: party walls, trims (3 + 3) | 2 | #133 #135 #137 · #140 #141 #144 | in wave 2 | `facades/<theme>-party.webp`, `facades/<theme>-trims.webp` | 1024² | accepted all 2026-10-13 |
 | city images: posters, blade signs, LED faces (12 + 6 + 3) | 2 | #146 #147 #149 #151 #153 #155 #157 #159 #161 #163 #166 #167 · #170 #172 #173 #175 #178 #179 · #182 #183 #185 | in wave 2 | `public/hifi/city/signs/{poster,blade,led}-0N.webp` | 1024 long side | accepted all 2026-10-13 |
 | city images: skylines (8) | 2 | #187 #189 · #3910 #3932 (midtown, redone without the sun glow) · #195 #198 · #199 #201 | in wave 2 + redo | `public/hifi/city/sky/<theme>-01.webp` (far), `-02` (near) | 2048 wide, mirrored, cropped to the tower band | accepted all 2026-10-13 |
+| uptown near skyline, redrawn | 2 (redo) | b8b124e8 (candidate 3 of c23d86cd, d8994799, b8b124e8) | 3 | `public/hifi/city/sky/uptown-02.webp` (replaces #201) | 2048×301, 154 KB | Caedon: "Candidate 3", 2026-10-14 (board 16d, Paper page "16c Redraws") |
 
 ## Credits
 
@@ -105,6 +106,7 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 | 21 | 4114db73 (sedan retry, `texture_seed` 42) | tripo_h3_1_multiview_to_3d | the one retry inside the approval | 18 (2,288.5 → 2,270.5); wave 3 in all 522, round 709.25 |
 | 23 | `scratchpad/w3-redraw-jobs.tsv`: 4 scaffold concepts (1 failed, free), 4 Milkshake arms-down fronts | gpt_image_2_5 (1:1, 1k, low) | redraws (Caedon: scaffold "Redraw, open below (~19)", Milkshake "New model, arms down (~19)") | 1.75 (2,270.5 → 2,268.75) |
 | 23 | 5ebcc6a0 (scaffold, concept 31cce4f0), c38c3879 / 67949bb6 / 1908b85f (Milkshake left, rear, right from front e9285c68), c5e689da (Milkshake multi-view) | tripo_h3_1_image_to_3d, gpt_image_2_5, tripo_h3_1_multiview_to_3d | Caedon's picks: scaffold candidate 2, Milkshake candidate 2 (Paper page "16c Redraws") | 36.75 (2,268.75 → 2,232); round 747.75 |
+| 24b | c23d86cd, d8994799, b8b124e8 | gpt_image_2_5 (21:9, 2k, medium, transparent; uptown style frame ce281982 as reference) | uptown near-skyline redraw with no tall tower at the strip's edges (Caedon: "Redraw it", then "Run it (3)") | 3 (2,232 → 2,229); round 750.75 |
 
 ## Downloads and dependencies
 
@@ -113,6 +115,7 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 | 20 | 62 picked wave 2 PNGs (index in `scratchpad/raw/images/index.json`) | d8j0ntlcm91z4.cloudfront.net (Higgsfield CDN) → `scratchpad/raw/images/` | 166.5 MB (sizes checked against HEAD); tiled WebPs in the repo: 62 files, 3.2 MB | Caedon: "Download (166.5 MB)", 2026-10-13 |
 | 22 | 28 wave 3 GLBs (`scratchpad/raw/models/<name>_raw.glb`, index in `raw/models/index.json`; the sedan is the retry 4114db73) | d8j0ntlcm91z4.cloudfront.net (Higgsfield CDN) | 167.3 MB, 3.9–7.9 MB each; every file matches its content-length and starts with `glTF` | Caedon: "Download all 28", 2026-10-13 |
 | 23 | 2 redrawn GLBs (`scratchpad/raw/models/{scaffold_beam,milkshake}_v2_raw.glb`; jobs 5ebcc6a0, c5e689da) | d8j0ntlcm91z4.cloudfront.net (Higgsfield CDN) | 12.3 MB (6.35 + 5.92); both match content-length and start with `glTF` | Caedon: "Download both", 2026-10-14 |
+| 24b | the picked uptown near skyline (`scratchpad/dl-uptown02/uptown-02-b8b124e8.png`; the old tile kept beside it) | d8j0ntlcm91z4.cloudfront.net (Higgsfield CDN) | 2.99 MB (matches content-length); tiled WebP 154 KB | Caedon: "Download it", 2026-10-14 |
 
 ## Stills and measurements
 
@@ -339,6 +342,8 @@ Every task against itself:
 - Task 23x: Ruling: `lib/facade.js` and `props/billboard.js` keep their `material()`-by-path cache: after a release and reload they hand back the old material, whose disposed texture three re-uploads from the retained image, so it still draws; the cost is one duplicate image per tile per release cycle, bounded by the tile count (15 facades, 12 posters) and only on a street → non-street → street path — left for the final review rather than a fourth fix round — cost if wrong: ~4 MB a tile held across a cycle.
 - Task 25: board 17 "Wave 4 finals" on its own Paper page (p-5-0; in-game crops of every asset under the final looks: city per theme, street furniture and signs, glow crops, obstacles, pickups, props, Milkshake, flags). Caedon (2026-10-14, AskUserQuestion): street kit "Approve" (signals and sedan h as they are), obstacles/pickups/props "Approve", Milkshake "Approve"; city NOT approved: "we need to fix the skyline so it matches the style frames we had. This also means we need to widen the street angle so that there is more [sidewalk] for the trees to fit into because right now they are phasing into the facades."
 - Task 24b: Ruling: Caedon's city fix is read against his picked style frames (downtown f549c2e3, midtown ae99b100, uptown ce281982, bridge dbb92908): a wide avenue with deep sidewalks and buildings well back, and a dense tall skyline cluster filling the avenue's end — so the HiFi sidewalks widen from 3 m to 6 m (facades from 7.5 to 10.5 m; furniture re-spaced; gameplay road and `?lofi` untouched), and the skyline target height becomes a per-theme look value tuned by eye (a live probe: one wrap far at 216 m and two near at 152 m already fills the avenue's end far more like the frames) — cost if wrong: a re-tune of two constants.
+- Task 24b: Ruling (uptown redraw tiling): the redrawn strip carries faint alpha (below 8 of 255) high in its sky, so the Task 20 crop's "8 px above the alpha bounding box" uses the box of alpha ≥ 8 (top 371 of 1152, crop from 363 to the bottom), else the ring would carry 0.3 of empty sky — cost if wrong: re-run `scripts/tile-image.py` with another crop.
+- Task 25: Caedon approved the city (board 17b, 2026-10-14, AskUserQuestion "Approve"): 6 m sidewalks, per-theme skyline heights, the rings turned off their mirror seam; and asked for uptown's near skyline redrawn ("Redraw it"), done with candidate 3. Task 25 complete.
 - Task 23: Milkshake's measurement scripts (slices, parts, runcycle, compare, inspect) kept in the plan workspace `t23-milkshake-scripts/` (git-ignored; they read the GLB through the CLI's transitive `@gltf-transform/core`, so not committed as tooling).
 - Task 23: the scaffold is fitted from the road to its box top (posts and braces y 0–1.2 below the plank band's box): a departure from Caedon's inside-the-box rule for `slide`, merged pending his call with the other look decisions; the strict fit is a 0.39 m toy floating at 1.2 m.
 
