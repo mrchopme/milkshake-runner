@@ -1,10 +1,11 @@
-// HiFi scaffold_beam: the generated scaffold in public/hifi/scaffold_beam.glb, fitted to the shipped box (content/obstacles/scaffold_beam.js).
-// The box (y 1.2 to 1.6) is only the plank's band, so the frame is fitted to the column from the road up to the box top: its posts stand on
-// the road, the plank's underside lands on the box's bottom (1.21 m) and the post caps on its top. Under the plank is open: Milkshake slides there.
+// HiFi scaffold_beam: the redrawn scaffold in public/hifi/scaffold_beam.glb (a plank on two posts, nothing between them), fitted to the
+// shipped box (content/obstacles/scaffold_beam.js). The box (y 1.2 to 1.6) is only the plank's band, so the model is fitted to the column
+// from the road up to the box top: the feet stand on the road, the plank's top is the box top and its underside (1.35 m) is inside the box.
+// Between the posts is open (1.04 m, 0.93 m between the feet): Milkshake slides through there.
 import { fitBox } from '../lib/fit.js';
 import { gloss } from '../lib/paint.js';
 
-const YAW = Math.PI / 2; // ponytail: calibration knob — the model's long side runs along z and its face looks +x; +π/2 turns the face to the player (-z) and the long side across the lane
+const YAW = Math.PI / 2; // ponytail: calibration knob — the plank runs along z and the doorway between the posts faces +x; +π/2 turns the doorway to the player (-z) and the plank across the lane
 
 let parts; // { scale, offset, paint }, measured from the first copy
 
