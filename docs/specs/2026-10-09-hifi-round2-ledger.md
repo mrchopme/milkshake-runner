@@ -363,6 +363,8 @@ Every task against itself:
 - Task 27: M5 fixed (66798f6): `CONTRIBUTING.md` describes images in `assets` and `gfx.texture` (and keying caches by the loaded object), a power-up's `createWorn`, `look.sun.dir`, `skyline` and `skylineHeight`, `createWorn` in the pack rule, and `packs/<pack>/lib/`.
 - Task 27: M6 fixed (7e43bba): `checkLook` uses `ASSET` for skyline paths instead of its own copy; Engine changes row 27.
 - Task 27: M1 (`gfx.time` during endings) and M4 (`src/character.js`'s session cache) left parked by the main session.
+- Task 27: the whole-branch review (Fable 5.1, `9132bae..25c8516`, report in the plan workspace) found 0 Critical, 1 Important (I1, overturning the Task 23x cache ruling), 6 Minor; verdict "With fixes". One fix dispatch (Opus), one scoped re-review (Sonnet): all four findings addressed, no new breakage (its two cosmetic notes, a long `CONTRIBUTING.md` line and no direct reload test for the LED, storefront and sign builders, which share the tested path, left as they are). Merged as c9a9222; npm test 250, `npm run build` passes.
+- Task 27: main session check after the merge: `?fixtures&lofi` `t27-lofi` 464,350 bytes, 3d77a939… (unchanged); `?fixtures&hifi` downtown → midtown → downtown in one page renders the same frame before and after the replay (4deafcca… both, 1080×1920), no console errors, textures 94 → 97. Task 27 complete.
 
 ## Gap to the reference
 
