@@ -47,7 +47,7 @@ test('the facades and storefronts wear their theme\'s own tiles once loaded, and
   }
 });
 
-test('a facade tile\'s own blue panes become glossy lit windows, its wall stays matte and dark, and without a canvas the tile is plain', () => {
+test('a facade tile\'s own glass is glossy, only its warm lit panes glow (and only at dusk), its wall stays matte and dark, and without a canvas the tile is plain', () => {
   const path = 'hifi/test/t24-tile.webp', map = new T.Texture({});
   map.colorSpace = T.SRGBColorSpace;
   adopt(path, map);
@@ -55,16 +55,17 @@ test('a facade tile\'s own blue panes become glossy lit windows, its wall stays 
   const plain = tile('t24-node', 0.8); // Node has no OffscreenCanvas
   assert.ok(plain.map === map && !plain.roughnessMap && plain.roughness === 0.6 && plain.emissive.getHex() === 0, 'no mask: a plain matte tile, nothing glows');
   const saved = globalThis.OffscreenCanvas;
-  globalThis.OffscreenCanvas = class { // one dark blue pane and one brick texel; each canvas keeps what was drawn on it
-    getContext() { return { drawImage() {}, getImageData: () => ({ data: new Uint8ClampedArray([40, 60, 120, 255, 150, 90, 60, 255]) }), putImageData: (img) => { this.px = [...img.data]; } }; }
+  globalThis.OffscreenCanvas = class { // sky-blue glass, a warm lit pane, brick, pale stone; each canvas keeps what was drawn on it
+    getContext() { return { drawImage() {}, getImageData: () => ({ data: new Uint8ClampedArray([150, 190, 235, 255, 250, 200, 110, 255, 150, 90, 60, 255, 220, 190, 150, 255]) }), putImageData: (img) => { this.px = [...img.data]; } }; }
   };
   try {
     const dusk = tile('t24-dusk', 0.8), day = tile('t24-day', 0);
     assert.equal(dusk.map, map);
-    assert.deepEqual(dusk.emissiveMap.image.px, [40, 60, 120, 255, 0, 0, 0, 255], 'the pane glows in its own colour, the brick goes dark');
-    assert.deepEqual(dusk.roughnessMap.image.px, [31, 31, 31, 255, 153, 153, 153, 255], 'glass 0.12, wall 0.6');
+    assert.deepEqual(dusk.emissiveMap.image.px, [0, 0, 0, 255, 250, 200, 110, 255, 0, 0, 0, 255, 0, 0, 0, 255], 'only the lit pane glows, in its own colour');
+    assert.deepEqual(dusk.roughnessMap.image.px, [31, 31, 31, 255, 31, 31, 31, 255, 153, 153, 153, 255, 153, 153, 153, 255], 'glass (blue or lit) 0.12, brick and stone 0.6');
     assert.ok(dusk.roughness === 1 && dusk.roughnessMap.colorSpace === T.NoColorSpace, 'the roughness map is data, read as it is');
-    assert.ok(dusk.emissive.getHex() === 0xffffff && dusk.emissiveIntensity === 0.8 && day.emissiveIntensity === 0, 'lit at the theme\'s level: dusk 0.8, day 0');
+    assert.ok(dusk.emissive.getHex() === 0xffffff && dusk.emissiveIntensity === 0.8, 'lit at the theme\'s level');
+    assert.ok(day.emissiveMap === null && day.emissive.getHex() === 0 && day.roughnessMap, 'a daytime theme builds no glow mask, only the gloss');
     assert.ok([dusk.emissiveMap, dusk.roughnessMap].every((t) => t.wrapS === T.RepeatWrapping && t.wrapT === T.RepeatWrapping), 'the masks repeat with the tile');
   } finally { globalThis.OffscreenCanvas = saved; }
 });
