@@ -20,26 +20,27 @@ const standIn = ([x, y, z] = [1, 0, 0], map = null) => {
   nub.position.set(0.6 * x, 0.6 * y, 0.6 * z);
   return new THREE.Group().add(body, nub);
 };
-// The placed pieces at their real proportions, measured on the decoded GLBs (model units): the bounding box, and the centre
-// (x, z) of the lowest 5% of the height, where the piece stands. A stand-in: a body filling the box above that band and a
-// speck at the footprint, so it fits and anchors as the real model does.
+// The placed pieces at their real proportions, measured on the decoded GLBs (model units): the bounding box, and the x, z box
+// of the lowest 5% of the height, where the piece stands. A stand-in: a body filling the box above that band and a slab on
+// the footprint, so it fits and anchors as the real model does.
 const REAL = {
-  lamp: [[-0.1516, -0.49059, -0.27532], [0.15129, 0.4908, 0.27511], [0.0309, 0.1582]],
-  traffic_light: [[-0.20752, -0.4896, -0.16442], [0.20794, 0.48998, 0.16374], [-0.079, 0.0002]],
-  hydrant: [[-0.36861, -0.48921, -0.40538], [0.36849, 0.48897, 0.40539], [-0.0002, -0.0001]],
-  bench: [[-0.2859, -0.38101, -0.49045], [0.2851, 0.38177, 0.49005], [0.0201, -0.0009]],
-  bin: [[-0.28695, -0.48944, -0.28576], [0.28743, 0.49029, 0.28623], [-0.002, -0.0017]],
-  tree: [[-0.32407, -0.4901, -0.33912], [0.3248, 0.49014, 0.33846], [0.0029, -0.0104]],
-  newsstand: [[-0.35633, -0.43682, -0.49027], [0.35603, 0.43757, 0.49056], [-0.0564, -0.0005]],
-  bus_shelter: [[-0.30145, -0.45037, -0.48947], [0.30162, 0.4506, 0.48967], [-0.0027, 0.0006]],
-  subway: [[-0.48947, -0.39242, -0.41083], [0.48956, 0.39741, 0.4108], [0, -0.0001]],
+  lamp: [[-0.1516, -0.49059, -0.27532], [0.15129, 0.4908, 0.27511], [-0.0895, 0.0412], [0.1513, 0.2751]],
+  traffic_light: [[-0.20752, -0.4896, -0.16442], [0.20794, 0.48998, 0.16374], [-0.2075, -0.1284], [0.0495, 0.1288]],
+  hydrant: [[-0.36861, -0.48921, -0.40538], [0.36849, 0.48897, 0.40539], [-0.2352, -0.2412], [0.2347, 0.241]],
+  bench: [[-0.2859, -0.38101, -0.49045], [0.2851, 0.38177, 0.49005], [-0.2379, -0.4887], [0.2782, 0.4869]],
+  bin: [[-0.28695, -0.48944, -0.28576], [0.28743, 0.49029, 0.28623], [-0.2187, -0.2194], [0.2148, 0.216]],
+  tree: [[-0.32407, -0.4901, -0.33912], [0.3248, 0.49014, 0.33846], [-0.1973, -0.2123], [0.2031, 0.1914]],
+  newsstand: [[-0.35633, -0.43682, -0.49027], [0.35603, 0.43757, 0.49056], [-0.3293, -0.3661], [0.2165, 0.3652]],
+  bus_shelter: [[-0.30145, -0.45037, -0.48947], [0.30162, 0.4506, 0.48967], [-0.2919, -0.4717], [0.2865, 0.4729]],
+  subway: [[-0.48947, -0.39242, -0.41083], [0.48956, 0.39741, 0.4108], [-0.4895, -0.4108], [0.4896, 0.4107]],
 };
-const real = ([min, max, foot]) => {
+const real = ([min, max, footMin, footMax]) => {
   const paint = tripo(), h = max[1] - min[1], body = new THREE.Mesh(new THREE.BoxGeometry(max[0] - min[0], 0.94 * h, max[2] - min[2]), paint);
   body.position.set((min[0] + max[0]) / 2, min[1] + 0.53 * h, (min[2] + max[2]) / 2);
-  const speck = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.01), paint);
-  speck.position.set(foot[0], min[1] + 0.005, foot[1]);
-  return new THREE.Group().add(body, speck);
+  const foot = new THREE.Mesh(new THREE.BoxGeometry(footMax[0] - footMin[0], 0.04 * h, footMax[1] - footMin[1]), paint);
+  foot.position.set((footMin[0] + footMax[0]) / 2, min[1] + 0.02 * h, (footMin[1] + footMax[1]) / 2);
+  foot.geometry.userData.foot = true;
+  return new THREE.Group().add(body, foot);
 };
 // OffscreenCanvas for Node: draws another canvas's (or an image's) texels and hands them back to be changed.
 class Canvas {
@@ -82,16 +83,20 @@ test('each kit piece is painted once without the generator\'s random metal, and 
   assert.ok(a.lamp && a.traffic_light, 'lamps and signals were placed');
 });
 
-test('at their real proportions no placed piece reaches into the buildings', () => {
-  const seen = new Set(), m = new THREE.Matrix4();
+test('at their real proportions no placed piece reaches into the buildings, and every footprint stands on the sidewalk', () => {
+  // the kerb at the road's edge (roadHalf 4.5); the tree's pit, 2.2 m across, reaches 0.10 m past it (accepted by the main
+  // session, 2026-10-14: invisible at speed; the canopy over the road starts at 2.6 m)
+  const KERB = 4.5, inner = (kind) => (kind === 'tree' ? KERB - 0.11 : KERB), seen = new Set(), m = new THREE.Matrix4();
   for (let seed = 1; seed <= 40; seed++) furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 60 }).traverse((n) => {
-    if (!n.userData.furniture) return;
-    seen.add(n.userData.furniture);
+    const kind = n.userData.furniture;
+    if (!kind) return;
+    seen.add(kind);
     n.geometry.computeBoundingBox();
     for (let i = 0; i < n.count; i++) {
       n.getMatrixAt(i, m);
-      const b = n.geometry.boundingBox.clone().applyMatrix4(m), far = Math.max(Math.abs(b.min.x), Math.abs(b.max.x));
-      assert.ok(far <= FACADE_X + 1e-6, `seed ${seed}: ${n.userData.furniture} reaches x ${far.toFixed(2)}`);
+      const b = n.geometry.boundingBox.clone().applyMatrix4(m), [near, far] = [Math.abs(b.min.x), Math.abs(b.max.x)].sort((p, q) => p - q);
+      assert.ok(far <= FACADE_X + 1e-6, `seed ${seed}: ${kind} reaches x ${far.toFixed(2)}`);
+      if (n.geometry.userData.foot) assert.ok(near >= inner(kind) - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`);
     }
   });
   assert.deepEqual([...seen].sort(), Object.keys(REAL).sort(), 'every placed kind was measured');

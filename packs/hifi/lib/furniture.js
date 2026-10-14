@@ -4,7 +4,7 @@ import { CROSS } from './street.js';
 // Street furniture on board 15's rhythm (approved by Caedon as drawn), one InstancedMesh per part per kind.
 // ponytail: calibration knobs from board 15. RHYTHM: metres between copies along each side, x from the road's centre line.
 export const RHYTHM = [
-  { kind: 'lamp', every: 24, x: 4.95, alternate: true },
+  { kind: 'lamp', every: 24, x: 5.33, alternate: true },
   { kind: 'tree', every: 18, x: 5.5, offset: 9 },
   { kind: 'hydrant', every: 40, x: 4.95, offset: 13 },
   { kind: 'bin', every: 30, x: 5.1, offset: 5 },
@@ -37,7 +37,7 @@ export function furniture(gfx, { z0, length }, style, r, cross) {
   }
   for (const rule of SCATTER) for (let n = Math.floor(rule.perChunk * length / 120 + r()); n > 0; n--) { const s = side(); at(rule.kind, s * rule.x, spot(), s); }
   if (r() < RARE.chance) { const rule = RARE.kinds[Math.floor(r() * RARE.kinds.length)], s = side(); at(rule.kind, s * rule.x, spot(), s); }
-  if (cross) for (const s of [-1, 1]) at('traffic_light', s * 4.95, cross.z - 0.5, s); // both corners before the crosswalk
+  if (cross) for (const s of [-1, 1]) at('traffic_light', s * 5.28, cross.z - 0.5, s); // both corners before the crosswalk, the base on the sidewalk
   for (const [kind, mats] of Object.entries(byKind)) for (const p of kitParts(gfx, KIT[kind], placeholder(kind))) {
     const m = instanced(T, p.geometry, p.material, mats.map((x) => x.clone().multiply(p.matrix)));
     m.userData.furniture = kind;
