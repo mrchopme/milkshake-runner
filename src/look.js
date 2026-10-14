@@ -36,6 +36,13 @@ export const cascadeHook = (csm) => (m) => {
   m.addEventListener('dispose', () => csm.shaders.delete(m)); // a material used again recompiles, and CSM records it again
 };
 
+// How a skyline image wraps its ring: a whole number of times round, as many as bring it nearest `target` metres tall, so each
+// copy keeps the image's own aspect (the generated strips are cropped to their towers). Pure, so it is tested in Node.
+export function ringWrap(radius, width, height, target) {
+  const lap = 2 * Math.PI * radius, aspect = height / width, repeats = Math.max(1, Math.round((lap * aspect) / target));
+  return { repeats, height: (lap / repeats) * aspect };
+}
+
 const SKY_VERT = /* glsl */`
   varying vec3 vDir;
   void main() {
@@ -73,9 +80,10 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   // the far plane; unbent, unfogged, no shadows. A missing image hides its ring. ponytail: calibration knobs.
   // Its foot fades to the level sky over the lowest `fade` of the ring (the spec's "tinted to the level sky at its base"),
   // so it meets the fogged street and buildings without a band; apply() re-tints it on every theme switch.
-  // `height` scales the image-aspect height: at 1 the 360 m ring stood about 485 m tall, and 0.3 (the Task 14 probe) sits
-  // the skyline at the avenue's end.
-  const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08, height: 0.3 };
+  // `height` is each ring's target height in metres (far, near): its image wraps round a whole number of times, as many as
+  // bring it nearest that (ringWrap). 90 and 80 stand the tallest spires about as tall as the Task 14 probe's placeholder did
+  // (towers up to 60% of its 145 m and 133 m rings); the generated strips' aspects put the rings at 76–108 m.
+  const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08, height: [90, 80] };
   const tint = { value: new THREE.Color() };
   const rings = RING.radius.map((r, i) => {
     const geo = new THREE.CylinderGeometry(r, r, 1, 96, 1, true).translate(0, 0.5, 0);
@@ -148,9 +156,10 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
         ring.visible = !!map;
         if (!map) return;
         // ponytail: wrap and repeat are set on the shared preloaded texture; fine while only the ring uses skyline images
-        map.wrapS = THREE.MirroredRepeatWrapping; map.repeat.x = 2; // the image covers half the ring, mirrored round the back
+        const wrap = ringWrap(RING.radius[i], map.image.width, map.image.height, RING.height[i]);
+        map.wrapS = THREE.RepeatWrapping; map.repeat.x = wrap.repeats; // the strips come mirrored, so they loop seamlessly
         ring.material.map = map; ring.material.needsUpdate = true;
-        ring.scale.y = ((Math.PI * RING.radius[i] * map.image.height) / map.image.width) * RING.height; // the image's aspect over half the ring, scaled
+        ring.scale.y = wrap.height;
       });
     },
     render() {

@@ -1,5 +1,11 @@
 import { material } from './materials.js';
+import { glowMap, roughMap } from './paint.js';
 export const TILE = { w: 5, h: 7 }, SHOP_H = 4.3; // ponytail: metres per facade tile (2 bays x 2 floors) and the storefront band
+// ponytail: calibration knobs — a window is a tile's own blue, not-bright texel (glass and its frames; the brief's test), and
+// the mask maps' size and the glass and wall roughness. Lit windows glow at the theme's `lit`.
+const isWindow = (r, g, b) => b > r + 18 && r + g + b < 330, MASK = { size: 512, glass: 0.12, wall: 0.6 };
+// The generated city's images (round 2): public/hifi/city/<dir>/<name>-01.webp … <name>-<n>.webp
+export const cityFiles = (dir, name, n) => Array.from({ length: n }, (_, i) => `hifi/city/${dir}/${name}-${String(i + 1).padStart(2, '0')}.webp`);
 const rgb = (T, hex) => new T.Color(hex).toArray().map((v) => Math.round(v * 255));
 // A Node-safe stand-in for a generated tile: two bays by two floors of glass in a wall colour.
 export function placeholderTile(T, wallHex, glassHex, n = 64) {
@@ -15,11 +21,18 @@ export function placeholderTile(T, wallHex, glassHex, n = 64) {
 }
 const tile = (gfx, path) => { try { const t = gfx.texture(path); t.wrapS = t.wrapT = gfx.three.RepeatWrapping; return t; } catch { return null; } };
 // A tile not loaded yet falls back to the placeholder under its own key, so the real tile still gets built once it lands.
+// A loaded tile gets its window mask from its own texels: glossy glass, matte wall, windows lit at `style.lit` (Caedon's glow
+// rule). Without a canvas to read it (Node) the tile is plain: matte, nothing glows.
 export function facadeMaterial(gfx, style, i) {
   const T = gfx.three, map = style.facades?.[i] && tile(gfx, style.facades[i]), colors = style.buildings.colors;
-  return material(`${style.id}/facade/${map ? style.facades[i] : `placeholder/${i}`}`, () => new T.MeshStandardMaterial({
-    map: map || placeholderTile(T, colors[i % colors.length], '#2c3a63'), roughness: 0.5, metalness: 0.05,
-  }));
+  return material(`${style.id}/facade/${map ? style.facades[i] : `placeholder/${i}`}`, () => {
+    if (!map) return new T.MeshStandardMaterial({ map: placeholderTile(T, colors[i % colors.length], '#2c3a63'), roughness: 0.5, metalness: 0.05 });
+    const glow = glowMap(T, map, isWindow, MASK.size), rough = roughMap(T, map, isWindow, MASK.glass, MASK.wall, MASK.size);
+    return new T.MeshStandardMaterial({
+      map, metalness: 0.05, roughness: rough ? 1 : MASK.wall, roughnessMap: rough,
+      emissive: glow ? '#ffffff' : '#000000', emissiveMap: glow, emissiveIntensity: style.lit ?? 0,
+    });
+  });
 }
 export function shopMaterial(gfx, style, i) {
   const T = gfx.three, map = style.shops?.[i] && tile(gfx, style.shops[i]);
