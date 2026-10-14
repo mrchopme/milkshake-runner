@@ -8,7 +8,8 @@ import { KIT, KIT_FILES, kitParts, placeholder } from '../packs/hifi/lib/kit.js'
 import { furniture } from '../packs/hifi/lib/furniture.js';
 import { traffic } from '../packs/hifi/lib/traffic.js';
 import { material } from '../packs/hifi/lib/materials.js';
-import { FACADE_X } from '../packs/hifi/lib/buildings.js';
+import { FACADE_X } from '../packs/hifi/lib/street.js';
+import { BLADE } from '../packs/hifi/lib/signs.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import midtown from '../packs/hifi/themes/midtown.js';
 import uptown from '../packs/hifi/themes/uptown.js';
@@ -85,10 +86,11 @@ test('each kit piece is painted once without the generator\'s random metal, and 
   assert.ok(a.lamp && a.traffic_light, 'lamps and signals were placed');
 });
 
-test('at their real proportions no placed piece reaches into the buildings, and every footprint stands on the sidewalk', () => {
-  // the kerb at the road's edge (roadHalf 4.5); the tree's pit, 2.2 m across, reaches 0.10 m past it (accepted by the main
-  // session, 2026-10-14: invisible at speed; the canopy over the road starts at 2.6 m)
-  const KERB = 4.5, inner = (kind) => (kind === 'tree' ? KERB - 0.11 : KERB), seen = new Set(), m = new THREE.Matrix4();
+test('at their real proportions no placed piece reaches into the buildings, no tree canopy into the blade signs, and every footprint stands on the sidewalk', () => {
+  // the sidewalk band runs from the kerb at the road's edge (roadHalf 4.5) to the facade line; every piece (a tree's canopy
+  // included: the stand-in's body is its whole box) keeps WALL m off the wall, and a tree's canopy clears the blade signs
+  // hanging out from it over the storefronts
+  const KERB = 4.5, WALL = 0.2, BLADES = FACADE_X - BLADE.wall - BLADE.w, seen = new Set(), m = new THREE.Matrix4();
   for (const [kind, entry] of Object.entries(KIT)) if (REAL[kind]) adopt(entry.path, real(REAL[kind]));
   for (let seed = 1; seed <= 40; seed++) furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 60 }).traverse((n) => {
     const kind = n.userData.furniture;
@@ -97,8 +99,9 @@ test('at their real proportions no placed piece reaches into the buildings, and 
     for (let i = 0; i < n.count; i++) {
       n.getMatrixAt(i, m);
       const b = n.geometry.boundingBox.clone().applyMatrix4(m), [near, far] = [Math.abs(b.min.x), Math.abs(b.max.x)].sort((p, q) => p - q);
-      assert.ok(far <= FACADE_X + 1e-6, `seed ${seed}: ${kind} reaches x ${far.toFixed(2)}`);
-      if (n.geometry.userData.foot) { seen.add(kind); assert.ok(near >= inner(kind) - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`); }
+      assert.ok(far <= FACADE_X - WALL + 1e-6, `seed ${seed}: ${kind} reaches x ${far.toFixed(2)}`);
+      if (kind === 'tree') assert.ok(far <= BLADES + 1e-6, `seed ${seed}: a tree's canopy reaches x ${far.toFixed(2)}, the blade signs ${BLADES.toFixed(2)}`);
+      if (n.geometry.userData.foot) { seen.add(kind); assert.ok(near >= KERB - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`); }
     }
   });
   assert.deepEqual([...seen].sort(), Object.keys(REAL).sort(), 'every placed kind\'s footprint was checked');

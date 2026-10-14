@@ -93,3 +93,10 @@ test('a skyline wraps its ring a whole number of times in its own aspect, roundi
   assert.equal(ringWrap(330, 2048, 301, 80).repeats, 4, 'downtown\'s near strip, 305 m once round: 3.81 repeats for 80 m rounds to four');
   assert.equal(ringWrap(360, 2048, 20, 90).repeats, 1, 'at least once round, however short the strip');
 });
+
+test('a look may set its skyline rings\' target heights (far, near), checked like the rest; without one they stay 90 and 80 m', () => {
+  assert.deepEqual(lookState({ sky: '#9fd3f5', look: {} }).skylineHeight, [90, 80]);
+  assert.deepEqual(lookState({ sky: '#9fd3f5', look: { skylineHeight: [140, 120] } }).skylineHeight, [140, 120]);
+  assert.deepEqual(checkLook({ skylineHeight: [140, 120] }), []);
+  for (const bad of [90, [90], [90, 80, 70], [90, '80'], [5, 80], [90, 900], [NaN, 80]]) assert.match(checkLook({ skylineHeight: bad }).join(), /look.skylineHeight must be \[far, near\], each 10 to 400 metres/, String(bad));
+});

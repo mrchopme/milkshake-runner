@@ -19,7 +19,7 @@ export const KIT = {
   bin: { path: 'hifi/furniture/bin.glb', h: 0.9, yaw: FRONT, glow: null },
   bin_box: { path: 'hifi/furniture/bin_box.glb', h: 1.0, yaw: FRONT, glow: null },
   planter: { path: 'hifi/furniture/planter.glb', h: 1.0, yaw: FRONT, glow: null },
-  tree: { path: 'hifi/furniture/tree.glb', h: 5.4, yaw: FRONT, glow: null }, // board 15's 6.0 less 10%: the 4 m canopy clears the facades
+  tree: { path: 'hifi/furniture/tree.glb', h: 6.0, yaw: FRONT, glow: null }, // board 15's: on the 6 m sidewalk its 4 m canopy clears the facades and the blade signs
   newsstand: { path: 'hifi/furniture/newsstand.glb', h: 2.6, yaw: FRONT, glow: null },
   bus_shelter: { path: 'hifi/furniture/bus_shelter.glb', h: 2.7, yaw: FRONT, glow: null },
   subway: { path: 'hifi/furniture/subway.glb', h: 2.16, yaw: FRONT, glow: globe }, // 2.4 less 10%: 3 m deep, it filled the sidewalk

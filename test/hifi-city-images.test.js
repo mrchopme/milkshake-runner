@@ -7,6 +7,7 @@ import { rng } from '../src/generator.js';
 import { adopt } from '../src/assets.js';
 import { facadeMaterial } from '../packs/hifi/lib/facade.js';
 import { signs, SIGN_FILES } from '../packs/hifi/lib/signs.js';
+import { FACADE_X } from '../packs/hifi/lib/street.js';
 import { WATERFRONT } from '../packs/hifi/lib/bridge.js';
 import bridge from '../packs/hifi/themes/bridge.js';
 
@@ -94,7 +95,7 @@ test('sign stacks wear the generated LED faces and posters, blade signs hang ove
         assert.ok(Math.abs(s.x / s.y / ASPECT[kind] - 1) < 1e-6, `${kind}: ${s.x.toFixed(2)} x ${s.y.toFixed(2)}`); // instance matrices are float32
         if (kind !== 'blade') continue;
         assert.ok(p.z >= 0 && p.z <= 120 && (p.z < cross.z || p.z > cross.z + 12), `a blade at z ${p.z.toFixed(2)}: inside its chunk, never in the side street`);
-        assert.ok(Math.abs(p.x) + s.x / 2 <= 7.5 + 1e-9 && Math.abs(p.x) - s.x / 2 >= 4.5 && p.y + s.y / 2 < 4.5, `a blade at x ${p.x.toFixed(2)}, y ${p.y.toFixed(2)}: over the sidewalk, under the lowest stack`);
+        assert.ok(Math.abs(p.x) + s.x / 2 <= FACADE_X + 1e-9 && Math.abs(p.x) - s.x / 2 >= 4.5 && p.y + s.y / 2 < 4.5, `a blade at x ${p.x.toFixed(2)}, y ${p.y.toFixed(2)}: over the sidewalk, under the lowest stack`);
         assert.ok(new T.Vector3(0, 0, 1).applyQuaternion(q).z < -0.999, 'a blade faces the oncoming camera');
       }
     }

@@ -1,7 +1,9 @@
 import { box, instanced } from './shapes.js';
 import { material } from './materials.js';
 // ponytail: calibration knobs, metres (board 15)
-export const KERB = 0.18, WALK = 3, DASH = { w: 0.12, len: 3, every: 6 }, CROSS = { width: 12, stripe: 0.6, reach: 17.5 }; // reach: the cross street's paving runs out to the back of the blocks (FACADE_X + 10)
+export const KERB = 0.18, WALK = 6, DASH = { w: 0.12, len: 3, every: 6 };
+export const FACADE_X = 4.5 + WALK; // the facade line: the road's edge (ROAD_HALF in src/world.js, which a pack cannot import; a test holds the two together) plus the sidewalk
+export const CROSS = { width: 12, stripe: 0.6, reach: FACADE_X + 10 }; // reach: the cross street's paving runs out to the back of the blocks (10 m deep)
 
 export function street(gfx, { z0, length, lanes }, style, cross) {
   const T = gfx.three, g = gfx.group(), half = lanes.roadHalf, zc = z0 + length / 2;
