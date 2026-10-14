@@ -98,6 +98,8 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 | 21 | 1477cbbe (lamp), f9fc81ad (tree), a5fa905c (hydrant) | tripo_h3_1_image_to_3d | Wave 3 pilot, detailed/detailed, PBR (Caedon re-confirmed "go ahead, run the wave 3 pilot" after compaction) | 54, 18 a model (2,792.5 → 2,738.5) |
 | 21 | `scratchpad/w3-jobs.tsv` (12 single-image, 13 multi-view from `w2/views-final.json`) | tripo_h3_1_image_to_3d, tripo_h3_1_multiview_to_3d | Wave 3, the other 25 models (Caedon: "Run all 25 (450)") | 450, 18 a model (2,738.5 → 2,288.5) |
 | 21 | 4114db73 (sedan retry, `texture_seed` 42) | tripo_h3_1_multiview_to_3d | the one retry inside the approval | 18 (2,288.5 → 2,270.5); wave 3 in all 522, round 709.25 |
+| 23 | `scratchpad/w3-redraw-jobs.tsv`: 4 scaffold concepts (1 failed, free), 4 Milkshake arms-down fronts | gpt_image_2_5 (1:1, 1k, low) | redraws (Caedon: scaffold "Redraw, open below (~19)", Milkshake "New model, arms down (~19)") | 1.75 (2,270.5 → 2,268.75) |
+| 23 | 5ebcc6a0 (scaffold, concept 31cce4f0), c38c3879 / 67949bb6 / 1908b85f (Milkshake left, rear, right from front e9285c68), c5e689da (Milkshake multi-view) | tripo_h3_1_image_to_3d, gpt_image_2_5, tripo_h3_1_multiview_to_3d | Caedon's picks: scaffold candidate 2, Milkshake candidate 2 (Paper page "16c Redraws") | 36.75 (2,268.75 → 2,232); round 747.75 |
 
 ## Downloads and dependencies
 
