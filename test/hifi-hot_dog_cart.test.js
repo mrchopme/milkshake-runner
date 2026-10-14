@@ -15,7 +15,7 @@ const def = registry.obstacle.hot_dog_cart, { w, h, d } = def.box;
 // A stand-in for public/hifi/hot_dog_cart.glb with its measured parts (model units, centred; measured on the optimised file):
 // the body (wheels, cabinet, handles, lid) y -0.490 to 0.040, 0.47 x 0.53 x 0.79, longer along z; the umbrella's pole from 0.040 to
 // 0.184 and its canopy and finial from 0.190 to 0.489, 0.67 x 0.65 across. The marker sits on the body's +x face.
-const generated = new T.MeshStandardMaterial(); // the real model is one mesh with one material; the stand-in's parts share one
+const generated = new T.MeshStandardMaterial({ metalness: 1, metalnessMap: new T.Texture() }); // the real model is one mesh with one material, metallic as Tripo leaves it; the stand-in's parts share one
 const mesh = (name, size, at) => { const m = new T.Mesh(new T.BoxGeometry(...size), generated); m.name = name; m.position.set(...at); return m; };
 adopt('hifi/hot_dog_cart.glb', new T.Group().add(
   mesh('body', [0.4737, 0.5303, 0.7885], [0.0033, -0.2249, -0.0002]), mesh('pole', [0.08, 0.1438, 0.08], [0, 0.1121, 0]),
@@ -31,7 +31,7 @@ test('the HiFi hot dog cart\'s body fills the jump box on the road, broadside to
   assert.ok(body.min.x >= -w / 2 - 1e-6 && body.max.x <= w / 2 + 1e-6 && body.min.z >= -d / 2 - 1e-6 && body.max.z <= d / 2 + 1e-6, `body footprint ${size.x.toFixed(2)} x ${size.z.toFixed(2)} m inside ${w} x ${d}`);
   assert.ok(Math.abs(body.min.y) < 1e-6, 'wheels on the road');
   assert.ok(Math.abs(body.max.y - h) < 1e-3, `the body is as tall as the box (${body.max.y.toFixed(3)} of ${h} m): the largest it can be`);
-  assert.ok(Math.abs(body.min.x + body.max.x) < 0.02 && Math.abs(body.min.z + body.max.z) < 0.02, 'centred in its lane');
+  assert.ok(Math.abs(body.min.x + body.max.x) < 1e-3 && Math.abs(body.min.z + body.max.z) < 1e-3, 'centred in its lane');
   assert.ok(size.x > size.z, 'its long side runs across the lane');
   const canopy = bounds(part(a, 'canopy')), pole = bounds(part(a, 'pole'));
   assert.ok(canopy.min.y > h && canopy.max.y > 1.5 * h,`the canopy (${canopy.min.y.toFixed(2)} to ${canopy.max.y.toFixed(2)} m) stands above the ${h} m box (Caedon's exception: umbrella above the box)`);

@@ -70,7 +70,7 @@ test('a kit piece stands on its footprint: a lamp\'s pole at the placed x, its a
 });
 
 test('each kit piece is painted once without the generator\'s random metal, and every copy in every chunk shares that paint', () => {
-  for (const [kind, entry] of Object.entries(KIT)) adopt(entry.path, REAL[kind] ? real(REAL[kind]) : standIn(FRONT[kind])); // real sizes, for the facade test too
+  for (const [kind, entry] of Object.entries(KIT)) adopt(entry.path, REAL[kind] ? real(REAL[kind]) : standIn(FRONT[kind]));
   for (const kind of Object.keys(KIT)) {
     const parts = kitParts(gfx, KIT[kind], placeholder(kind)), m = parts[0].material;
     assert.equal(kitParts(gfx, KIT[kind], placeholder(kind)), parts, `${kind}: built once`);
@@ -87,19 +87,19 @@ test('at their real proportions no placed piece reaches into the buildings, and 
   // the kerb at the road's edge (roadHalf 4.5); the tree's pit, 2.2 m across, reaches 0.10 m past it (accepted by the main
   // session, 2026-10-14: invisible at speed; the canopy over the road starts at 2.6 m)
   const KERB = 4.5, inner = (kind) => (kind === 'tree' ? KERB - 0.11 : KERB), seen = new Set(), m = new THREE.Matrix4();
+  for (const [kind, entry] of Object.entries(KIT)) if (REAL[kind]) adopt(entry.path, real(REAL[kind]));
   for (let seed = 1; seed <= 40; seed++) furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 60 }).traverse((n) => {
     const kind = n.userData.furniture;
     if (!kind) return;
-    seen.add(kind);
     n.geometry.computeBoundingBox();
     for (let i = 0; i < n.count; i++) {
       n.getMatrixAt(i, m);
       const b = n.geometry.boundingBox.clone().applyMatrix4(m), [near, far] = [Math.abs(b.min.x), Math.abs(b.max.x)].sort((p, q) => p - q);
       assert.ok(far <= FACADE_X + 1e-6, `seed ${seed}: ${kind} reaches x ${far.toFixed(2)}`);
-      if (n.geometry.userData.foot) assert.ok(near >= inner(kind) - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`);
+      if (n.geometry.userData.foot) { seen.add(kind); assert.ok(near >= inner(kind) - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`); }
     }
   });
-  assert.deepEqual([...seen].sort(), Object.keys(REAL).sort(), 'every placed kind was measured');
+  assert.deepEqual([...seen].sort(), Object.keys(REAL).sort(), 'every placed kind\'s footprint was checked');
 });
 
 test('the street themes load every kit file before play', () => {

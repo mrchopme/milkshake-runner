@@ -11,9 +11,12 @@ const CONTENT = fileURLToPath(new URL('../content/', import.meta.url));
 const PATH = 'packs/hifi/obstacles/pigeons.js';
 
 // A stand-in for the generated GLB, shaped like the measured pigeon (task-23-models: 0.65 x 0.96 x 0.98, narrow along x),
-// stored the way the optimiser leaves it (quantised: the node carries a scale and an offset) and painted metallic as Tripo does.
+// stored the way the optimiser leaves it (quantised: the node carries a scale and an offset) and painted metallic as Tripo does, with
+// a colour map. Its head is a bump on top at +z, where the generated bird's is: the back and the middle of the top sit lower.
 function standIn() {
-  const node = new T.Mesh(new T.BoxGeometry(1.3, 1.92, 1.96, 4, 6, 6), new T.MeshStandardMaterial({ metalness: 1, metalnessMap: new T.Texture() }));
+  const g = new T.BoxGeometry(1.3, 1.92, 1.96, 4, 6, 6), p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) if (p.getY(i) > 0.95 && p.getZ(i) < 0.5) p.setY(i, 0.7);
+  const node = new T.Mesh(g, new T.MeshStandardMaterial({ map: new T.Texture(), metalness: 1, metalnessMap: new T.Texture() }));
   node.scale.setScalar(0.5);
   node.position.set(0.02, -0.03, 0.01);
   return new T.Group().add(node);
@@ -43,6 +46,8 @@ test('the HiFi pigeons: one bird instanced over the shipped flock, every bird in
   g.computeBoundingBox();
   const size = g.boundingBox.getSize(new T.Vector3());
   assert.ok(size.x < size.z, 'after the yaw the wings spread along x, the body along z (the flap\'s frame)');
+  const head = []; for (let i = 0; i < p.count; i++) if (p.getY(i) > g.boundingBox.max.y - 1e-6) head.push(p.getZ(i));
+  assert.ok(head.length && head.every((z) => z < 0), `the head (+z in the model) faces the player, at -z (${head.length} top vertices)`);
   let low = Infinity;
   for (let i = 0; i < birds.count; i++) {
     birds.getMatrixAt(i, m);

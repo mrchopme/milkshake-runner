@@ -13,10 +13,11 @@ const { registry, problems } = applyPack(shipped, [{ path: 'packs/hifi/obstacles
 const def = registry.obstacle.delivery_bike, { w, d } = def.box;
 
 // A stand-in for public/hifi/delivery_bike.glb with its measured bounds (task-23-models.md): 0.98 x 0.89 x 0.47 units, long along x,
-// its front (the cargo box, the rider's face) toward +x, marked.
-const body = new T.Mesh(new T.BoxGeometry(0.9793, 0.8855, 0.4689), new T.MeshStandardMaterial());
+// its front (the cargo box, the rider's face) toward +x, marked; its material metallic, as Tripo leaves it (so the metal ruling can fail).
+const tripo = () => new T.MeshStandardMaterial({ metalness: 1, metalnessMap: new T.Texture() });
+const body = new T.Mesh(new T.BoxGeometry(0.9793, 0.8855, 0.4689), tripo());
 body.position.set(0.0001, 0, -0.0001);
-const face = new T.Mesh(new T.BoxGeometry(0.02, 0.02, 0.02), new T.MeshStandardMaterial());
+const face = new T.Mesh(new T.BoxGeometry(0.02, 0.02, 0.02), tripo());
 face.name = 'face'; face.position.x = 0.48;
 adopt('hifi/delivery_bike.glb', new T.Group().add(body, face));
 
@@ -26,7 +27,7 @@ const paint = (o) => { let p; o.traverse((n) => { if (n.isMesh && n.material.isM
 test('the HiFi delivery bike fills its lane footprint, may stand taller, and keeps the shipped swerve', () => {
   assert.deepEqual(problems, []);
   assert.equal(def.moves, true);
-  assert.equal(def.update, shipped.obstacle.delivery_bike.update, 'the overlay replaces createView only; the swerve itself is the engine\'s (updateObstacle moves the view\'s x)');
+  assert.equal(def.update, undefined, 'the overlay replaces createView only; the swerve is the engine\'s (src/rules.js updateObstacle moves the view\'s x)');
   const a = def.createView(gfx, {}).object, b = bounds(a), size = b.getSize(new T.Vector3());
   assert.ok(size.x <= w + 1e-6 && size.z <= d + 1e-6, `footprint ${size.x.toFixed(2)} x ${size.z.toFixed(2)} m inside ${w} x ${d}`);
   assert.ok(Math.abs(size.x - w) < 1e-6 || Math.abs(size.z - d) < 1e-6, 'fills the footprint along one side');

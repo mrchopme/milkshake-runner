@@ -15,8 +15,9 @@ const DOORWAY = 1.5; // metres of open space at the feet: the redrawn Milkshake 
 
 // A stand-in for the redrawn public/hifi/scaffold_beam.glb with its measured parts (model units, centred; measured on the optimised file):
 // two posts with their feet at z +-0.32..0.45 and +-0.28..0.49, nothing between them, and the plank from y 0.334 to 0.490 on top
-// (0.17 x 0.94 across z, the model's long side), its doorway facing +x (the marker). The real model is one mesh with one material.
-const generated = new T.MeshStandardMaterial();
+// (0.17 x 0.94 across z, the model's long side), its doorway facing +x (the marker). The real model is one mesh with one material,
+// metallic as Tripo leaves it (so the metal ruling can fail).
+const generated = new T.MeshStandardMaterial({ metalness: 1, metalnessMap: new T.Texture() });
 const mesh = (name, size, at) => { const m = new T.Mesh(new T.BoxGeometry(...size), generated); m.name = name; m.position.set(...at); return m; };
 const raw = new T.Group().add(
   mesh('post', [0.1511, 0.7142, 0.1308], [0, -0.023, 0.3839]), mesh('post', [0.1511, 0.7142, 0.1308], [0, -0.023, -0.3839]),
