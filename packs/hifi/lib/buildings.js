@@ -3,8 +3,9 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { wall, instanced } from './shapes.js';
 import { material } from './materials.js';
 import { facadeMaterial, shopMaterial, TILE, SHOP_H } from './facade.js';
+import { FACADE_X } from './street.js';
 // ponytail: calibration knobs, metres (board 15)
-export const FACADE_X = 7.5, DEPTH = [8, 14], GAP = 0.5, CORNICE = { h: 0.6, out: 0.35 }, SETBACK = { above: 0.6, inset: 2 }, ROOF = { maxH: 40, tower: 0.35 };
+export const DEPTH = [8, 14], GAP = 0.5, CORNICE = { h: 0.6, out: 0.35 }, SETBACK = { above: 0.6, inset: 2 }, ROOF = { maxH: 40, tower: 0.35 };
 const merge = (T, geos) => { const g = mergeGeometries(geos.map((x) => (x.index ? x.toNonIndexed() : x)), false); geos.forEach((x) => x.dispose()); return g; };
 
 // Shells along both sides, merged into one mesh per material, so a chunk is a handful of draw calls.

@@ -5,8 +5,9 @@ import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
-import { street, CROSS } from '../packs/hifi/lib/street.js';
+import { street, CROSS, WALK, FACADE_X } from '../packs/hifi/lib/street.js';
 import { buildings } from '../packs/hifi/lib/buildings.js';
+import { ROAD_HALF } from '../src/world.js';
 import { DRIVE } from '../packs/hifi/lib/traffic.js';
 import { adopt } from '../src/assets.js';
 import bridge from '../packs/hifi/themes/bridge.js';
@@ -58,7 +59,7 @@ test('buildings stand on the facade line, never on the sidewalk or the road', ()
   g.traverse((m) => {
     if (!m.userData.building) return;
     const p = m.geometry.attributes.position;
-    for (let i = 0; i < p.count; i++, n++) { v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld); assert.ok(Math.abs(v.x) >= 7.5 - 0.4 - 1e-6, `vertex at x ${v.x}`); } // cornices may overhang the sidewalk by 0.35 m, high up
+    for (let i = 0; i < p.count; i++, n++) { v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld); assert.ok(Math.abs(v.x) >= FACADE_X - 0.4 - 1e-6, `vertex at x ${v.x}`); } // cornices may overhang the sidewalk by 0.35 m, high up
   });
   assert.ok(n > 0, 'buildings were built');
 });
@@ -87,7 +88,22 @@ test('the cross street has ground under it from the road out to the back of the 
   const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, { id: 'test', road: '#000', walk: '#888', paint: '#fff' }, cross);
   g.updateMatrixWorld(true);
   const covered = (x, z) => { let hit = false; g.traverse((n) => { if (!n.isMesh || n.isInstancedMesh) return; n.geometry.computeBoundingBox(); const b = n.geometry.boundingBox.clone().applyMatrix4(n.matrixWorld); if (x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z && b.max.y <= 0.2) hit = true; }); return hit; };
-  for (const x of [-17, -12, -6, 0, 6, 12, 17]) for (const z of [cross.z + 0.5, cross.z + 6, cross.z + CROSS.width - 0.5]) assert.ok(covered(x, z), `no ground at x ${x}, z ${z}`);
+  for (const x of [-20, -14, -7, 0, 7, 14, 20]) for (const z of [cross.z + 0.5, cross.z + 6, cross.z + CROSS.width - 0.5]) assert.ok(covered(x, z), `no ground at x ${x}, z ${z}`);
+});
+
+test('the facade line is the road\'s edge plus the sidewalk, and the sidewalk runs from the kerb up to it', () => {
+  assert.equal(FACADE_X, ROAD_HALF + WALK);
+  const g = street(gfx, { z0: 0, length: 120, lanes: { ...lanes, roadHalf: ROAD_HALF } }, { id: 'test', road: '#000', walk: '#888', paint: '#fff' }, null);
+  let walks = 0;
+  g.updateMatrixWorld(true);
+  g.traverse((n) => {
+    if (!n.userData.walk) return;
+    walks++;
+    n.geometry.computeBoundingBox();
+    const b = n.geometry.boundingBox.clone().applyMatrix4(n.matrixWorld), [near, far] = [Math.abs(b.min.x), Math.abs(b.max.x)].sort((p, q) => p - q);
+    assert.ok(Math.abs(near - ROAD_HALF) < 1e-6 && Math.abs(far - FACADE_X) < 1e-6, `sidewalk ${near}..${far}`);
+  });
+  assert.equal(walks, 2);
 });
 
 test('a facade tile that loads after a chunk was built still shows on the next chunk', () => {
@@ -106,14 +122,25 @@ test('furniture stands only on the sidewalk band, never in a lane', () => {
     if (!n.userData.furniture) return;
     seen++;
     const m = new THREE.Matrix4(), p = new THREE.Vector3();
-    for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(Math.abs(p.x) >= 4.8 - 1e-6 && Math.abs(p.x) <= 7.3 + 1e-6, `seed ${seed}: x = ${p.x.toFixed(2)}`); }
+    for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(Math.abs(p.x) >= 4.8 - 1e-6 && Math.abs(p.x) <= FACADE_X - 0.2 + 1e-6, `seed ${seed}: x = ${p.x.toFixed(2)}`); }
   });
   assert.ok(seen > 0, 'furniture was built');
 });
 
-test('side-street traffic never enters the avenue', () => {
+test('at most one car drives each side of the cross street: the 6 m loop has no room for two', () => {
+  let cars = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    const sides = [];
+    chunk(seed).traverse((n) => { if (n.userData.traffic) { const m = new THREE.Matrix4(), p = new THREE.Vector3(); for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); sides.push(Math.sign(p.setFromMatrixPosition(m).x)); } } });
+    cars += sides.length;
+    assert.ok(sides.length === new Set(sides).size, `seed ${seed}: two cars on one side (${sides})`);
+  }
+  assert.ok(cars > 100, `${cars} cars in 100 chunks`);
+});
+
+test('side-street traffic never enters the avenue: each car reappears behind the corner building line', () => {
   let seen = 0;
-  chunk(6).traverse((n) => { if (n.userData.traffic) { seen++; const m = new THREE.Matrix4(), p = new THREE.Vector3(); for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(Math.abs(p.x) >= 9, `x = ${p.x}`); } } });
+  chunk(6).traverse((n) => { if (n.userData.traffic) { seen++; const m = new THREE.Matrix4(), p = new THREE.Vector3(); for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(Math.abs(p.x) > FACADE_X, `x = ${p.x}`); } } });
   assert.ok(seen > 0, 'traffic was built');
 });
 
@@ -152,18 +179,21 @@ test('a loaded car model drives along the cross street whatever its own frame, a
   body.scale.setScalar(0.01); body.rotation.y = Math.PI;
   adopt('hifi/taxi.glb', new THREE.Group().add(body));
   const kinds = new Set();
-  for (let seed = 1; seed <= 20; seed++) chunk(seed).traverse((n) => {
+  for (let seed = 1; seed <= 20; seed++) { const g = chunk(seed), cz = g.userData.cross.z; g.traverse((n) => {
     if (!n.userData.traffic) return;
     kinds.add(n.userData.traffic);
     n.geometry.computeBoundingBox();
-    const b = n.geometry.boundingBox, m = new THREE.Matrix4(), p = new THREE.Vector3(), ahead = new THREE.Vector3();
+    const b = n.geometry.boundingBox, m = new THREE.Matrix4(), p = new THREE.Vector3(), ahead = new THREE.Vector3(), half = Math.max(-b.min.x, b.max.x);
     assert.ok(b.max.z - b.min.z > b.max.x - b.min.x, `${n.userData.traffic}: its length lies along the drive axis (+z)`);
-    assert.ok(DRIVE.to + b.max.z <= 4.5 + CROSS.reach + 1e-6, `${n.userData.traffic}: its nose leaves the paving at ${(DRIVE.to + b.max.z).toFixed(2)}`);
+    // the paving runs from the kerb out to CROSS.reach, the back of the blocks: the whole car stays on it, out of the avenue
+    assert.ok(DRIVE.to + b.max.z <= CROSS.reach + 1e-6, `${n.userData.traffic}: its nose leaves the paving at ${(DRIVE.to + b.max.z).toFixed(2)}`);
+    assert.ok(DRIVE.from + b.min.z >= ROAD_HALF, `${n.userData.traffic}: its tail starts in the avenue at ${(DRIVE.from + b.min.z).toFixed(2)}`);
     for (let i = 0; i < n.count; i++) {
       n.getMatrixAt(i, m); p.setFromMatrixPosition(m); ahead.set(0, 0, 1).applyMatrix4(m).sub(p); // the drive's +z in the world, unscaled
       assert.ok(Math.abs(ahead.x - Math.sign(p.x)) < 1e-6 && Math.abs(ahead.y) < 1e-6 && Math.abs(ahead.z) < 1e-6, `${n.userData.traffic}: drives along ${ahead.toArray().map((v) => v.toFixed(2))} from x ${p.x}`);
+      assert.ok(p.z - half >= cz && p.z + half <= cz + CROSS.width, `seed ${seed}: ${n.userData.traffic} at z ${p.z}, its sides in the blocks beside the cross street at ${cz}`);
     }
-  });
+  }); }
   assert.ok(kinds.has('taxi'), 'the loaded taxi drove');
 });
 

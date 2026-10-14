@@ -93,3 +93,31 @@ test('a skyline wraps its ring a whole number of times in its own aspect, roundi
   assert.equal(ringWrap(330, 2048, 301, 80).repeats, 4, 'downtown\'s near strip, 305 m once round: 3.81 repeats for 80 m rounds to four');
   assert.equal(ringWrap(360, 2048, 20, 90).repeats, 1, 'at least once round, however short the strip');
 });
+
+test('a look may set its skyline rings\' target heights (far, near), checked like the rest; without one they stay 90 and 80 m', () => {
+  assert.deepEqual(lookState({ sky: '#9fd3f5', look: {} }).skylineHeight, [90, 80]);
+  assert.deepEqual(lookState({ sky: '#9fd3f5', look: { skylineHeight: [140, 120] } }).skylineHeight, [140, 120]);
+  assert.deepEqual(checkLook({ skylineHeight: [140, 120] }), []);
+  for (const bad of [90, [90], [90, 80, 70], [90, '80'], [5, 80], [90, 900], [NaN, 80]]) assert.match(checkLook({ skylineHeight: bad }).join(), /look.skylineHeight must be \[far, near\], each 10 to 400 metres/, String(bad));
+});
+
+test('each skyline ring turns a quarter of one image, so an image\'s middle faces the avenue and no mirror seam does', () => {
+  // the strips are tiled A|mirror(A): a mirror axis wherever u × repeats is a multiple of 0.5. createLook needs a WebGL
+  // renderer, so this turns three's own cylinder, built as the ring is, by the turn apply() gives it (RING.yaw is 0)
+  for (const [height, repeats] of [[20, 1], [196, 2]]) {
+    const wrap = ringWrap(360, 2048, height, 90);
+    assert.equal(wrap.repeats, repeats);
+    assert.equal(wrap.turn, Math.PI / (2 * repeats));
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(360, 360, 1, 96, 1, true));
+    ring.rotation.y = wrap.turn; ring.updateMatrixWorld();
+    const p = ring.geometry.attributes.position, uv = ring.geometry.attributes.uv, v = new THREE.Vector3();
+    let nearest = Infinity;
+    for (let i = 0; i < p.count; i++) {
+      const u2 = uv.getX(i) * repeats * 2;
+      if (Math.abs(u2 - Math.round(u2)) > 1e-6) continue;
+      v.fromBufferAttribute(p, i).applyMatrix4(ring.matrixWorld);
+      nearest = Math.min(nearest, Math.abs(Math.atan2(v.x, v.z))); // radians off the avenue's end (+z)
+    }
+    assert.ok(Math.abs(nearest - wrap.turn) < 1e-6, `${repeats} repeat(s): the nearest mirror axis ${nearest.toFixed(4)} rad off the avenue, a quarter image is ${wrap.turn.toFixed(4)}`);
+  }
+});

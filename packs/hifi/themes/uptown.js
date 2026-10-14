@@ -11,6 +11,6 @@ const SKYLINE = cityFiles('sky', 'uptown', 2); // the far ring's strip, then the
 export default {
   kind: 'theme', id: 'uptown',
   assets: [...STYLE.facades, ...STYLE.shops, ...Object.values(SIGN_FILES).flat(), ...SKYLINE, ...KIT_FILES],
-  look: { skyline: SKYLINE, exposure: 0.9, sun: { color: '#f3d4ff', intensity: 1.6 }, ambient: 0.8, env: 0.8, skyTop: '#6d4fa8', bloom: { strength: 0.55, threshold: 1.6, radius: 0.5 } },
+  look: { skyline: SKYLINE, skylineHeight: [200, 70], exposure: 0.9, sun: { color: '#f3d4ff', intensity: 1.6 }, ambient: 0.8, env: 0.8, skyTop: '#6d4fa8', bloom: { strength: 0.55, threshold: 1.6, radius: 0.5 } },
   createChunk(gfx, args) { return cityChunk(gfx, args, { ...STYLE, buildings: args.theme.buildings }); },
 };

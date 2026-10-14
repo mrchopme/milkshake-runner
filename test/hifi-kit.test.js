@@ -5,10 +5,11 @@ import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
 import { adopt, release } from '../src/assets.js';
 import { KIT, KIT_FILES, kitParts, placeholder } from '../packs/hifi/lib/kit.js';
-import { furniture } from '../packs/hifi/lib/furniture.js';
+import { furniture, FOOT } from '../packs/hifi/lib/furniture.js';
 import { traffic } from '../packs/hifi/lib/traffic.js';
 import { material } from '../packs/hifi/lib/materials.js';
-import { FACADE_X } from '../packs/hifi/lib/buildings.js';
+import { FACADE_X } from '../packs/hifi/lib/street.js';
+import { BLADE, ASPECT } from '../packs/hifi/lib/signs.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import midtown from '../packs/hifi/themes/midtown.js';
 import uptown from '../packs/hifi/themes/uptown.js';
@@ -85,10 +86,11 @@ test('each kit piece is painted once without the generator\'s random metal, and 
   assert.ok(a.lamp && a.traffic_light, 'lamps and signals were placed');
 });
 
-test('at their real proportions no placed piece reaches into the buildings, and every footprint stands on the sidewalk', () => {
-  // the kerb at the road's edge (roadHalf 4.5); the tree's pit, 2.2 m across, reaches 0.10 m past it (accepted by the main
-  // session, 2026-10-14: invisible at speed; the canopy over the road starts at 2.6 m)
-  const KERB = 4.5, inner = (kind) => (kind === 'tree' ? KERB - 0.11 : KERB), seen = new Set(), m = new THREE.Matrix4();
+test('at their real proportions no placed piece reaches into the buildings or the blade signs, and every footprint stands on the sidewalk', () => {
+  // the sidewalk band runs from the kerb at the road's edge (roadHalf 4.5) to the facade line; every piece (a tree's canopy
+  // included: the stand-in's body is its whole box) keeps WALL m off the wall, and every piece whose top reaches the blade
+  // signs' bottom (a tree's canopy, a newsstand) stays clear of the band they hang over, out from the wall over the storefronts
+  const KERB = 4.5, WALL = 0.2, BLADES = FACADE_X - BLADE.wall - BLADE.w, UNDER = BLADE.y - BLADE.w / ASPECT.blade / 2, seen = new Set(), m = new THREE.Matrix4();
   for (const [kind, entry] of Object.entries(KIT)) if (REAL[kind]) adopt(entry.path, real(REAL[kind]));
   for (let seed = 1; seed <= 40; seed++) furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 60 }).traverse((n) => {
     const kind = n.userData.furniture;
@@ -97,11 +99,36 @@ test('at their real proportions no placed piece reaches into the buildings, and 
     for (let i = 0; i < n.count; i++) {
       n.getMatrixAt(i, m);
       const b = n.geometry.boundingBox.clone().applyMatrix4(m), [near, far] = [Math.abs(b.min.x), Math.abs(b.max.x)].sort((p, q) => p - q);
-      assert.ok(far <= FACADE_X + 1e-6, `seed ${seed}: ${kind} reaches x ${far.toFixed(2)}`);
-      if (n.geometry.userData.foot) { seen.add(kind); assert.ok(near >= inner(kind) - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`); }
+      assert.ok(far <= FACADE_X - WALL + 1e-6, `seed ${seed}: ${kind} reaches x ${far.toFixed(2)}`);
+      if (b.max.y > UNDER) assert.ok(far <= BLADES + 1e-6, `seed ${seed}: a ${kind} ${b.max.y.toFixed(2)} m tall reaches x ${far.toFixed(2)}, the blade signs ${BLADES.toFixed(2)} from ${UNDER.toFixed(2)} m up`);
+      if (n.geometry.userData.foot) { seen.add(kind); assert.ok(near >= KERB - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`); }
     }
   });
   assert.deepEqual([...seen].sort(), Object.keys(REAL).sort(), 'every placed kind\'s footprint was checked');
+});
+
+test('the footprints furniture spaces pieces by (FOOT) are the pieces\' own at KIT\'s sizes', () => {
+  for (const [kind, [across, along]] of Object.entries(FOOT)) {
+    adopt(KIT[kind].path, real(REAL[kind]));
+    const p = kitParts(gfx, KIT[kind], placeholder(kind)).find((x) => x.geometry.userData.foot), size = new THREE.Vector3();
+    p.geometry.computeBoundingBox();
+    p.geometry.boundingBox.clone().applyMatrix4(p.matrix).getSize(size); // the kit's frame: z toward the road (across), x along the street
+    assert.ok(Math.abs(size.z / 2 - across) <= 0.01 && Math.abs(size.x / 2 - along) <= 0.01, `${kind}: FOOT [${across}, ${along}], measured [${(size.z / 2).toFixed(3)}, ${(size.x / 2).toFixed(3)}]`);
+  }
+});
+
+test('at their real proportions no two footprints on a side of the street overlap', () => {
+  for (const [kind, entry] of Object.entries(KIT)) if (REAL[kind]) adopt(entry.path, real(REAL[kind]));
+  const m = new THREE.Matrix4(), apart = (a, b, k) => a.max[k] <= b.min[k] + 1e-6 || b.max[k] <= a.min[k] + 1e-6;
+  for (let seed = 1; seed <= 200; seed++) { // 200: a tree pit by a corner's traffic light came up about once in 25 chunks
+    const feet = [], cross = { z: 30 + ((seed * 13) % 48) }; // anywhere a chunk puts it (lib/city.js)
+    furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), cross).traverse((n) => {
+      if (!n.geometry?.userData.foot) return;
+      n.geometry.computeBoundingBox();
+      for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); feet.push([n.userData.furniture, n.geometry.boundingBox.clone().applyMatrix4(m)]); } // signed x: the two sides never meet
+    });
+    feet.forEach(([ka, a], i) => feet.slice(i + 1).forEach(([kb, b]) => assert.ok(apart(a, b, 'x') || apart(a, b, 'z'), `seed ${seed}: a ${ka} at x ${a.getCenter(new THREE.Vector3()).x.toFixed(2)}, z ${a.getCenter(new THREE.Vector3()).z.toFixed(2)} and a ${kb} at z ${b.getCenter(new THREE.Vector3()).z.toFixed(2)}`)));
+  }
 });
 
 test('the street themes load every kit file before play', () => {
