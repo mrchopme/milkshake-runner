@@ -7,6 +7,7 @@ import { adopt, release } from '../src/assets.js';
 import { KIT, KIT_FILES, kitParts, placeholder } from '../packs/hifi/lib/kit.js';
 import { furniture } from '../packs/hifi/lib/furniture.js';
 import { traffic } from '../packs/hifi/lib/traffic.js';
+import { material } from '../packs/hifi/lib/materials.js';
 import { FACADE_X } from '../packs/hifi/lib/buildings.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import midtown from '../packs/hifi/themes/midtown.js';
@@ -216,12 +217,16 @@ test('a released kit file frees its paint and the glow the paint made, and leave
   });
 });
 
-test('a released vehicle file frees the traffic made from its paint: the driving copy and the baked geometry', () => {
-  const cars = ['sedan', 'van', 'taxi'].map((k) => KIT[k].path);
-  for (const path of cars) adopt(path, new THREE.Group().add(new THREE.Mesh(new THREE.BoxGeometry(1, 0.6, 0.6), tripo())));
-  const made = new Set();
-  for (let seed = 1; seed <= 10; seed++) traffic(gfx, {}, null, rng(seed), { z: 60 }).traverse((m) => { if (m.userData.traffic) made.add(m.material).add(m.geometry); });
-  const n = counts([...made]);
+test('a released vehicle file frees the traffic made from its paint, and no cache keeps it: a reload drives new copies', () => {
+  const kinds = ['sedan', 'van', 'taxi'], cars = kinds.map((k) => KIT[k].path);
+  const load = () => { for (const path of cars) adopt(path, new THREE.Group().add(new THREE.Mesh(new THREE.BoxGeometry(1, 0.6, 0.6), tripo()))); };
+  const drive = () => { const made = new Set(); for (let seed = 1; seed <= 10; seed++) traffic(gfx, {}, null, rng(seed), { z: 60 }).traverse((m) => { if (m.userData.traffic) made.add(m.material).add(m.geometry); }); return made; };
+  load();
+  const made = drive(), n = counts([...made]), paints = kinds.map((k) => kitParts(gfx, KIT[k], placeholder(k))[0].material);
   freeOnly(...cars);
   assert.ok(made.size >= 4 && [...n.values()].every((c) => c === 1), `each freed once: ${[...n.values()]}`);
+  load();
+  assert.ok([...drive()].every((x) => !made.has(x)), 'the reload drives new copies');
+  // the session's material cache does not hold the old copy (and through it the freed file's images) under the old paint's key
+  for (const p of paints) { const probe = { userData: {} }; assert.equal(material(`traffic/${p.uuid}`, () => probe), probe, 'nothing cached for the old paint'); }
 });
