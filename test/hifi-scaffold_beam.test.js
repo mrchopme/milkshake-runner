@@ -4,11 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { buildRegistry, applyPack } from '../src/registry.js';
 import { discover } from './helpers.js';
 import * as gfx from '../src/gfx.js';
-import { adopt } from '../src/assets.js';
+import { adopt, release } from '../src/assets.js';
 
 const T = gfx.three;
 const shipped = buildRegistry(await discover(fileURLToPath(new URL('../content/', import.meta.url))));
-const overlay = (await import('../packs/hifi/obstacles/scaffold_beam.js')).default;
+const { default: overlay, SPREAD } = await import('../packs/hifi/obstacles/scaffold_beam.js');
 const { registry, problems } = applyPack(shipped, [{ path: 'packs/hifi/obstacles/scaffold_beam.js', module: overlay }]);
 const def = registry.obstacle.scaffold_beam, { w, h, d, y } = def.box;
 const DOORWAY = 1.5; // metres of open space at the feet: the redrawn Milkshake is about 1.13 m across with her arms down; the generated model leaves 0.93 m, the overlay spreads the posts apart
@@ -16,13 +16,18 @@ const DOORWAY = 1.5; // metres of open space at the feet: the redrawn Milkshake 
 // A stand-in for the redrawn public/hifi/scaffold_beam.glb with its measured parts (model units, centred; measured on the optimised file):
 // two posts with their feet at z +-0.32..0.45 and +-0.28..0.49, nothing between them, and the plank from y 0.334 to 0.490 on top
 // (0.17 x 0.94 across z, the model's long side), its doorway facing +x (the marker). The real model is one mesh with one material,
-// metallic as Tripo leaves it (so the metal ruling can fail).
+// metallic as Tripo leaves it (so the metal ruling can fail). The plank has vertices all along it (8 segments, so a widening that
+// dropped its middle stretch would leave a gap) and is stored as the optimiser leaves it: 16-bit positions, the node scaling them back.
 const generated = new T.MeshStandardMaterial({ metalness: 1, metalnessMap: new T.Texture() });
 const mesh = (name, size, at) => { const m = new T.Mesh(new T.BoxGeometry(...size), generated); m.name = name; m.position.set(...at); return m; };
+const PLANK = { length: 0.9353, segments: 8, q: 0.5 }; // q: the node's dequantising scale
+const plank = mesh('plank', [0.1737, 0.1556, PLANK.length, 1, 1, PLANK.segments], [0, 0.4119, -0.0028]);
+plank.geometry.setAttribute('position', new T.BufferAttribute(Int16Array.from(plank.geometry.attributes.position.array, (v) => Math.round(v / PLANK.q * 32767)), 3, true));
+plank.scale.setScalar(PLANK.q);
 const raw = new T.Group().add(
   mesh('post', [0.1511, 0.7142, 0.1308], [0, -0.023, 0.3839]), mesh('post', [0.1511, 0.7142, 0.1308], [0, -0.023, -0.3839]),
   mesh('foot', [0.2295, 0.1091, 0.2045], [0, -0.4347, 0.3852]), mesh('foot', [0.2295, 0.1091, 0.2045], [0, -0.4347, -0.3852]),
-  mesh('plank', [0.1737, 0.1556, 0.9353], [0, 0.4119, -0.0028]), mesh('face', [0.02, 0.02, 0.02], [0.075, 0.41, 0]));
+  plank, mesh('face', [0.02, 0.02, 0.02], [0.075, 0.41, 0]));
 const loadedPositions = []; raw.traverse((n) => { if (n.isMesh) loadedPositions.push([n.geometry, Array.from(n.geometry.attributes.position.array)]); });
 adopt('hifi/scaffold_beam.glb', raw);
 
@@ -59,7 +64,7 @@ test('the HiFi scaffold has daylight under its plank: nothing between the posts 
   assert.ok(under.length >= 20, 'there are posts and feet to test');
   const beside = (t) => t.every((v) => v.x >= DOORWAY / 2) || t.every((v) => v.x <= -DOORWAY / 2); // wholly on one side of the doorway
   assert.ok(under.every(beside), `every triangle below the plank's underside (${plankBottom.toFixed(2)} m) stays outside the ${DOORWAY} m doorway: no brace or bar across the lane`);
-  assert.ok(all.some((t) => lowest(t) >= plankBottom - 1e-6 && t.some((v) => v.x < -0.1) && t.some((v) => v.x > 0.1)), 'and the plank itself does cross the lane above that');
+  assert.ok(all.some((t) => lowest(t) >= plankBottom - 1e-6 && t.some((v) => v.x <= 0) && t.some((v) => v.x >= 0)), 'and the plank itself does cross the lane above that');
 });
 
 test('the HiFi scaffold spreads its posts apart for Milkshake without stretching them, and leaves the loaded geometry alone', () => {
@@ -78,6 +83,7 @@ test('the HiFi scaffold spreads its posts apart for Milkshake without stretching
   }
   const view = find(a, 'plank');
   assert.ok(view.geometry.userData.shared && !loadedPositions.some(([g]) => g === view.geometry), 'the widened geometry is its own clone, flagged shared');
+  assert.ok(view.geometry.attributes.position.array instanceof Float32Array, 'in floats: the 16-bit positions would clamp the moved ends');
   for (const [g, positions] of loadedPositions) assert.deepEqual(Array.from(g.attributes.position.array), positions, 'the loaded geometry is untouched');
   assert.ok(named(def.createView(gfx, {}).object, 'plank')[0].geometry === view.geometry, 'every copy shares the one widened geometry');
 });
@@ -87,4 +93,22 @@ test('the HiFi scaffold shows its doorway to the player, with one glossy paint f
   assert.ok(find(a, 'face').getWorldPosition(new T.Vector3()).z < bounds(a).getCenter(new T.Vector3()).z - 0.05, 'the +x doorway faces the camera, at -z');
   assert.ok(paint(a).clearcoat > 0 && paint(a).metalness === 0 && paint(a).metalnessMap === null, 'glossy, and not the random metal Tripo left in');
   assert.equal(paint(a), paint(b), 'every scaffold shares one paint material');
+});
+
+test('the HiFi scaffold\'s plank stretches all along its middle and reaches both spread ends', () => {
+  const a = def.createView(gfx, {}).object, view = find(a, 'plank'), size = bounds(view).getSize(new T.Vector3()), k = a.children[0].scale.x; // the fit: metres per model unit
+  assert.ok(Math.abs(size.x - (PLANK.length + 2 * SPREAD) * k) < 1e-4, `the plank spans ${size.x.toFixed(3)} m: its own length and SPREAD at each end`);
+  const p = view.geometry.attributes.position, v = new T.Vector3(), xs = new Set();
+  for (let i = 0; i < p.count; i++) xs.add(+v.fromBufferAttribute(p, i).applyMatrix4(view.matrixWorld).x.toFixed(6));
+  const along = [...xs].sort((m, n) => m - n), step = PLANK.length / PLANK.segments * k;
+  assert.equal(along.length, PLANK.segments + 1, 'every cross-section of the plank is kept');
+  for (let i = 1; i < along.length; i++) assert.ok(along[i] - along[i - 1] <= 1.715 * step, `no gap: ${(along[i] - along[i - 1]).toFixed(3)} m between sections at most 1.714x the ${step.toFixed(3)} m spacing`);
+});
+
+test('releasing the scaffold\'s file frees its widened geometry with the loaded one', () => { // last: it frees the file
+  const view = find(def.createView(gfx, {}).object, 'plank');
+  let freed = 0;
+  view.geometry.addEventListener('dispose', () => freed++);
+  release([]);
+  assert.equal(freed, 1, 'the clone goes with the geometry it was made from');
 });

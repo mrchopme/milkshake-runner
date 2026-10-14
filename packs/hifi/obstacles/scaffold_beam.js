@@ -7,8 +7,8 @@ import { fitBox } from '../lib/fit.js';
 import { gloss, painter } from '../lib/paint.js';
 
 const YAW = Math.PI / 2; // ponytail: calibration knob — the plank runs along z and the doorway between the posts faces +x; +π/2 turns the doorway to the player (-z) and the plank across the lane
-const SPREAD = 0.2;      // ponytail: calibration knob — model units each half (post, feet, plank end) moves outward along the plank: the doorway opens from 0.93 to 1.58 m at the feet, the whole from 1.59 to 2.25 m wide (box 2.4)
-const INNER = 0.28;      // the model's z of the nearest post or foot is 0.283: past it everything moves rigidly (posts and feet keep their shape); inside it only the plank, which stretches
+export const SPREAD = 0.2; // ponytail: calibration knob — model units each half (post, feet, plank end) moves outward along the plank: the doorway opens from 0.93 to 1.58 m at the feet, the whole from 1.59 to 2.25 m wide (box 2.4)
+const INNER = 0.28;        // must stay below the nearest foot, at z 0.2829 model units: past it everything moves rigidly (posts and feet keep their shape); inside it only the plank, which stretches
 // metalness 0: Tripo marks parts metallic at random, which reads as dark paint (Task 23 ruling); the roughness map stays
 const paint = painter((T, m) => gloss(T, m, { clearcoat: 0.6, clearcoatRoughness: 0.2, metalness: 0, metalnessMap: null }));
 
@@ -30,7 +30,8 @@ export default {
 };
 
 // A clone of the mesh's geometry with its two halves moved apart along the model's z (the plank's axis): a vertex beyond INNER moves out by
-// SPREAD, one inside it is scaled out to meet them. The loaded geometry stays untouched for any other user; the clone is flagged shared.
+// SPREAD, one inside it is scaled out to meet them. The loaded geometry stays untouched for any other user; the clone is flagged shared,
+// and freed when assets.release frees the loaded one.
 function widen(T, model, mesh) {
   let g = spread.get(mesh.geometry);
   if (g) return g;
@@ -47,6 +48,7 @@ function widen(T, model, mesh) {
   g.setAttribute('position', moved);
   g.computeBoundingBox(); g.computeBoundingSphere(); // clone() copied the loaded geometry's bounds
   g.userData.shared = true;
+  mesh.geometry.addEventListener('dispose', () => g.dispose());
   spread.set(mesh.geometry, g);
   return g;
 }
