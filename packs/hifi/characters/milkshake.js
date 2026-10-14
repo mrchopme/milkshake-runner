@@ -4,7 +4,7 @@ import { cowView } from '../../../content/characters/milkshake.js';
 import { gloss } from '../lib/paint.js';
 
 // Knobs in the mesh's geometry frame, the one skinWeights reads: the optimised GLB stores positions quantised to y -1..1
-// (the node's 0.490 scale, which the skinning drops, brings them to 0.98 units), +x the muzzle, z left-right. Measured
+// (the node's 0.4897 scale, which the skinning drops, brings them to 0.98 units), +x the muzzle, z left-right. Measured
 // 2026-10-14 on the v2 model (arms down) with gltf-transform per height slice (y_m = (y + 1) * 0.95); regenerated, measure again.
 export const SKIN = {
   crotch: -0.66, crotchBand: 0.1,     // the legs (z ±0.07..0.40) are two pieces up to y -0.66 and one body from -0.65
@@ -12,8 +12,10 @@ export const SKIN = {
   // arm (armZ 0.33, band 0.03) swung from the shoulder cap tore that seam: a Node run-cycle sweep at the stride's peak left 450
   // arm edges stretched past 3x (p99 8x). ponytail: calibration knobs — the soft band and a swing from about the elbow leave none.
   armZ: 0.29, armBand: 0.12,
-  armFloor: -0.4, armBack: -0.1,      // no arm weight in the belly under the hands (|z| to 0.359 at y < -0.44) or the tail, which
-                                      // hangs at the hands' height out to z -0.596 but behind x -0.2
+  armFloor: -0.4, armBack: -0.1,      // little arm weight in the belly under the hands (|z| to 0.359 at y < -0.44) or the tail, which
+                                      // hangs at the hands' height out to z -0.596 but behind x -0.2. Both fade over armBand (the
+                                      // content module reuses it), so a wider armBand reaches further into the belly and the tail's root
+                                      // on the rump (x -0.26, pinned in the test)
   shoulder: -0.15, shoulderBand: 0.12, // the swing fades out by y -0.03, below the shoulder cap (y 0.12) and the neck band
   neck: 0.1, neckBand: 0.08,          // the head (muzzle from y 0.115, ears 0.57..0.78, horns 0.90..1.0) sits on the torso, no neck
 };
