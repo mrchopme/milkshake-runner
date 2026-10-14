@@ -6,6 +6,7 @@ import { rng } from '../src/generator.js';
 import { adopt, release } from '../src/assets.js';
 import { KIT, KIT_FILES, kitParts, placeholder } from '../packs/hifi/lib/kit.js';
 import { furniture } from '../packs/hifi/lib/furniture.js';
+import { traffic } from '../packs/hifi/lib/traffic.js';
 import { FACADE_X } from '../packs/hifi/lib/buildings.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import midtown from '../packs/hifi/themes/midtown.js';
@@ -198,4 +199,29 @@ test('a loaded kit model whose build throws warns once and stays a stand-in, wit
   assert.equal(builds, 1, 'built once, not every chunk');
   assert.equal(warn.mock.callCount(), 1, 'one warning');
   assert.match(String(warn.mock.calls[0].arguments[0]), /broken\.glb/);
+});
+
+// release() disposes a freed file's materials; everything made from them must go too, or the look's CSM (which holds every lit
+// material until its dispose) pins one more copy each level cycle.
+const counts = (things) => { const n = new Map(things.map((x) => [x, 0])); for (const x of things) x.addEventListener('dispose', () => n.set(x, n.get(x) + 1)); return n; };
+const freeOnly = (...paths) => release(KIT_FILES.filter((p) => !paths.includes(p)));
+
+test('a released kit file frees its paint and the glow the paint made, and leaves the model\'s own map to release', () => {
+  withCanvas(() => {
+    const map = new THREE.Texture({ px: new Uint8ClampedArray([210, 184, 129, 255, 132, 139, 147, 255]) }); // lens, housing
+    adopt(KIT.lamp.path, new THREE.Group().add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), tripo(map)))); // one mesh, one material, as generated
+    const paint = kitParts(gfx, KIT.lamp, placeholder('lamp'))[0].material, n = counts([paint, paint.emissiveMap, map]);
+    freeOnly(KIT.lamp.path);
+    assert.deepEqual([...n.values()], [1, 1, 1], 'the paint and its glow freed once each; the colour map once, by release');
+  });
+});
+
+test('a released vehicle file frees the traffic made from its paint: the driving copy and the baked geometry', () => {
+  const cars = ['sedan', 'van', 'taxi'].map((k) => KIT[k].path);
+  for (const path of cars) adopt(path, new THREE.Group().add(new THREE.Mesh(new THREE.BoxGeometry(1, 0.6, 0.6), tripo())));
+  const made = new Set();
+  for (let seed = 1; seed <= 10; seed++) traffic(gfx, {}, null, rng(seed), { z: 60 }).traverse((m) => { if (m.userData.traffic) made.add(m.material).add(m.geometry); });
+  const n = counts([...made]);
+  freeOnly(...cars);
+  assert.ok(made.size >= 4 && [...n.values()].every((c) => c === 1), `each freed once: ${[...n.values()]}`);
 });

@@ -24,7 +24,10 @@ test('a model reloaded after assets.release gets fresh paint, not its raw genera
   assert.equal(paints(a).length, 1, 'both segments wear one paint');
   assert.ok(glossy(paints(a)[0]), 'the first load is painted');
   assert.equal(paints(b)[0], paints(a)[0], 'two copies share one paint');
+  let freed = 0;
+  paints(a)[0].addEventListener('dispose', () => freed++);
   release([]); // a level without the barrier frees its file
+  assert.equal(freed, 1, 'and its paint with it: the look\'s CSM holds every lit material until it is disposed');
   adopt('hifi/barrier_low.glb', standIn()); // a later level loads it again: new materials
   const [p] = paints(def.createView(gfx, {}).object);
   assert.ok(glossy(p), `the reload is painted too, not shown raw (${p.type}, metalness ${p.metalness})`);

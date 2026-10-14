@@ -13,16 +13,27 @@ const drive = (gfx, phase) => (s) => {
   s.uniforms.uTime = gfx.time; s.uniforms.uPhase = { value: phase };
   s.vertexShader = 'uniform float uTime;\nuniform float uPhase;\n' + s.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>\n  transformed.z += mod( uTime * ${DRIVE.speed.toFixed(1)} + fract( float( gl_InstanceID ) * 0.618 + uPhase ) * ${SPAN}, ${SPAN} );`);
 };
-// A clone of the kit's material (one per source material, cached and shared; gfx.bend patches the clone in its own right).
-const driving = (gfx, source, phase) => material(`traffic/${source.uuid}`, () => Object.assign(source.clone(), { onBeforeCompile: drive(gfx, phase) }));
+// A clone of the kit's material (one per source material, cached and shared; gfx.bend patches the clone in its own right),
+// disposed with the kit paint it copies when assets.release frees the vehicle's file, so the look's CSM lets it go.
+// ponytail: materials.js keeps the disposed clone under its key (a few small objects per level cycle); add a delete if that ever counts.
+const driving = (gfx, source, phase) => material(`traffic/${source.uuid}`, () => {
+  const m = Object.assign(source.clone(), { onBeforeCompile: drive(gfx, phase) });
+  source.addEventListener('dispose', () => m.dispose());
+  return m;
+});
 // The shadow pass draws with this instead of three's own depth material, so the shadow drives with the car.
 const shadow = (gfx, phase) => material(`traffic/depth/${phase}`, () => Object.assign(new gfx.three.MeshDepthMaterial({ depthPacking: gfx.three.RGBADepthPacking }), { onBeforeCompile: drive(gfx, phase) }));
 // A model part's geometry with its fit (node transforms, scale, yaw) baked in, cached and shared, so the instance matrix
-// is the placement alone and +z is the car's own ahead in metres. Placeholders are already in that frame.
+// is the placement alone and +z is the car's own ahead in metres. Placeholders are already in that frame. Freed with the loaded geometry.
 const baked = new WeakMap();
 export function fitted(T, p) {
   if (p.matrix.equals(new T.Matrix4())) return p.geometry;
-  if (!baked.has(p)) { const g = p.geometry.clone().applyMatrix4(p.matrix); g.userData = { shared: true }; baked.set(p, g); }
+  if (!baked.has(p)) {
+    const g = p.geometry.clone().applyMatrix4(p.matrix);
+    g.userData = { shared: true };
+    p.geometry.addEventListener('dispose', () => g.dispose());
+    baked.set(p, g);
+  }
   return baked.get(p);
 }
 export function traffic(gfx, args, style, r, cross) {

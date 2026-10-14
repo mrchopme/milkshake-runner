@@ -1,5 +1,5 @@
 import { material } from './materials.js';
-import { gloss, glowMap } from './paint.js';
+import { freeWith, gloss, glowMap } from './paint.js';
 // The lights, picked from each model's own texels (measured on the generated textures, Task 23): only these glow.
 const warm = (r, g, b) => r > 170 && r - b > 45;                               // the lamp's lens, the double lamp's lanterns
 const signal = (r, g, b) => (r > 200 && g < 100 && b < 110) || (g > 180 && r < 120 && b < 120); // red, green; the middle lens is the housing's yellow
@@ -81,7 +81,7 @@ function build(T, model, entry) {
   const fit = new T.Matrix4().makeScale(s, s, s).multiply(new T.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z));
   model.traverse((n) => {
     if (!n.isMesh) return;
-    if (!paint.has(n.material)) paint.set(n.material, dress(T, n, entry));
+    if (!paint.has(n.material)) paint.set(n.material, freeWith(n.material, dress(T, n, entry))); // released with its file, superseded lists too
     list.push({ geometry: n.geometry, material: paint.get(n.material), matrix: fit.clone().multiply(n.matrixWorld) });
   });
   return list;

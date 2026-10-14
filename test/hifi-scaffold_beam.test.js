@@ -64,7 +64,8 @@ test('the HiFi scaffold has daylight under its plank: nothing between the posts 
   assert.ok(under.length >= 20, 'there are posts and feet to test');
   const beside = (t) => t.every((v) => v.x >= DOORWAY / 2) || t.every((v) => v.x <= -DOORWAY / 2); // wholly on one side of the doorway
   assert.ok(under.every(beside), `every triangle below the plank's underside (${plankBottom.toFixed(2)} m) stays outside the ${DOORWAY} m doorway: no brace or bar across the lane`);
-  assert.ok(all.some((t) => lowest(t) >= plankBottom - 1e-6 && t.some((v) => v.x <= 0) && t.some((v) => v.x >= 0)), 'and the plank itself does cross the lane above that');
+  const plank = all.filter((t) => lowest(t) >= plankBottom - 1e-6);
+  assert.ok(plank.some((t) => t.some((v) => v.x < 0) && t.some((v) => v.x > 0)) && plank.some((t) => t.some((v) => v.x < -0.1)) && plank.some((t) => t.some((v) => v.x > 0.1)), 'and the plank itself does cross the lane above that');
 });
 
 test('the HiFi scaffold spreads its posts apart for Milkshake without stretching them, and leaves the loaded geometry alone', () => {
