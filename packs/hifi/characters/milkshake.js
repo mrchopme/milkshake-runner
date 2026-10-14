@@ -4,22 +4,23 @@ import { cowView } from '../../../content/characters/milkshake.js';
 import { gloss } from '../lib/paint.js';
 
 // Knobs in the mesh's geometry frame, the one skinWeights reads: the optimised GLB stores positions quantised to y -1..1
-// (the node's 0.489 scale, which the skinning drops, brings them to 0.98 units), +x the muzzle, z left-right. Measured
-// 2026-10-13 with gltf-transform per 0.04 slice of height (y_m = (y + 1) * 0.95); if the GLB is regenerated, measure again.
+// (the node's 0.490 scale, which the skinning drops, brings them to 0.98 units), +x the muzzle, z left-right. Measured
+// 2026-10-14 on the v2 model (arms down) with gltf-transform per height slice (y_m = (y + 1) * 0.95); regenerated, measure again.
 export const SKIN = {
-  crotch: -0.69, crotchBand: 0.1,    // the legs (z ±0.05..0.40) are two pieces up to y -0.69 and one body from -0.68; the band
-                                     // from a Node sweep at the stride's peak: 0.03 left 144 edges stretched past 3x, 0.1 none
-  armZ: 1, armBand: 0.03,            // ponytail: calibration knob — past the mesh (|z| ≤ 0.69), so the arms ride the torso. Measured
-                                     // 0.37 (the arms leave the flank at 0.335, the belly reaches 0.363), but skinWeights has no
-                                     // floor for arm weight and the tail curls out to z -0.56 below the arms (y -0.56..-0.29), so it
-                                     // would swing with the right arm; and the arms point out along z, so the z swing only rolls them
-  shoulder: 0.12, shoulderBand: 0.04, // the arms span y -0.10..0.11 (a cylinder from the flank to |z| 0.69)
-  neck: 0.12, neckBand: 0.08,         // the head (muzzle from y 0.115, ears 0.55..0.77, horns 0.90..1.0) sits on the torso, no neck
+  crotch: -0.66, crotchBand: 0.1,     // the legs (z ±0.07..0.40) are two pieces up to y -0.66 and one body from -0.65
+  // The arms hang fused to the flank (|z| ≤ 0.32 around them) out to |z| 0.477, x -0.10..0.10, hands down to y -0.44. A crisp
+  // arm (armZ 0.33, band 0.03) swung from the shoulder cap tore that seam: a Node run-cycle sweep at the stride's peak left 450
+  // arm edges stretched past 3x (p99 8x). ponytail: calibration knobs — the soft band and a swing from about the elbow leave none.
+  armZ: 0.29, armBand: 0.12,
+  armFloor: -0.4, armBack: -0.1,      // no arm weight in the belly under the hands (|z| to 0.359 at y < -0.44) or the tail, which
+                                      // hangs at the hands' height out to z -0.596 but behind x -0.2
+  shoulder: -0.15, shoulderBand: 0.12, // the swing fades out by y -0.03, below the shoulder cap (y 0.12) and the neck band
+  neck: 0.1, neckBand: 0.08,          // the head (muzzle from y 0.115, ears 0.57..0.78, horns 0.90..1.0) sits on the torso, no neck
 };
 export const BONES = {
-  hips: [0.01, -0.6, 0],                                // the pelvis; the torso's x centre is 0.01 at every height
-  head: [0.01, 0.16, 0],                                // the middle of the neck band
-  armL: [0.05, 0, 0.35], armR: [0.05, 0, -0.35],        // the arms' centre where they leave the flank
+  hips: [0.01, -0.55, 0],                                // the pelvis; the torso's x centre is 0.01 at every height
+  head: [0.01, 0.14, 0],                                 // the middle of the neck band
+  armL: [0, SKIN.shoulder, 0.4], armR: [0, SKIN.shoulder, -0.4], // over the arm's centre line (x 0, |z| 0.40), where its swing starts
   legL: [0.01, SKIN.crotch, 0.21], legR: [0.01, SKIN.crotch, -0.21], // the top of each leg
 };
 const YAW = -Math.PI / 2; // ponytail: calibration knob — the muzzle (+x in the GLB) turns to +z, the way Milkshake runs (the shipped yaw)

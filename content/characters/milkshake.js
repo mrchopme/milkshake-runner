@@ -12,11 +12,14 @@ export const BONES = { hips: [-0.02, -0.4, 0], head: [-0.05, 0.22, 0], armL: [-0
 const toon = (T, m) => new T.MeshToonMaterial({ map: m.map, color: m.color });
 const LEG_SWING =0.7, ARM_SWING = 0.7, HEAD_SWING = 0.08; // radians at the stride's peak; tuned in the manual pass
 
-// Weights for a vertex at height y and side z: [hips, head, armL, armR, legL, legR], summing to 1. Pure, so Node can test it.
-export function skinWeights(y, z, K = SKIN) {
+// Weights for a vertex at height y, side z and depth x: [hips, head, armL, armR, legL, legR], summing to 1. Pure, so Node can test it.
+// Two optional knobs (unset here, so the shipped weights never read x): `armFloor`, below which arm weight fades out over
+// `armBand`, and `armBack`, behind which it does; the HiFi cow's arms hang over a wider belly and beside its tail.
+export function skinWeights(y, z, K = SKIN, x = 0) {
   const sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
   const leg = 1 - sm(K.crotch - K.crotchBand / 2, K.crotch + K.crotchBand / 2, y), left = sm(-0.02, 0.02, z);
-  const arm = sm(K.armZ, K.armZ + K.armBand, Math.abs(z)) * (1 - sm(K.shoulder, K.shoulder + K.shoulderBand, y)) * (1 - leg);
+  const arm = sm(K.armZ, K.armZ + K.armBand, Math.abs(z)) * (1 - sm(K.shoulder, K.shoulder + K.shoulderBand, y)) * (1 - leg)
+    * (K.armFloor === undefined ? 1 : sm(K.armFloor - K.armBand, K.armFloor, y)) * (K.armBack === undefined ? 1 : sm(K.armBack - K.armBand, K.armBack, x));
   const w = [0, sm(K.neck, K.neck + K.neckBand, y), z > 0 ? arm : 0, z > 0 ? 0 : arm, leg * left, leg * (1 - left)];
   w[0] = Math.max(0, 1 - w[1] - w[2] - w[3] - w[4] - w[5]);
   const sum = w.reduce((s, v) => s + v, 0);
@@ -113,7 +116,7 @@ function skin(THREE, mesh, K, B) {
   const g = mesh.geometry, pos = g.attributes.position, n = pos.count;
   const joints = new Uint16Array(n * 4), weights = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) {
-    const w = skinWeights(pos.getY(i), pos.getZ(i), K);
+    const w = skinWeights(pos.getY(i), pos.getZ(i), K, pos.getX(i));
     const top = [0, 1, 2, 3, 4, 5].sort((a, b) => w[b] - w[a]).slice(0, 4), sum = top.reduce((s, k) => s + w[k], 0);
     top.forEach((k, j) => { joints[i * 4 + j] = k; weights[i * 4 + j] = w[k] / sum; });
   }
