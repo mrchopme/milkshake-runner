@@ -43,6 +43,8 @@ test('look values are checked on themes', () => {
   assert.match(checkLook({ sun: { color: 'warm' } }).join(), /look.sun.color must be a hex colour/);
   assert.match(checkLook({ sun: { tint: '#ffffff' } }).join(), /look.sun may only set color, intensity and dir/);
   assert.match(checkLook({ bloom: { glow: 1 } }).join(), /look.bloom may only set strength, threshold and radius/);
+  assert.deepEqual(checkLook({ bloom: { threshold: 1.8 } }), [], 'the bloom reads the HDR scene, so lit white (about 2) can sit under a threshold past 1');
+  assert.match(checkLook({ bloom: { threshold: 4 } }).join(), /look.bloom.threshold must be 0 to 3/);
   assert.match(checkLook({ fogColor: '#ffffff' }).join(), /look: unknown key "fogColor"/);
   assert.match(checkLook('bright').join(), /look must be an object/);
   const theme = { kind: 'theme', id: 'ari/sea', sky: '#9fd3f5', fog: 0.2, buildings: { colors: ['#ffffff'], minH: 5, maxH: 10 } };
@@ -83,11 +85,11 @@ test('a look may name its skyline and the sun\'s direction', () => {
   assert.equal(lookState({ sky: '#000000', look: {} }).sun.dir, null);
 });
 
-test('a skyline wraps its ring a whole number of times in its own aspect, as near its target height as that allows', () => {
+test('a skyline wraps its ring a whole number of times in its own aspect, rounding the repeat count its target height asks for', () => {
   const lap = 2 * Math.PI * 360, near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}`);
   const wide = ringWrap(360, 2048, 196, 90); // downtown's far strip: once round would stand 216 m tall
   assert.equal(wide.repeats, 2);
   near(wide.height / (lap / wide.repeats), 196 / 2048, 'each copy keeps the image\'s aspect');
-  assert.equal(ringWrap(330, 2048, 301, 80).repeats, 4, 'downtown\'s near strip, 305 m once round: four times is nearest 80 m');
+  assert.equal(ringWrap(330, 2048, 301, 80).repeats, 4, 'downtown\'s near strip, 305 m once round: 3.81 repeats for 80 m rounds to four');
   assert.equal(ringWrap(360, 2048, 20, 90).repeats, 1, 'at least once round, however short the strip');
 });

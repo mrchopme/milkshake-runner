@@ -100,7 +100,7 @@ export function checkLook(l) {
   }
   if (l.bloom !== undefined) {
     if (!isObj(l.bloom) || Object.keys(l.bloom).some((k) => !['strength', 'threshold', 'radius'].includes(k))) e.push('look.bloom may only set strength, threshold and radius');
-    else for (const [k, hi] of [['strength', 3], ['threshold', 1], ['radius', 1]]) if (l.bloom[k] !== undefined && !num(l.bloom[k], 0, hi)) e.push(`look.bloom.${k} must be 0 to ${hi}`);
+    else for (const [k, hi] of [['strength', 3], ['threshold', 3], ['radius', 1]]) if (l.bloom[k] !== undefined && !num(l.bloom[k], 0, hi)) e.push(`look.bloom.${k} must be 0 to ${hi}`); // the bloom reads the half-float HDR scene, so a threshold may pass 1
   }
   return e;
 }

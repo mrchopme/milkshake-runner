@@ -36,8 +36,9 @@ export const cascadeHook = (csm) => (m) => {
   m.addEventListener('dispose', () => csm.shaders.delete(m)); // a material used again recompiles, and CSM records it again
 };
 
-// How a skyline image wraps its ring: a whole number of times round, as many as bring it nearest `target` metres tall, so each
-// copy keeps the image's own aspect (the generated strips are cropped to their towers). Pure, so it is tested in Node.
+// How a skyline image wraps its ring: a whole number of times round, the repeat count that would stand it `target` metres tall
+// rounded, so each copy keeps the image's own aspect (the generated strips are cropped to their towers) and stands near the
+// target, not always the nearest height a whole count allows. Pure, so it is tested in Node.
 export function ringWrap(radius, width, height, target) {
   const lap = 2 * Math.PI * radius, aspect = height / width, repeats = Math.max(1, Math.round((lap * aspect) / target));
   return { repeats, height: (lap / repeats) * aspect };
@@ -80,9 +81,9 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   // the far plane; unbent, unfogged, no shadows. A missing image hides its ring. ponytail: calibration knobs.
   // Its foot fades to the level sky over the lowest `fade` of the ring (the spec's "tinted to the level sky at its base"),
   // so it meets the fogged street and buildings without a band; apply() re-tints it on every theme switch.
-  // `height` is each ring's target height in metres (far, near): its image wraps round a whole number of times, as many as
-  // bring it nearest that (ringWrap). 90 and 80 stand the tallest spires about as tall as the Task 14 probe's placeholder did
-  // (towers up to 60% of its 145 m and 133 m rings); the generated strips' aspects put the rings at 76–108 m.
+  // `height` is each ring's target height in metres (far, near): its image wraps round a whole number of times, the repeat
+  // count rounded from that target (ringWrap). 90 and 80 stand the tallest spires about as tall as the Task 14 probe's
+  // placeholder did (towers up to 60% of its 145 m and 133 m rings); the generated strips' aspects put the rings at 76–108 m.
   const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08, height: [90, 80] };
   const tint = { value: new THREE.Color() };
   const rings = RING.radius.map((r, i) => {
