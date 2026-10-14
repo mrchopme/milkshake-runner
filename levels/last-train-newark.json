@@ -1,0 +1,22 @@
+{
+  "id": "last-train-newark",
+  "title": "Last Train Out of Newark",
+  "author": "mrchopme",
+  "length_m": 1600,
+  "theme": { "id": "newark/brick_city" },
+  "rules": { "speed": { "start": 13, "end": 25 } },
+  "obstacles": { "newark/stray_dog": 3, "newark/shopping_cart": 2, "newark/police_tape": 2, "newark/pothole": 2, "newark/busted_hydrant": 1, "manhole_steam": 1 },
+  "density": { "start": 0.3, "end": 0.65 },
+  "jugs": { "per_100m": 12, "powerups": ["magnet", "shield", "newark/disco_fries"] },
+  "props": { "per_100m": 2.5, "ids": { "newark/mob": 1 } },
+  "sections": [
+    { "from_m": 0, "to_m": 60, "placements": [{ "at_m": 20, "kind": "prop", "id": "newark/welcome_sign" }] },
+    { "from_m": 180, "to_m": 430, "curve": { "turn": 0.7 } },
+    { "from_m": 430, "to_m": 620, "curve": { "hill": -0.7 }, "placements": [{ "at_m": 500, "kind": "prop", "id": "overpass" }] },
+    { "from_m": 680, "to_m": 940, "curve": { "turn": -0.8 } },
+    { "from_m": 940, "to_m": 1120, "camera": { "height": 2.4, "distance": 5, "fov": 65 }, "placements": [{ "at_m": 960, "kind": "prop", "id": "tunnel" }] },
+    { "from_m": 1120, "to_m": 1400, "curve": { "turn": 0.6, "hill": 0.5 } },
+    { "from_m": 1400, "to_m": 1600, "density": { "start": 0.7, "end": 0.7 } }
+  ],
+  "ending": { "id": "newark/last_train" }
+}

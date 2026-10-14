@@ -17,7 +17,7 @@ test('the fixtures pack registers alongside the shipped content', async () => {
   const reg = await fullRegistry();
   assert.ok(reg.obstacle['demo/boulder'] && reg.pickup['demo/triple'] && reg.theme['demo/forest'] && reg.character['demo/robot'] && reg.ending['demo/banner']);
   assert.ok(reg.prop['demo/arch']);
-  assert.equal(Object.keys(reg.obstacle).length, 8);
+  assert.equal(Object.keys(reg.obstacle).filter((id) => !id.includes('/') || id.startsWith('demo/')).length, 8); // seven shipped and the boulder; the Newark pack sits beside them
 });
 
 test('the demo level validates next to the shipped ones and lands its placements', async () => {
