@@ -30,7 +30,7 @@ function posterMaterial(gfx, i) {
   try { map = gfx.texture(path(i)); } catch { /* not loaded */ }
   return material(`billboard/${map ? path(i) : 'blank'}`, () => new T.MeshStandardMaterial(map
     ? { map, emissive: '#ffffff', emissiveMap: map, roughness: 0.7, emissiveIntensity: GLOW }
-    : { color: gfx.palette.x2, emissive: gfx.palette.x2, roughness: 0.7, emissiveIntensity: GLOW }));
+    : { color: gfx.palette.x2, emissive: gfx.palette.x2, roughness: 0.7, emissiveIntensity: GLOW }), map);
 }
 
 export default {

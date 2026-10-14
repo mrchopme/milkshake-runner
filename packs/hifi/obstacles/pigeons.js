@@ -1,6 +1,6 @@
 // HiFi pigeons: the generated bird in public/hifi/pigeon.glb, one InstancedMesh over the shipped flock (content/obstacles/pigeons.js),
 // every bird inside the slide box wherever its wings are in their beat. The wings flap in the vertex stage on the run clock
-// (gfx.time), so a pause freezes them and a still pins them. Fitted once from the first copy; every flock shares it and the paint.
+// (gfx.time), so a pause freezes them and a still pins them. Fitted once per load from its first copy; every flock shares it and the paint.
 import { gloss, painter } from '../lib/paint.js';
 import { instanced } from '../lib/shapes.js';
 
@@ -35,7 +35,7 @@ const paint = painter((T, m, gfx) => {
   return p;
 });
 
-let parts; // { geometry, matrices }, fitted from the first copy
+const parts = new WeakMap(); // the loaded geometry -> { geometry, matrices }, fitted from its first copy and freed with it
 
 export default {
   kind: 'obstacle', id: 'pigeons', assets: ['hifi/pigeon.glb'],
@@ -43,8 +43,9 @@ export default {
     const model = gfx.asset('hifi/pigeon.glb');
     let mesh;
     model.traverse((n) => { if (n.isMesh) mesh ??= n; }); // one mesh, one material (task-23-models)
-    parts ??= build(gfx.three, model, mesh, this.box);
-    return { object: gfx.group(instanced(gfx.three, parts.geometry, paint(gfx, mesh.material), parts.matrices)) };
+    if (!parts.has(mesh.geometry)) parts.set(mesh.geometry, build(gfx.three, model, mesh, this.box));
+    const { geometry, matrices } = parts.get(mesh.geometry);
+    return { object: gfx.group(instanced(gfx.three, geometry, paint(gfx, mesh.material), matrices)) };
   },
 };
 
@@ -54,6 +55,7 @@ function build(T, model, mesh, box) {
   // The yaw and the node's transform (the optimiser's dequantising scale) baked in, centred: the frame the flap and the fit work in.
   const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld).center();
   geometry.userData.shared = true; // every flock draws it; gfx.dispose leaves it alone
+  mesh.geometry.addEventListener('dispose', () => geometry.dispose());
   // The bird's reach with its wings anywhere in the beat, then the largest scale that keeps every bird of the flock in the box.
   const p = geometry.attributes.position, reach = new T.Box3(), v = new T.Vector3();
   for (let i = 0; i < p.count; i++) for (let k = 0; k <= 8; k++) reach.expandByPoint(v.set(...flap(p.getX(i), p.getY(i), k / 8), p.getZ(i)));

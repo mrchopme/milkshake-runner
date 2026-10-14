@@ -4,7 +4,7 @@ import { cityFiles } from './facade.js';
 import { FACADE_X } from './street.js';
 // LED and poster stacks on the facades and blade signs over the storefronts (board 01), instanced: one draw call per image a
 // chunk draws from. A missing LED face leaves its panels flat colour, a missing poster's panel turns LED and a missing blade
-// sign is left out; each image's material is keyed by its path, so it still shows on the next chunk once it lands.
+// sign is left out; each image's material is keyed by its loaded texture, so it still shows on the next chunk once it lands.
 const LED = { glow: 2.4, rate: 0.8 }; // ponytail: brightness past the bloom threshold, blinks per second
 // ponytail: calibration knobs — posters and blade images a chunk draws from (one LED face; each image is a draw call), the share
 // of stack panels that are posters, the posters' and blades' own glow (as the billboard's), and the blade signs (metres: width,
@@ -25,12 +25,12 @@ export function ledMaterial(gfx, path) {
       s.fragmentShader = 'uniform float uTime;\nvarying float vBeat;\n' + s.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>\n  diffuseColor.rgb *= 0.65 + 0.35 * step( 0.5, fract( uTime * ${LED.rate.toFixed(2)} + vBeat ) );`);
     };
     return m;
-  });
+  }, map);
 }
 // A poster or blade sign lit by its own texels (its emissive map), so it stays bright in shade; null while its image is missing.
 function imageMaterial(gfx, path) {
   const map = loaded(gfx, path);
-  return map && material(`sign/${path}`, () => new gfx.three.MeshStandardMaterial({ map, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: GLOW, roughness: 0.7 }));
+  return map && material(`sign/${path}`, () => new gfx.three.MeshStandardMaterial({ map, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: GLOW, roughness: 0.7 }), map);
 }
 export function signs(gfx, { z0, length }, style, r, cross) {
   const T = gfx.three, g = gfx.group(), sets = new Map(), bezels = [], colors = []; // material -> instance matrices
