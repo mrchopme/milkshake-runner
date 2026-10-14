@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { lookState, cascadeHook } from '../src/look.js';
+import { lookState, cascadeHook, ringWrap } from '../src/look.js';
 import { checkLook, checkModule } from '../src/registry.js';
 import { createWorld } from '../src/world.js';
 import { resolveRules } from '../src/rules.js';
@@ -81,4 +81,13 @@ test('a look may name its skyline and the sun\'s direction', () => {
   assert.deepEqual(s.skyline, ['hifi/city/sky/downtown-01.webp']);
   assert.deepEqual(s.sun.dir, [1, -2, 1]);
   assert.equal(lookState({ sky: '#000000', look: {} }).sun.dir, null);
+});
+
+test('a skyline wraps its ring a whole number of times in its own aspect, as near its target height as that allows', () => {
+  const lap = 2 * Math.PI * 360, near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}`);
+  const wide = ringWrap(360, 2048, 196, 90); // downtown's far strip: once round would stand 216 m tall
+  assert.equal(wide.repeats, 2);
+  near(wide.height / (lap / wide.repeats), 196 / 2048, 'each copy keeps the image\'s aspect');
+  assert.equal(ringWrap(330, 2048, 301, 80).repeats, 4, 'downtown\'s near strip, 305 m once round: four times is nearest 80 m');
+  assert.equal(ringWrap(360, 2048, 20, 90).repeats, 1, 'at least once round, however short the strip');
 });
