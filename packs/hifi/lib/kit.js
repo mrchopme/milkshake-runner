@@ -1,5 +1,5 @@
 import { material } from './materials.js';
-import { gloss, glowMap } from './paint.js';
+import { freeWith, gloss, glowMap } from './paint.js';
 // The lights, picked from each model's own texels (measured on the generated textures, Task 23): only these glow.
 const warm = (r, g, b) => r > 170 && r - b > 45;                               // the lamp's lens, the double lamp's lanterns
 const signal = (r, g, b) => (r > 200 && g < 100 && b < 110) || (g > 180 && r < 120 && b < 120); // red, green; the middle lens is the housing's yellow
@@ -54,26 +54,36 @@ export const placeholder = (kind) => (T) => (STAND[kind] ?? [{ w: 0.5, h: KIT[ki
   matrix: new T.Matrix4(),
 }));
 const FOOT = 0.05; // ponytail: calibration knob — the lowest fraction of a piece's height that is its footprint (a pole's foot)
-const parts = new Map(); // entry -> [{ geometry, material, matrix }]: the model fitted to its height, its base at y = 0, its footprint centred
+// entry -> { from, list }: list is [{ geometry, material, matrix }], the model fitted to its height, its base at y = 0, its footprint
+// centred, or null when the build threw; from is the loaded geometry it was built from (every gfx.asset copy shares it), so a file
+// released and loaded again (src/main.js between levels) is built again from the new one.
+const parts = new Map();
 export function kitParts(gfx, entry, placeholder) {
-  if (parts.has(entry)) return parts.get(entry);
-  const T = gfx.three, list = [], paint = new Map(); // generated material -> its paint, shared by every copy in every chunk
-  try { // not generated, not loaded yet, or its paint failed: the stand-in, not cached, so the model replaces it once it lands
-    const model = gfx.asset(entry.path);
-    model.rotation.y = entry.yaw;
-    model.updateMatrixWorld(true);
-    // Anchored on its footprint, not its bounding box: a lamp's pole stands at the placed x, its arm reaching out from there.
-    const b = new T.Box3().setFromObject(model), foot = new T.Box3(), v = new T.Vector3(), top = b.min.y + FOOT * (b.max.y - b.min.y);
-    model.traverse((n) => { if (n.isMesh) for (let i = 0; i < n.geometry.attributes.position.count; i++) if (v.fromBufferAttribute(n.geometry.attributes.position, i).applyMatrix4(n.matrixWorld).y <= top) foot.expandByPoint(v); });
-    const c = foot.getCenter(new T.Vector3()), s = entry.h / (b.max.y - b.min.y);
-    const fit = new T.Matrix4().makeScale(s, s, s).multiply(new T.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z));
-    model.traverse((n) => {
-      if (!n.isMesh) return;
-      if (!paint.has(n.material)) paint.set(n.material, dress(T, n, entry));
-      list.push({ geometry: n.geometry, material: paint.get(n.material), matrix: fit.clone().multiply(n.matrixWorld) });
-    });
-  } catch { return placeholder(T); }
-  parts.set(entry, list);
+  const T = gfx.three;
+  let model, from;
+  try { model = gfx.asset(entry.path); } catch { return placeholder(T); } // not generated or not loaded yet: the stand-in, not cached, so the model replaces it once it lands
+  model.traverse((n) => { if (n.isMesh) from ??= n.geometry; });
+  const hit = parts.get(entry);
+  if (hit && hit.from === from) return hit.list ?? placeholder(T);
+  let list = null;
+  try { list = build(T, model, entry); } catch (err) { console.warn(`kit ${entry.path} loaded but failed to build; its stand-in stays:`, err); } // once per load, not every chunk
+  parts.set(entry, { from, list });
+  return list ?? placeholder(T);
+}
+function build(T, model, entry) {
+  const list = [], paint = new Map(); // generated material -> its paint, shared by every copy in every chunk
+  model.rotation.y = entry.yaw;
+  model.updateMatrixWorld(true);
+  // Anchored on its footprint, not its bounding box: a lamp's pole stands at the placed x, its arm reaching out from there.
+  const b = new T.Box3().setFromObject(model), foot = new T.Box3(), v = new T.Vector3(), top = b.min.y + FOOT * (b.max.y - b.min.y);
+  model.traverse((n) => { if (n.isMesh) for (let i = 0; i < n.geometry.attributes.position.count; i++) if (v.fromBufferAttribute(n.geometry.attributes.position, i).applyMatrix4(n.matrixWorld).y <= top) foot.expandByPoint(v); });
+  const c = foot.getCenter(new T.Vector3()), s = entry.h / (b.max.y - b.min.y);
+  const fit = new T.Matrix4().makeScale(s, s, s).multiply(new T.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z));
+  model.traverse((n) => {
+    if (!n.isMesh) return;
+    if (!paint.has(n.material)) paint.set(n.material, freeWith(n.material, dress(T, n, entry))); // released with its file, superseded lists too
+    list.push({ geometry: n.geometry, material: paint.get(n.material), matrix: fit.clone().multiply(n.matrixWorld) });
+  });
   return list;
 }
 // The generated material without Tripo's random metal (it reads as dark paint; main session's ruling), its lights lit from

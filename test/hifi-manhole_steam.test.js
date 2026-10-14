@@ -95,6 +95,9 @@ test('the steam\'s shader hooks find their anchors in three\'s points shader and
   const sh = { uniforms: {}, vertexShader: T.ShaderLib.points.vertexShader, fragmentShader: T.ShaderLib.points.fragmentShader };
   m.onBeforeCompile(sh, {});
   assert.equal(sh.uniforms.uTime, gfx.time, 'the run clock the world drives, so pause freezes the steam');
+  const { w, h, d } = def.box, box = sh.uniforms.uBox.value.toArray();
+  [w / 2, h, d / 2, top].forEach((v, i) => assert.ok(Math.abs(box[i] - v) < 1e-9, `uBox ${box} is the box and the cover's top, as puff() takes them`));
+  assert.equal(sh.uniforms.uPeriod.value, def.cycle.period, 'and the shipped cycle\'s period');
   assert.match(sh.vertexShader, /attribute vec4 aSeed/);
   assert.match(sh.vertexShader, /transformed = vec3/);
   assert.match(sh.vertexShader, /projectionMatrix\[ 1 \]\[ 1 \]/, 'puff size in metres, not pixels');

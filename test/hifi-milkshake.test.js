@@ -18,6 +18,7 @@ test('the HiFi Milkshake\'s skin knobs give each part of the generated mesh to i
   on([0, -0.55, 0.355], HIPS, 'the belly\'s flank under a hand, as wide as the arm\'s root');
   on([-0.42, -0.36, -0.55], HIPS, 'the tail\'s tip, at the hands\' height and further out, never swings with an arm');
   on([-0.3, -0.35, -0.42], HIPS, 'the tail where it passes behind the right arm');
+  on([-0.26, -0.47, -0.4], HIPS, 'the tail\'s root on the rump: armFloor and armBack fade over armBand, so a wider band must not reach it');
   on([0, 0.09, 0.35], HIPS, 'the top of the shoulder, between the arm and the head, is neither');
   on([0.4, 0.3, 0], HEAD, 'the muzzle'); on([-0.05, 0.67, 0.55], HEAD, 'an ear'); on([-0.03, 0.95, 0.25], HEAD, 'a horn');
   const crotch = skinWeights(SKIN.crotch, 0.2, SKIN, 0);
@@ -25,12 +26,24 @@ test('the HiFi Milkshake\'s skin knobs give each part of the generated mesh to i
   assert.ok(SKIN.shoulder + SKIN.shoulderBand <= SKIN.neck, 'the arm-top and neck bands do not overlap: no vertex is torn between a swinging arm and a nodding head');
   assert.ok(BONES.legL[1] === SKIN.crotch && BONES.legR[1] === SKIN.crotch, 'the legs swing from where they join');
   assert.ok(BONES.head[1] > SKIN.neck && BONES.head[1] < SKIN.neck + SKIN.neckBand, 'the head nods from inside its neck band');
-  assert.ok([BONES.armL, BONES.armR].every((b) => Math.abs(b[2]) > SKIN.armZ && b[0] > SKIN.armBack && b[1] <= SKIN.shoulder + SKIN.shoulderBand), 'each arm swings from its own shoulder');
+  assert.ok([BONES.armL, BONES.armR].every((b) => Math.abs(b[2]) > SKIN.armZ && b[0] > SKIN.armBack && b[1] <= SKIN.shoulder + SKIN.shoulderBand), 'each arm swings from about its own elbow');
 });
 
+// skinWeights as it shipped before the optional knobs (550e1be), frozen here: the shipped weights must stay bit-identical to it.
+function v4Weights(y, z, K = SHIPPED) {
+  const sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+  const leg = 1 - sm(K.crotch - K.crotchBand / 2, K.crotch + K.crotchBand / 2, y), left = sm(-0.02, 0.02, z);
+  const arm = sm(K.armZ, K.armZ + K.armBand, Math.abs(z)) * (1 - sm(K.shoulder, K.shoulder + K.shoulderBand, y)) * (1 - leg);
+  const w = [0, sm(K.neck, K.neck + K.neckBand, y), z > 0 ? arm : 0, z > 0 ? 0 : arm, leg * left, leg * (1 - left)];
+  w[0] = Math.max(0, 1 - w[1] - w[2] - w[3] - w[4] - w[5]);
+  const sum = w.reduce((s, v) => s + v, 0);
+  return w.map((v) => v / sum);
+}
+
 test('the arm floor and back knobs are off for the shipped Milkshake, so its weights (and ?lofi) do not change', () => {
+  assert.ok(!('armFloor' in SHIPPED) && !('armBack' in SHIPPED), 'the shipped SKIN sets neither knob');
   for (const [y, z] of [[-0.49, 0.1], [-0.1, 0.22], [-0.1, -0.22], [0.05, 0.2], [0.4, 0], [-0.3, 0.3]]) {
-    for (const x of [-0.4, 0, 0.4]) assert.deepEqual(skinWeights(y, z, SHIPPED, x), skinWeights(y, z), `y ${y}, z ${z}, x ${x}`);
+    for (const x of [-0.4, 0, 0.4]) assert.deepEqual(skinWeights(y, z, SHIPPED, x), v4Weights(y, z), `y ${y}, z ${z}, x ${x}`);
   }
 });
 

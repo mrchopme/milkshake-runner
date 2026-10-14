@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
-import { adopt } from '../src/assets.js';
+import { adopt, release } from '../src/assets.js';
 import { KIT, KIT_FILES, kitParts, placeholder } from '../packs/hifi/lib/kit.js';
 import { furniture } from '../packs/hifi/lib/furniture.js';
+import { traffic } from '../packs/hifi/lib/traffic.js';
+import { material } from '../packs/hifi/lib/materials.js';
 import { FACADE_X } from '../packs/hifi/lib/buildings.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import midtown from '../packs/hifi/themes/midtown.js';
@@ -70,7 +72,7 @@ test('a kit piece stands on its footprint: a lamp\'s pole at the placed x, its a
 });
 
 test('each kit piece is painted once without the generator\'s random metal, and every copy in every chunk shares that paint', () => {
-  for (const [kind, entry] of Object.entries(KIT)) adopt(entry.path, REAL[kind] ? real(REAL[kind]) : standIn(FRONT[kind])); // real sizes, for the facade test too
+  for (const [kind, entry] of Object.entries(KIT)) adopt(entry.path, REAL[kind] ? real(REAL[kind]) : standIn(FRONT[kind]));
   for (const kind of Object.keys(KIT)) {
     const parts = kitParts(gfx, KIT[kind], placeholder(kind)), m = parts[0].material;
     assert.equal(kitParts(gfx, KIT[kind], placeholder(kind)), parts, `${kind}: built once`);
@@ -87,19 +89,19 @@ test('at their real proportions no placed piece reaches into the buildings, and 
   // the kerb at the road's edge (roadHalf 4.5); the tree's pit, 2.2 m across, reaches 0.10 m past it (accepted by the main
   // session, 2026-10-14: invisible at speed; the canopy over the road starts at 2.6 m)
   const KERB = 4.5, inner = (kind) => (kind === 'tree' ? KERB - 0.11 : KERB), seen = new Set(), m = new THREE.Matrix4();
+  for (const [kind, entry] of Object.entries(KIT)) if (REAL[kind]) adopt(entry.path, real(REAL[kind]));
   for (let seed = 1; seed <= 40; seed++) furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 60 }).traverse((n) => {
     const kind = n.userData.furniture;
     if (!kind) return;
-    seen.add(kind);
     n.geometry.computeBoundingBox();
     for (let i = 0; i < n.count; i++) {
       n.getMatrixAt(i, m);
       const b = n.geometry.boundingBox.clone().applyMatrix4(m), [near, far] = [Math.abs(b.min.x), Math.abs(b.max.x)].sort((p, q) => p - q);
       assert.ok(far <= FACADE_X + 1e-6, `seed ${seed}: ${kind} reaches x ${far.toFixed(2)}`);
-      if (n.geometry.userData.foot) assert.ok(near >= inner(kind) - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`);
+      if (n.geometry.userData.foot) { seen.add(kind); assert.ok(near >= inner(kind) - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`); }
     }
   });
-  assert.deepEqual([...seen].sort(), Object.keys(REAL).sort(), 'every placed kind was measured');
+  assert.deepEqual([...seen].sort(), Object.keys(REAL).sort(), 'every placed kind\'s footprint was checked');
 });
 
 test('the street themes load every kit file before play', () => {
@@ -107,10 +109,12 @@ test('the street themes load every kit file before play', () => {
   assert.equal(KIT_FILES.length, Object.keys(KIT).length);
 });
 
-test('a kit file that never loaded builds its code stand-in, and the model replaces it once it lands', () => {
+test('a kit file that never loaded builds its code stand-in, and the model replaces it once it lands', (t) => {
+  const warn = t.mock.method(console, 'warn', () => {});
   const entry = { path: 'hifi/furniture/not-generated.glb', h: 1, yaw: 0, glow: null };
   const before = kitParts(gfx, entry, placeholder('bench'));
   assert.ok(before.length > 0 && before.every((p) => p.matrix.equals(new THREE.Matrix4())), 'the bench stand-in');
+  assert.equal(warn.mock.callCount(), 0, 'not loaded yet is not an error');
   adopt(entry.path, standIn());
   assert.ok(kitParts(gfx, entry, placeholder('bench'))[0].material.isMeshPhysicalMaterial, 'the model');
 });
@@ -174,4 +178,55 @@ test('the sedan paints its cream rear lamp red on a copy of its colour map, keep
     assert.ok(m.map !== map && m.map.flipY === false && m.map.colorSpace === THREE.SRGBColorSpace, 'a copy, read the way the source is');
     assert.deepEqual([...m.emissiveMap.image.px], [...rear, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255], 'the rear lamp glows, nothing else');
   });
+});
+
+test('a kit file released and loaded again is built from the new model, not the freed one', () => {
+  adopt(KIT.bin.path, standIn());
+  const before = kitParts(gfx, KIT.bin, placeholder('bin'));
+  release(KIT_FILES.filter((p) => p !== KIT.bin.path)); // a level without bins frees the file
+  adopt(KIT.bin.path, standIn()); // a later level loads it again: new geometry and materials
+  const after = kitParts(gfx, KIT.bin, placeholder('bin'));
+  assert.notEqual(after[0].geometry, before[0].geometry, 'the reloaded geometry');
+  assert.ok(after[0].material !== before[0].material && after[0].material.isMeshPhysicalMaterial, 'fresh paint');
+  assert.equal(kitParts(gfx, KIT.bin, placeholder('bin')), after, 'built once per load');
+});
+
+test('a loaded kit model whose build throws warns once and stays a stand-in, without building again every chunk', (t) => {
+  const warn = t.mock.method(console, 'warn', () => {});
+  let builds = 0;
+  const entry = { path: 'hifi/furniture/broken.glb', h: 1, get yaw() { builds++; return 0; }, glow: null };
+  adopt(entry.path, new THREE.Group().add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial()))); // gloss takes a MeshStandardMaterial
+  for (let chunk = 0; chunk < 3; chunk++) assert.ok(kitParts(gfx, entry, placeholder('bench')).every((p) => p.matrix.equals(new THREE.Matrix4())), 'the bench stand-in');
+  assert.equal(builds, 1, 'built once, not every chunk');
+  assert.equal(warn.mock.callCount(), 1, 'one warning');
+  assert.match(String(warn.mock.calls[0].arguments[0]), /broken\.glb/);
+});
+
+// release() disposes a freed file's materials; everything made from them must go too, or the look's CSM (which holds every lit
+// material until its dispose) pins one more copy each level cycle.
+const counts = (things) => { const n = new Map(things.map((x) => [x, 0])); for (const x of things) x.addEventListener('dispose', () => n.set(x, n.get(x) + 1)); return n; };
+const freeOnly = (...paths) => release(KIT_FILES.filter((p) => !paths.includes(p)));
+
+test('a released kit file frees its paint and the glow the paint made, and leaves the model\'s own map to release', () => {
+  withCanvas(() => {
+    const map = new THREE.Texture({ px: new Uint8ClampedArray([210, 184, 129, 255, 132, 139, 147, 255]) }); // lens, housing
+    adopt(KIT.lamp.path, new THREE.Group().add(new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), tripo(map)))); // one mesh, one material, as generated
+    const paint = kitParts(gfx, KIT.lamp, placeholder('lamp'))[0].material, n = counts([paint, paint.emissiveMap, map]);
+    freeOnly(KIT.lamp.path);
+    assert.deepEqual([...n.values()], [1, 1, 1], 'the paint and its glow freed once each; the colour map once, by release');
+  });
+});
+
+test('a released vehicle file frees the traffic made from its paint, and no cache keeps it: a reload drives new copies', () => {
+  const kinds = ['sedan', 'van', 'taxi'], cars = kinds.map((k) => KIT[k].path);
+  const load = () => { for (const path of cars) adopt(path, new THREE.Group().add(new THREE.Mesh(new THREE.BoxGeometry(1, 0.6, 0.6), tripo()))); };
+  const drive = () => { const made = new Set(); for (let seed = 1; seed <= 10; seed++) traffic(gfx, {}, null, rng(seed), { z: 60 }).traverse((m) => { if (m.userData.traffic) made.add(m.material).add(m.geometry); }); return made; };
+  load();
+  const made = drive(), n = counts([...made]), paints = kinds.map((k) => kitParts(gfx, KIT[k], placeholder(k))[0].material);
+  freeOnly(...cars);
+  assert.ok(made.size >= 4 && [...n.values()].every((c) => c === 1), `each freed once: ${[...n.values()]}`);
+  load();
+  assert.ok([...drive()].every((x) => !made.has(x)), 'the reload drives new copies');
+  // the session's material cache does not hold the old copy (and through it the freed file's images) under the old paint's key
+  for (const p of paints) { const probe = { userData: {} }; assert.equal(material(`traffic/${p.uuid}`, () => probe), probe, 'nothing cached for the old paint'); }
 });

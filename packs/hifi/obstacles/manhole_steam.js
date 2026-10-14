@@ -2,16 +2,17 @@
 // and the steam column, made in code: one Points cloud every manhole shares. The shipped cycle and hit timing stay as they are;
 // the view shows the steam while `active` (the cycle's on window) and the vertex shader moves the puffs on the run clock.
 import { fitBox } from '../lib/fit.js';
-import { gloss } from '../lib/paint.js';
+import { gloss, painter } from '../lib/paint.js';
 
 const YAW = Math.PI / 2; // ponytail: calibration knob — turns the model's front (+x) toward the player (-z); a flat cover is nearly symmetric, so this is a guess
 const COVER = { clearcoat: 0.3, clearcoatRoughness: 0.4 }; // ponytail: calibration knob — bare cast iron (the model's own metal map stays, Task 23 ruling) under a light wet sheen
+const paint = painter((T, m) => gloss(T, m, COVER));
 // ponytail: calibration knobs. rate: a puff's full rises per second (its life is 1 / rate s); small and large: its diameter in metres at
 // the grate and at the top (large must fit the box: w and d); cone: the share of the box's free width a puff may drift to, at the
 // grate and at the top; opacity per puff; colour below the look's bloom threshold (0.85, linear): steam is not a light.
 export const STEAM = { count: 28, rate: 2.2, small: 0.2, large: 0.8, cone: [0.2, 0.65], opacity: 0.3, color: '#d9e1e6' };
 
-let parts; // { scale, offset, paint, steam }, measured from the first copy
+let parts; // { scale, offset, steam }, measured from the first copy
 
 export default {
   kind: 'obstacle', id: 'manhole_steam', assets: ['hifi/manhole_steam.glb'],
@@ -19,7 +20,7 @@ export default {
     const T = gfx.three, model = gfx.asset('hifi/manhole_steam.glb');
     model.rotation.y = YAW;
     parts ??= build(T, gfx, model, this);
-    model.traverse((n) => { if (n.isMesh) n.material = parts.paint.get(n.material) ?? n.material; });
+    model.traverse((n) => { if (n.isMesh) n.material = paint(gfx, n.material); });
     model.scale.setScalar(parts.scale);
     model.position.copy(parts.offset);
     const steam = new T.Points(parts.steam.geometry, parts.steam.material);
@@ -30,10 +31,9 @@ export default {
 };
 
 function build(T, gfx, model, { box, cycle }) {
-  const { scale, offset } = fitBox(T, model, box, true), paint = new Map();
-  model.traverse((n) => { if (n.isMesh && !paint.has(n.material)) paint.set(n.material, gloss(T, n.material, COVER)); });
+  const { scale, offset } = fitBox(T, model, box, true);
   const top = new T.Box3().setFromObject(model).getSize(new T.Vector3()).y * scale; // the cover's height: the column starts there
-  return { scale, offset, paint, steam: steam(T, gfx, box, cycle.period, top) };
+  return { scale, offset, steam: steam(T, gfx, box, cycle.period, top) };
 }
 
 // The puffs' seeds, one vec4 each: two for where it drifts, one for its age offset (evenly spread, so the column is steady),

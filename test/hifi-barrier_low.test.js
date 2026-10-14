@@ -13,10 +13,11 @@ const { registry, problems } = applyPack(shipped, [{ path: 'packs/hifi/obstacles
 const def = registry.obstacle.barrier_low, { w, h, d } = def.box;
 
 // A stand-in for public/hifi/barrier_low.glb with its measured bounds (task-23-models.md): 0.42 x 0.53 x 0.98 units, long along
-// z, its face toward +x (the marker). Tripo leaves it a hair off-centre.
-const body = new T.Mesh(new T.BoxGeometry(0.4193, 0.5338, 0.9811), new T.MeshStandardMaterial());
+// z, its face toward +x (the marker). Tripo leaves it a hair off-centre, and its material metallic (so the metal ruling can fail).
+const tripo = () => new T.MeshStandardMaterial({ metalness: 1, metalnessMap: new T.Texture() });
+const body = new T.Mesh(new T.BoxGeometry(0.4193, 0.5338, 0.9811), tripo());
 body.position.set(-0.0003, 0, 0.0004);
-const face = new T.Mesh(new T.BoxGeometry(0.02, 0.02, 0.02), new T.MeshStandardMaterial());
+const face = new T.Mesh(new T.BoxGeometry(0.02, 0.02, 0.02), tripo());
 face.name = 'face'; face.position.x = 0.2;
 adopt('hifi/barrier_low.glb', new T.Group().add(body, face));
 
