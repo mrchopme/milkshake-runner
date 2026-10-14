@@ -24,10 +24,11 @@ export function painter(make) {
 // else frees it, and the look's cascade hook holds every lit material in CSM's Map until its dispose: without this, each level
 // cycle would pin one more paint. The textures the paint made (glow canvases, a recoloured map) go with it; the source's own
 // maps are left to whoever disposes the source (release frees them first), so a paint never frees a map someone else still holds.
+// The source may be a loaded texture the material wears (lib/materials.js): it is the one disposing, so it is skipped too.
 export function freeWith(source, paint) {
   source.addEventListener('dispose', () => {
     const own = Object.values(source);
-    for (const t of Object.values(paint)) if (t?.isTexture && !own.includes(t)) t.dispose();
+    for (const t of Object.values(paint)) if (t?.isTexture && t !== source && !own.includes(t)) t.dispose();
     paint.dispose();
   });
   return paint;

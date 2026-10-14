@@ -35,11 +35,11 @@ export function facadeMaterial(gfx, style, i) {
       map, metalness: 0.05, roughness: rough ? 1 : MASK.wall, roughnessMap: rough,
       emissive: glow ? '#ffffff' : '#000000', emissiveMap: glow, emissiveIntensity: style.lit ?? 0,
     });
-  });
+  }, map);
 }
 export function shopMaterial(gfx, style, i) {
   const T = gfx.three, map = style.shops?.[i] && tile(gfx, style.shops[i]);
   return material(`${style.id}/shop/${map ? style.shops[i] : `placeholder/${i}`}`, () => new T.MeshStandardMaterial({
     map: map || placeholderTile(T, '#3b3f55', '#9ad0ff', 32), roughness: 0.4, metalness: 0.1,
-  }));
+  }), map);
 }
