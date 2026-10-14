@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { buildRegistry, applyPack } from '../src/registry.js';
 import { discover } from './helpers.js';
 import * as gfx from '../src/gfx.js';
-import { adopt } from '../src/assets.js';
+import { adopt, release } from '../src/assets.js';
 
 const T = gfx.three;
 const CONTENT = fileURLToPath(new URL('../content/', import.meta.url));
@@ -99,4 +99,15 @@ test('the flap composes with the shader chain: the bird\'s own hook, then the lo
   assert.ok(begin > 0 && flapAt > begin && bent > flapAt, `the flap moves the bird's own vertices, before the instance, the model and the bend place them (${begin}, ${flapAt}, ${bent})`);
   assert.equal(T.ShaderChunk.begin_vertex, chunk, 'three\'s shared chunk is untouched: nothing reaches the low-fi materials');
   assert.notEqual(paint.customProgramCacheKey(), gfx.bendable(new T.MeshPhysicalMaterial()).customProgramCacheKey(), 'its own program, never shared with a plain bent material');
+});
+
+test('the bird\'s baked geometry goes with the file it was baked from, and a reload bakes its own (final review M3)', async () => {
+  const { def } = await pigeons();
+  const g = flock(def.createView(gfx).object).geometry;
+  let freed = 0;
+  g.addEventListener('dispose', () => freed++);
+  release([]);
+  assert.equal(freed, 1, 'released with the loaded geometry, not pinned for the session');
+  adopt('hifi/pigeon.glb', standIn());
+  assert.notEqual(flock(def.createView(gfx).object).geometry, g, 'the reload is fitted afresh, not drawn with the freed copy');
 });
