@@ -6,6 +6,8 @@ import { discover } from './helpers.js';
 import { ROAD_HALF } from '../src/world.js';
 import * as gfx from '../src/gfx.js';
 import { adopt } from '../src/assets.js';
+import { DEFAULT_RULES, laneX, jumpHeight } from '../src/rules.js';
+import { cameraFor } from '../src/engine.js';
 
 const T = gfx.three, CONTENT = fileURLToPath(new URL('../content/', import.meta.url));
 const lanes = { count: 3, width: 3, roadHalf: ROAD_HALF };
@@ -26,18 +28,28 @@ function standIn() {
 const world = (o) => { let root = o; while (root.parent) root = root.parent; root.updateMatrixWorld(true); return new T.Box3().setFromObject(o); }; // from the root down: a child's box needs its parents' fresh matrices
 const near = (a, b, tol = 1e-6) => Math.abs(a - b) < tol;
 
-test('the HiFi tunnel stretches over the shipped 60 m, its roof at the shipped height, its walls clear of the road, its own road under the street', async () => {
+test('the HiFi tunnel stretches over the shipped 60 m, its roof no lower than the shipped one, its walls clear of the road, its own road under the street', async () => {
   standIn();
-  const { default: hifi, BODY } = await import('../packs/hifi/props/tunnel.js');
+  const { default: hifi, BODY, ROOF } = await import('../packs/hifi/props/tunnel.js');
   const len = shipped.prop.tunnel.length, args = { z: 0, length: len, lanes };
   const ship = shipped.prop.tunnel.createView(gfx, args).object, roof = world(ship.children[0]).max.y;
   const view = hifi.createView(gfx, args).object, box = world(view), h = box.max.y - box.min.y;
   assert.ok(near(box.min.z, 0) && near(box.max.z, len), `runs ${box.min.z}..${box.max.z} m, the shipped ${len} m`);
   assert.ok(near(box.min.x + box.max.x, 0), 'centred on the street');
-  assert.ok(near(box.min.y + BODY.roof * h, roof), `the body's roof top at ${box.min.y + BODY.roof * h} m, the shipped tube's ${roof} m`);
+  assert.ok(near(box.min.y + BODY.roof * h, ROOF), `the body's roof top at ${box.min.y + BODY.roof * h} m, the knob's ${ROOF} m`);
+  assert.ok(ROOF >= roof, `the roof top ${ROOF} m is at least the shipped tube's ${roof} m`);
   const clear = BODY.clear * (box.max.x - box.min.x), floor = box.min.y + BODY.floor * h;
   assert.ok(clear > ROAD_HALF * 2 && clear < ROAD_HALF * 2 + 2, `${clear} m between the walls, the road ${ROAD_HALF * 2} m`);
   assert.ok(floor < 0 && floor > -0.2, `the model's own floor at y ${floor}: under the street, which keeps its own road and dashes`);
+});
+
+test('the HiFi tunnel\'s vault and lamp globes clear the default chase camera at the apex of a jump by more than the near plane', async () => {
+  const { default: hifi, BODY } = await import('../packs/hifi/props/tunnel.js');
+  const NEAR = 0.1; // the camera's near plane (src/engine.js)
+  const R = DEFAULT_RULES, side = cameraFor({ x: laneX(0, R), y: jumpHeight(R), z: 0 }), apex = side.y; // lane 0 is the farthest lane: the camera trails the player at 0.6 of its x
+  assert.ok(Math.abs(side.x) <= 1.5 + 1e-9, `the camera reaches x ${side.x}: BODY.ceiling was measured over |x| <= 1.5`);
+  const box = world(hifi.createView(gfx, { z: 0, length: 60, lanes }).object), ceiling = box.min.y + BODY.ceiling * (box.max.y - box.min.y);
+  assert.ok(ceiling - apex > NEAR, `the lowest thing over the camera is ${ceiling.toFixed(2)} m, its apex ${apex.toFixed(3)} m`);
 });
 
 test('the HiFi tunnel keeps its flared mouth toward the player', async () => {

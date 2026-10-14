@@ -55,9 +55,11 @@ test('every HiFi railings prop shares one paint, without Tripo\'s random metal',
 test('freeing a HiFi railings prop leaves the shared model alone', async () => {
   const { default: hifi } = await import('../packs/hifi/props/railings.js');
   const view = hifi.createView(gfx, { z: 0, length: 40, lanes }).object, mesh = instances(view)[0], freed = [];
-  mesh.geometry.dispose = () => freed.push('geometry'); mesh.material.dispose = () => freed.push('material');
-  gfx.dispose(view);
-  assert.deepEqual(freed, [], 'the shared geometry and paint outlive the prop');
+  const { geometry, material } = mesh, realDispose = mesh.dispose;
+  geometry.dispose = () => freed.push('geometry'); material.dispose = () => freed.push('material'); // own properties over the shared parts' prototype methods
+  mesh.dispose = function () { freed.push('instance buffers'); return realDispose.call(this); };
+  try { gfx.dispose(view); } finally { delete geometry.dispose; delete material.dispose; } // the shared parts outlive this test
+  assert.deepEqual(freed, ['instance buffers'], 'the prop frees its own instance buffers and leaves the shared geometry and paint alone');
 });
 
 test('the HiFi railings are a looks-only overlay that keeps the shipped length', async () => {
