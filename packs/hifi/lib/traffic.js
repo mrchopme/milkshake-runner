@@ -5,8 +5,9 @@ import { freeWith } from './paint.js';
 // Distant traffic on the cross street only: each car sits at a side-street lane centre at the avenue's edge and slides
 // outward in the vertex stage on the run clock, wrapping, so it never enters the avenue.
 // ponytail: calibration knobs: m/s; |x| where a car starts (1.5 m behind the corner building line) and where it wraps (the paving ends at
-// CROSS.reach 20.5 m, the back of the blocks, less half the longest car, 2.5 m, so a whole car stays on it); lanes from cross.z.
-export const DRIVE = { speed: 6, from: 12, to: 18, lanes: [3, 9] };
+// CROSS.reach 20.5 m, the back of the blocks, less half the longest car, 2.5 m, so a whole car stays on it); lanes from cross.z;
+// the chance of a car on each side (one at most: the 6 m loop has no room for a second 4.5 m car).
+export const DRIVE = { speed: 6, from: 12, to: 18, lanes: [3, 9], chance: 0.75 };
 const SPAN = (DRIVE.to - DRIVE.from).toFixed(1), KINDS = ['sedan', 'van', 'taxi'];
 // The drive: vertices slide along +z (ahead) before the instance matrix, the phase a uniform so every material with this
 // hook shares one program (three keys it by the hook's source).
@@ -44,8 +45,8 @@ export function fitted(T, p) {
 export function traffic(gfx, args, style, r, cross) {
   const T = gfx.three, g = gfx.group(), byKind = {};
   if (!cross) return g;
-  for (let n = 2 + Math.floor(r() * 3); n > 0; n--) { // two to four cars; heading +x in the far lane, -x in the near one
-    const side = r() < 0.5 ? -1 : 1, kind = KINDS[Math.floor(r() * KINDS.length)];
+  for (const side of [-1, 1]) if (r() < DRIVE.chance) { // up to one car a side; heading +x in the far lane, -x in the near one
+    const kind = KINDS[Math.floor(r() * KINDS.length)];
     (byKind[kind] ??= []).push(new T.Matrix4().compose(new T.Vector3(side * DRIVE.from, 0, cross.z + DRIVE.lanes[side > 0 ? 1 : 0]), new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), side * Math.PI / 2), new T.Vector3(1, 1, 1)));
   }
   for (const [kind, mats] of Object.entries(byKind)) for (const p of kitParts(gfx, KIT[kind], placeholder(kind))) {

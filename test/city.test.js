@@ -127,6 +127,17 @@ test('furniture stands only on the sidewalk band, never in a lane', () => {
   assert.ok(seen > 0, 'furniture was built');
 });
 
+test('at most one car drives each side of the cross street: the 6 m loop has no room for two', () => {
+  let cars = 0;
+  for (let seed = 1; seed <= 100; seed++) {
+    const sides = [];
+    chunk(seed).traverse((n) => { if (n.userData.traffic) { const m = new THREE.Matrix4(), p = new THREE.Vector3(); for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); sides.push(Math.sign(p.setFromMatrixPosition(m).x)); } } });
+    cars += sides.length;
+    assert.ok(sides.length === new Set(sides).size, `seed ${seed}: two cars on one side (${sides})`);
+  }
+  assert.ok(cars > 100, `${cars} cars in 100 chunks`);
+});
+
 test('side-street traffic never enters the avenue: each car reappears behind the corner building line', () => {
   let seen = 0;
   chunk(6).traverse((n) => { if (n.userData.traffic) { seen++; const m = new THREE.Matrix4(), p = new THREE.Vector3(); for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(Math.abs(p.x) > FACADE_X, `x = ${p.x}`); } } });

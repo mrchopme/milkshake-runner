@@ -45,10 +45,14 @@ export const cascadeHook = (csm) => (m) => {
 
 // How a skyline image wraps its ring: a whole number of times round, the repeat count that would stand it `target` metres tall
 // rounded, so each copy keeps the image's own aspect (the generated strips are cropped to their towers) and stands near the
-// target, not always the nearest height a whole count allows. Pure, so it is tested in Node.
+// target, not always the nearest height a whole count allows. `turn` is how far to turn the ring so the middle of a half
+// strip, not a mirror seam, faces the avenue's end (+z, where three's cylinder starts its u): the strips are tiled
+// A|mirror(A), so with no turn a seam stood dead ahead and the skyline's centre was one tower mirrored into a twin. One image
+// spans 2π / repeats; a quarter of that puts every seam a quarter image off the avenue and mirror(A)'s middle ahead, which
+// reads the right way round from inside the ring (u runs right to left there). Pure, so it is tested in Node.
 export function ringWrap(radius, width, height, target) {
   const lap = 2 * Math.PI * radius, aspect = height / width, repeats = Math.max(1, Math.round((lap * aspect) / target));
-  return { repeats, height: (lap / repeats) * aspect };
+  return { repeats, height: (lap / repeats) * aspect, turn: Math.PI / (2 * repeats) };
 }
 
 const SKY_VERT = /* glsl */`
@@ -166,6 +170,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
         map.wrapS = THREE.RepeatWrapping; map.repeat.x = wrap.repeats; // the strips come mirrored, so they loop seamlessly
         ring.material.map = map; ring.material.needsUpdate = true;
         ring.scale.y = wrap.height;
+        ring.rotation.y = RING.yaw + wrap.turn; // an image's middle, not its mirror seam, at the avenue's end
       });
     },
     render() {

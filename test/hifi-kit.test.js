@@ -5,7 +5,7 @@ import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
 import { adopt, release } from '../src/assets.js';
 import { KIT, KIT_FILES, kitParts, placeholder } from '../packs/hifi/lib/kit.js';
-import { furniture } from '../packs/hifi/lib/furniture.js';
+import { furniture, FOOT } from '../packs/hifi/lib/furniture.js';
 import { traffic } from '../packs/hifi/lib/traffic.js';
 import { material } from '../packs/hifi/lib/materials.js';
 import { FACADE_X } from '../packs/hifi/lib/street.js';
@@ -105,6 +105,16 @@ test('at their real proportions no placed piece reaches into the buildings or th
     }
   });
   assert.deepEqual([...seen].sort(), Object.keys(REAL).sort(), 'every placed kind\'s footprint was checked');
+});
+
+test('the footprints furniture spaces pieces by (FOOT) are the pieces\' own at KIT\'s sizes', () => {
+  for (const [kind, [across, along]] of Object.entries(FOOT)) {
+    adopt(KIT[kind].path, real(REAL[kind]));
+    const p = kitParts(gfx, KIT[kind], placeholder(kind)).find((x) => x.geometry.userData.foot), size = new THREE.Vector3();
+    p.geometry.computeBoundingBox();
+    p.geometry.boundingBox.clone().applyMatrix4(p.matrix).getSize(size); // the kit's frame: z toward the road (across), x along the street
+    assert.ok(Math.abs(size.z / 2 - across) <= 0.01 && Math.abs(size.x / 2 - along) <= 0.01, `${kind}: FOOT [${across}, ${along}], measured [${(size.z / 2).toFixed(3)}, ${(size.x / 2).toFixed(3)}]`);
+  }
 });
 
 test('at their real proportions no two footprints on a side of the street overlap', () => {

@@ -10,7 +10,7 @@ const LED = { glow: 2.4, rate: 0.8 }; // ponytail: brightness past the bloom thr
 // of stack panels that are posters, the posters' and blades' own glow (as the billboard's), and the blade signs (metres: width,
 // centre height, at least this far apart and at most twice it, off the wall)
 const PICK = 2, POSTER = 0.5, GLOW = 0.6;
-export const BLADE = { w: 1.1, y: 3.65, every: 10, wall: 0.1 }; // y: its bottom 2.83 m up clears a newsstand's top (2.78), its top 4.47 the lowest stack
+export const BLADE = { w: 1.1, y: 3.65, every: 10, wall: 0.1 }; // y: its bottom 2.83 m up clears a newsstand's top (2.78), its top 4.47 the lowest stack's bezel (at least 6.2 − 1.1 × 3 / 2 = 4.55)
 export const ASPECT = { led: 1024 / 439, poster: 1024 / 573, blade: 688 / 1024 }; // the generated images'; a panel keeps its image's aspect inside its drawn size
 export const SIGN_FILES = { leds: cityFiles('signs', 'led', 3), posters: cityFiles('signs', 'poster', 12), blades: cityFiles('signs', 'blade', 6) }; // the posters are the billboard's paths, so the cache loads each once
 const loaded = (gfx, path) => { try { return path ? gfx.texture(path) : null; } catch { return null; } };
@@ -42,7 +42,7 @@ export function signs(gfx, { z0, length }, style, r, cross) {
     if (cross && z + 6.24 > cross.z && z < cross.z + 12) continue;
     const stack = 1 + Math.floor(r() * 3), x = side * (FACADE_X - 0.08), w = 3 + r() * 3; // just off the facade, the bezel behind
     for (let k = 0; k < stack; k++) {
-      const y = 6 + k * 3.4 + r(), h = 2.2 + r() * 0.8, color = new T.Color(style.signs[Math.floor(r() * style.signs.length)]);
+      const y = 6.2 + k * 3.4 + r(), h = 2.2 + r() * 0.8, color = new T.Color(style.signs[Math.floor(r() * style.signs.length)]);
       const mat = (r() < POSTER && posters[Math.floor(r() * PICK)]) || led, a = mat === led ? ASPECT.led : ASPECT.poster, pw = Math.min(w, h * a);
       const m = new T.Matrix4().compose(new T.Vector3(x, y, z + w / 2), turn(-side * Math.PI / 2), new T.Vector3(pw, pw / a, 1));
       put(mat, m); bezels.push(m.clone().multiply(new T.Matrix4().makeScale(1.08, 1.1, 1)).setPosition(x + side * 0.03, y, z + w / 2));

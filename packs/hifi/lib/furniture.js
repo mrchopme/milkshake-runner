@@ -22,7 +22,7 @@ const WIDE = 1.5; // half the footprint along z of the widest piece (a bus shelt
 // generated models at KIT's heights). Every piece keeps GAP m from the footprints already on its side, so nothing stands inside
 // anything else: a rhythm piece skips its spot (only a corner's traffic light, placed first, can hold it), a scattered or rare
 // piece tries up to TRIES spots before it is left out.
-const FOOT = { lamp: [0.77, 0.8], traffic_light: [0.72, 0.72], hydrant: [0.19, 0.2], bin: [0.2, 0.2], tree: [1.23, 1.24], bench: [0.3, 0.58], newsstand: [0.81, 1.09], bus_shelter: [0.87, 1.42], subway: [1.49, 1.25] };
+export const FOOT = { lamp: [0.77, 0.8], traffic_light: [0.72, 0.72], hydrant: [0.19, 0.2], bin: [0.2, 0.2], tree: [1.23, 1.24], bench: [0.3, 0.58], newsstand: [0.81, 1.09], bus_shelter: [0.87, 1.42], subway: [1.49, 1.25] };
 const GAP = 0.2, TRIES = 10;
 
 export function furniture(gfx, { z0, length }, style, r, cross) {

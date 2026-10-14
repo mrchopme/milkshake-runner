@@ -95,11 +95,27 @@ test('sign stacks wear the generated LED faces and posters, blade signs hang ove
         assert.ok(Math.abs(s.x / s.y / ASPECT[kind] - 1) < 1e-6, `${kind}: ${s.x.toFixed(2)} x ${s.y.toFixed(2)}`); // instance matrices are float32
         if (kind !== 'blade') continue;
         assert.ok(p.z >= 0 && p.z <= 120 && (p.z < cross.z || p.z > cross.z + 12), `a blade at z ${p.z.toFixed(2)}: inside its chunk, never in the side street`);
-        assert.ok(Math.abs(p.x) + s.x / 2 <= FACADE_X + 1e-9 && Math.abs(p.x) - s.x / 2 >= 4.5 && p.y + s.y / 2 < 4.5, `a blade at x ${p.x.toFixed(2)}, y ${p.y.toFixed(2)}: over the sidewalk, under the lowest stack`);
+        assert.ok(Math.abs(p.x) + s.x / 2 <= FACADE_X + 1e-9 && Math.abs(p.x) - s.x / 2 >= 4.5, `a blade at x ${p.x.toFixed(2)}, y ${p.y.toFixed(2)}: over the sidewalk`); // under the lowest stack: the test below
         assert.ok(new T.Vector3(0, 0, 1).applyQuaternion(q).z < -0.999, 'a blade faces the oncoming camera');
       }
     }
   }
   assert.deepEqual([...seen].sort(), ['blade', 'led', 'poster']);
   for (const theme of STREET) for (const seed of [1, 2, 3]) { let n = 0; chunk(theme, seed).traverse((x) => { if (x.isMesh) n++; }); assert.ok(n <= 45, `${theme[0].id} seed ${seed}: ${n} meshes with every image loaded`); }
+});
+
+test('every blade sign hangs under the lowest sign stack\'s bezel', () => {
+  // 400 chunks of stacks: the lowest bezel (a tall poster at the stack's lowest start) came up about once in 400 lowest stacks
+  Object.values(SIGN_FILES).flat().forEach(load);
+  const style = { signs: ['#ff3b3b'], ...SIGN_FILES }, m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3();
+  let bezel = Infinity, blade = -Infinity;
+  for (let seed = 1; seed <= 400; seed++) for (const n of signs(gfx, { z0: 0, length: 120 }, style, rng(seed), { z: 50 }).children) {
+    const isBezel = !n.material.map, isBlade = SIGN_FILES.blades.includes(pathOf(n.material.map));
+    for (let i = 0; i < n.count; i++) {
+      n.getMatrixAt(i, m); m.decompose(p, q, s);
+      if (isBezel) bezel = Math.min(bezel, p.y - s.y / 2);
+      if (isBlade) blade = Math.max(blade, p.y + s.y / 2);
+    }
+  }
+  assert.ok(blade > 0 && blade < bezel, `the highest blade's top ${blade.toFixed(3)} m, the lowest bezel's bottom ${bezel.toFixed(3)} m`);
 });
