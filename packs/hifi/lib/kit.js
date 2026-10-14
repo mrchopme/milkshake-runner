@@ -64,7 +64,7 @@ export function kitParts(gfx, entry, placeholder) {
   try { model = gfx.asset(entry.path); } catch { return placeholder(T); } // not generated or not loaded yet: the stand-in, not cached, so the model replaces it once it lands
   model.traverse((n) => { if (n.isMesh) from ??= n.geometry; });
   const hit = parts.get(entry);
-  if (hit?.from === from) return hit.list ?? placeholder(T);
+  if (hit && hit.from === from) return hit.list ?? placeholder(T);
   let list = null;
   try { list = build(T, model, entry); } catch (err) { console.warn(`kit ${entry.path} loaded but failed to build; its stand-in stays:`, err); } // once per load, not every chunk
   parts.set(entry, { from, list });
