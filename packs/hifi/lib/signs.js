@@ -10,8 +10,8 @@ const LED = { glow: 2.4, rate: 0.8 }; // ponytail: brightness past the bloom thr
 // of stack panels that are posters, the posters' and blades' own glow (as the billboard's), and the blade signs (metres: width,
 // centre height, at least this far apart and at most twice it, off the wall)
 const PICK = 2, POSTER = 0.5, GLOW = 0.6;
-export const BLADE = { w: 1.1, y: 3.4, every: 10, wall: 0.1 };
-const ASPECT = { led: 1024 / 439, poster: 1024 / 573, blade: 688 / 1024 }; // the generated images'; a panel keeps its image's aspect inside its drawn size
+export const BLADE = { w: 1.1, y: 3.65, every: 10, wall: 0.1 }; // y: its bottom 2.83 m up clears a newsstand's top (2.78), its top 4.47 the lowest stack
+export const ASPECT = { led: 1024 / 439, poster: 1024 / 573, blade: 688 / 1024 }; // the generated images'; a panel keeps its image's aspect inside its drawn size
 export const SIGN_FILES = { leds: cityFiles('signs', 'led', 3), posters: cityFiles('signs', 'poster', 12), blades: cityFiles('signs', 'blade', 6) }; // the posters are the billboard's paths, so the cache loads each once
 const loaded = (gfx, path) => { try { return path ? gfx.texture(path) : null; } catch { return null; } };
 

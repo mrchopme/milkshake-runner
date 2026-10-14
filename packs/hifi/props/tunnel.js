@@ -5,7 +5,7 @@
 import { gloss, painter } from '../lib/paint.js';
 
 const YAW = Math.PI / 2;  // ponytail: calibration knob — the tube's axis lies along the model's x and its flared mouth is the +x end: this lays it along the street, the mouth toward the player (-z)
-const CLEAR = 9.6;        // ponytail: calibration knob — m between the walls inside the tube (the road is 9 m wide; the stone walls then reach x +-7.5, the building line)
+const CLEAR = 9.6;        // ponytail: calibration knob — m between the walls inside the tube (the road is 9 m wide; the stone walls then reach x +-7.5, the old 7.5 m building line)
 export const ROOF = 6.6;  // ponytail: calibration knob — m from the street to the top of the tube body's roof (the shipped tube's is 6): the default chase camera reaches 4.0 m on a jump, and the lamp globes hang from the crown
 const SINK = 0.1;         // ponytail: calibration knob — the model carries its own road: it lies this far under the street, so the street's road and dashes show instead
 // ponytail: calibration knob — measured on the generated mesh, as fractions of its bounds: the tube body's inner clear width of the width

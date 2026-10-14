@@ -127,9 +127,9 @@ test('furniture stands only on the sidewalk band, never in a lane', () => {
   assert.ok(seen > 0, 'furniture was built');
 });
 
-test('side-street traffic never enters the avenue', () => {
+test('side-street traffic never enters the avenue: each car reappears behind the corner building line', () => {
   let seen = 0;
-  chunk(6).traverse((n) => { if (n.userData.traffic) { seen++; const m = new THREE.Matrix4(), p = new THREE.Vector3(); for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(Math.abs(p.x) >= 9, `x = ${p.x}`); } } });
+  chunk(6).traverse((n) => { if (n.userData.traffic) { seen++; const m = new THREE.Matrix4(), p = new THREE.Vector3(); for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(Math.abs(p.x) > FACADE_X, `x = ${p.x}`); } } });
   assert.ok(seen > 0, 'traffic was built');
 });
 

@@ -22,7 +22,7 @@ export const KIT = {
   tree: { path: 'hifi/furniture/tree.glb', h: 6.0, yaw: FRONT, glow: null }, // board 15's: on the 6 m sidewalk its 4 m canopy clears the facades and the blade signs
   newsstand: { path: 'hifi/furniture/newsstand.glb', h: 2.6, yaw: FRONT, glow: null },
   bus_shelter: { path: 'hifi/furniture/bus_shelter.glb', h: 2.7, yaw: FRONT, glow: null },
-  subway: { path: 'hifi/furniture/subway.glb', h: 2.16, yaw: FRONT, glow: globe }, // 2.4 less 10%: 3 m deep, it filled the sidewalk
+  subway: { path: 'hifi/furniture/subway.glb', h: 2.4, yaw: FRONT, glow: globe }, // board 15's: 3 m deep, it fits mid-sidewalk on the 6 m sidewalk
   // The sedan's rear has one red lamp and one cream one (Caedon, 2026-10-13: paint it in code): the cream texels on the rear
   // fifth of the mesh turn the red lamp's colour; the cream headlights at the front stay. h: the taxi's scale (its model is short).
   sedan: { path: 'hifi/vehicles/sedan.glb', h: 1.9, yaw: FRONT, glow: red, repaint: { test: (r, g, b) => r > 220 && g > 120 && b > 90, rear: 0.2, to: [232, 82, 71] } },

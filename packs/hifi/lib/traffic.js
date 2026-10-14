@@ -4,9 +4,9 @@ import { material } from './materials.js';
 import { freeWith } from './paint.js';
 // Distant traffic on the cross street only: each car sits at a side-street lane centre at the avenue's edge and slides
 // outward in the vertex stage on the run clock, wrapping, so it never enters the avenue.
-// ponytail: calibration knobs: m/s; |x| where a car starts (its tail past the kerb) and where it wraps (the paving ends at
+// ponytail: calibration knobs: m/s; |x| where a car starts (1.5 m behind the corner building line) and where it wraps (the paving ends at
 // CROSS.reach 20.5 m, the back of the blocks, less half the longest car, 2.5 m, so a whole car stays on it); lanes from cross.z.
-export const DRIVE = { speed: 6, from: 9, to: 18, lanes: [3, 9] };
+export const DRIVE = { speed: 6, from: 12, to: 18, lanes: [3, 9] };
 const SPAN = (DRIVE.to - DRIVE.from).toFixed(1), KINDS = ['sedan', 'van', 'taxi'];
 // The drive: vertices slide along +z (ahead) before the instance matrix, the phase a uniform so every material with this
 // hook shares one program (three keys it by the hook's source).
