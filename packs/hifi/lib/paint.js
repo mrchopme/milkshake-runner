@@ -10,6 +10,16 @@ export function gloss(T, source, extra = {}) {
   p.setValues(extra);
   return p;
 }
+// An overlay's paint, made once per generated material: paint(gfx, source) returns make(T, source, gfx), built the first time
+// that material is seen. Keyed by the material itself (a WeakMap), so every copy of a model shares its paint, a model reloaded
+// after assets.release (new materials) gets fresh paint instead of showing raw, and a released material's paint is collected.
+export function painter(make) {
+  const paints = new WeakMap();
+  return (gfx, source) => {
+    if (!paints.has(source)) paints.set(source, make(gfx.three, source, gfx));
+    return paints.get(source);
+  };
+}
 // The colour map with only the texels `test` accepts, as an emissive map: a lamp glows in its own shape (Caedon, 2026-10-09).
 // Read the way the source map is (flipY, colour space, channel); wrap, offset and repeat are not copied, so the UVs must sit in [0,1].
 export function glowMap(T, map, test, size = 1024) {

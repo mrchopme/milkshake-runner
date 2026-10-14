@@ -1,7 +1,7 @@
 // HiFi pigeons: the generated bird in public/hifi/pigeon.glb, one InstancedMesh over the shipped flock (content/obstacles/pigeons.js),
 // every bird inside the slide box wherever its wings are in their beat. The wings flap in the vertex stage on the run clock
-// (gfx.time), so a pause freezes them and a still pins them. Built once from the first copy; every flock shares it.
-import { gloss } from '../lib/paint.js';
+// (gfx.time), so a pause freezes them and a still pins them. Fitted once from the first copy; every flock shares it and the paint.
+import { gloss, painter } from '../lib/paint.js';
 import { instanced } from '../lib/shapes.js';
 
 const YAW = Math.PI; // ponytail: calibration knob — the bird's head is +z in the model (task-23-models); π turns it to the player (-z), its wings along ±x
@@ -26,22 +26,31 @@ export function flap(x, y, k) {
   return [Math.sign(x) * (FLAP.x[0] + ax * Math.cos(lift) - ay * Math.sin(lift)), FLAP.hinge + ax * Math.sin(lift) + ay * Math.cos(lift)];
 }
 
-let parts; // { geometry, paint, matrices }, built from the first copy
+const paint = painter((T, m, gfx) => {
+  const p = gloss(T, m, { clearcoat: 0.6, clearcoatRoughness: 0.2, metalness: 0, metalnessMap: null });
+  p.onBeforeCompile = (s) => { // the bird's own vertices, before three's instance and model matrices and the bend place it
+    s.uniforms.uTime = gfx.time;
+    s.vertexShader = 'uniform float uTime;\n' + s.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>${FLAP_VERTEX}`);
+  };
+  return p;
+});
+
+let parts; // { geometry, matrices }, fitted from the first copy
 
 export default {
   kind: 'obstacle', id: 'pigeons', assets: ['hifi/pigeon.glb'],
   createView(gfx) {
-    parts ??= build(gfx, gfx.asset('hifi/pigeon.glb'), this.box);
-    return { object: gfx.group(instanced(gfx.three, parts.geometry, parts.paint, parts.matrices)) };
+    const model = gfx.asset('hifi/pigeon.glb');
+    let mesh;
+    model.traverse((n) => { if (n.isMesh) mesh ??= n; }); // one mesh, one material (task-23-models)
+    parts ??= build(gfx.three, model, mesh, this.box);
+    return { object: gfx.group(instanced(gfx.three, parts.geometry, paint(gfx, mesh.material), parts.matrices)) };
   },
 };
 
-function build(gfx, model, box) {
-  const T = gfx.three;
+function build(T, model, mesh, box) {
   model.rotation.y = YAW;
   model.updateMatrixWorld(true);
-  let mesh;
-  model.traverse((n) => { if (n.isMesh) mesh ??= n; }); // one mesh, one material (task-23-models)
   // The yaw and the node's transform (the optimiser's dequantising scale) baked in, centred: the frame the flap and the fit work in.
   const geometry = mesh.geometry.clone().applyMatrix4(mesh.matrixWorld).center();
   geometry.userData.shared = true; // every flock draws it; gfx.dispose leaves it alone
@@ -50,10 +59,5 @@ function build(gfx, model, box) {
   for (let i = 0; i < p.count; i++) for (let k = 0; k <= 8; k++) reach.expandByPoint(v.set(...flap(p.getX(i), p.getY(i), k / 8), p.getZ(i)));
   const { min, max } = reach;
   const scale = Math.min(...FLOCK.flatMap(([x, y]) => [(box.w / 2 - x) / max.x, (box.w / 2 + x) / -min.x, (y - box.y) / -min.y, (box.y + box.h - y) / max.y, box.d / 2 / max.z, box.d / 2 / -min.z]));
-  const paint = gloss(T, mesh.material, { clearcoat: 0.6, clearcoatRoughness: 0.2, metalness: 0, metalnessMap: null });
-  paint.onBeforeCompile = (s) => { // the bird's own vertices, before three's instance and model matrices and the bend place it
-    s.uniforms.uTime = gfx.time;
-    s.vertexShader = 'uniform float uTime;\n' + s.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>${FLAP_VERTEX}`);
-  };
-  return { geometry, paint, matrices: FLOCK.map(([x, y]) => new T.Matrix4().makeScale(scale, scale, scale).setPosition(x, y, 0)) };
+  return { geometry, matrices: FLOCK.map(([x, y]) => new T.Matrix4().makeScale(scale, scale, scale).setPosition(x, y, 0)) };
 }

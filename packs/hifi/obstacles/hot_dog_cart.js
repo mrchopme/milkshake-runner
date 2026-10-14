@@ -1,12 +1,14 @@
 // HiFi hot_dog_cart: the generated cart in public/hifi/hot_dog_cart.glb, fitted to the shipped box (content/obstacles/hot_dog_cart.js).
 // Caedon's exception to the inside-the-box rule (2026-10-13, "umbrella above the box"): the cart's BODY (wheels, cabinet, handles, lid)
 // fills the jump box, and the umbrella's pole and canopy rise above it. The box, `avoid` and the hit timing stay the shipped ones.
-import { gloss } from '../lib/paint.js';
+import { gloss, painter } from '../lib/paint.js';
 
 const YAW = Math.PI / 2;  // ponytail: calibration knob — the model is longer along z (0.79) than x (0.67), its front +x; +π/2 turns its long side across the lane, broadside to the player (-z)
 const BODY_H = 0.531;     // ponytail: calibration knob — model units above the wheels where the body ends (the lid is at 0.530) and the umbrella pole starts; measured on the GLB
+// metalness 0: Tripo marks parts metallic at random, which reads as dark paint (Task 23 ruling); the roughness map stays
+const paint = painter((T, m) => gloss(T, m, { clearcoat: 0.6, clearcoatRoughness: 0.2, metalness: 0, metalnessMap: null }));
 
-let parts; // { scale, offset, paint }, measured from the first copy
+let parts; // { scale, offset }, measured from the first copy
 
 export default {
   kind: 'obstacle', id: 'hot_dog_cart', assets: ['hifi/hot_dog_cart.glb'],
@@ -14,7 +16,7 @@ export default {
     const T = gfx.three, model = gfx.asset('hifi/hot_dog_cart.glb');
     model.rotation.y = YAW;
     parts ??= build(T, model, this.box);
-    model.traverse((n) => { if (n.isMesh) n.material = parts.paint.get(n.material) ?? n.material; });
+    model.traverse((n) => { if (n.isMesh) n.material = paint(gfx, n.material); });
     model.scale.setScalar(parts.scale);
     model.position.copy(parts.offset);
     return { object: gfx.group(model) };
@@ -31,8 +33,6 @@ function build(T, model, box) {
     for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(n.matrixWorld); if (v.y <= cut) body.expandByPoint(v); }
   });
   const size = body.getSize(new T.Vector3()), c = body.getCenter(new T.Vector3());
-  const scale = Math.min(box.w / size.x, box.d / size.z, box.h / size.y), paint = new Map();
-  // metalness 0: Tripo marks parts metallic at random, which reads as dark paint (Task 23 ruling); the roughness map stays
-  model.traverse((n) => { if (n.isMesh && !paint.has(n.material)) paint.set(n.material, gloss(T, n.material, { clearcoat: 0.6, clearcoatRoughness: 0.2, metalness: 0, metalnessMap: null })); });
-  return { scale, offset: new T.Vector3(-c.x * scale, (box.y ?? 0) - body.min.y * scale, -c.z * scale), paint };
+  const scale = Math.min(box.w / size.x, box.d / size.z, box.h / size.y);
+  return { scale, offset: new T.Vector3(-c.x * scale, (box.y ?? 0) - body.min.y * scale, -c.z * scale) };
 }
