@@ -19,16 +19,17 @@ export const KIT = {
   bin: { path: 'hifi/furniture/bin.glb', h: 0.9, yaw: FRONT, glow: null },
   bin_box: { path: 'hifi/furniture/bin_box.glb', h: 1.0, yaw: FRONT, glow: null },
   planter: { path: 'hifi/furniture/planter.glb', h: 1.0, yaw: FRONT, glow: null },
-  tree: { path: 'hifi/furniture/tree.glb', h: 6.0, yaw: FRONT, glow: null },
+  tree: { path: 'hifi/furniture/tree.glb', h: 5.4, yaw: FRONT, glow: null }, // board 15's 6.0 less 10%: the 4 m canopy clears the facades
   newsstand: { path: 'hifi/furniture/newsstand.glb', h: 2.6, yaw: FRONT, glow: null },
   bus_shelter: { path: 'hifi/furniture/bus_shelter.glb', h: 2.7, yaw: FRONT, glow: null },
-  subway: { path: 'hifi/furniture/subway.glb', h: 2.4, yaw: FRONT, glow: globe },
+  subway: { path: 'hifi/furniture/subway.glb', h: 2.16, yaw: FRONT, glow: globe }, // 2.4 less 10%: 3 m deep, it filled the sidewalk
   // The sedan's rear has one red lamp and one cream one (Caedon, 2026-10-13: paint it in code): the cream texels on the rear
   // fifth of the mesh turn the red lamp's colour; the cream headlights at the front stay. h: the taxi's scale (its model is short).
   sedan: { path: 'hifi/vehicles/sedan.glb', h: 1.9, yaw: FRONT, glow: red, repaint: { test: (r, g, b) => r > 220 && g > 120 && b > 90, rear: 0.2, to: [232, 82, 71] } },
   van: { path: 'hifi/vehicles/van.glb', h: 2.2, yaw: FRONT, glow: null }, // no red lamps on the model
   taxi: { path: 'hifi/taxi.glb', h: 2.08, yaw: -Math.PI / 2, glow: null },
 };
+export const KIT_FILES = Object.values(KIT).map((e) => e.path); // the street themes list these in `assets`, so they load before play
 const GLOW = 5; // ponytail: calibration knob — the lights glow this bright, past the looks' bloom threshold (the taxi's LAMP_GLOW)
 // Code stand-ins until the generated models land, roughly the right size and colour: boxes { w along x, h, d along z (the
 // way the piece faces: the road for furniture, ahead for a vehicle), y of the base, z offset, colour, glow }. The lamp's
@@ -43,7 +44,7 @@ const STAND = {
   newsstand: [{ w: 2, h: 2.6, d: 1.2, color: '#2f5d4a' }],
   bus_shelter: [{ w: 3, h: 2.7, d: 1.4, color: '#8fa3b0' }],
   subway: [{ w: 2.6, h: 2.4, d: 1.6, color: '#2f5d4a' }],
-  sedan: [{ w: 1.8, h: 1.5, d: 4.2, color: '#5c6f8f' }],
+  sedan: [{ w: 2.0, h: 1.9, d: 3.15, color: '#5c6f8f' }],
   van: [{ w: 2, h: 2.2, d: 4.8, color: '#d9d9de' }],
   taxi: [{ w: 1.9, h: 2.08, d: 4.4, color: '#ffc21f' }],
 };
@@ -52,22 +53,26 @@ export const placeholder = (kind) => (T) => (STAND[kind] ?? [{ w: 0.5, h: KIT[ki
   material: material(`kit/${b.color}${b.glow ? '/glow' : ''}`, () => new T.MeshStandardMaterial({ color: b.color, roughness: 0.6, ...(b.glow && { emissive: b.color, emissiveIntensity: 2 }) })),
   matrix: new T.Matrix4(),
 }));
-const parts = new Map(); // entry -> [{ geometry, material, matrix }]: the model fitted to its height, its base at y = 0, centred
+const FOOT = 0.05; // ponytail: calibration knob — the lowest fraction of a piece's height that is its footprint (a pole's foot)
+const parts = new Map(); // entry -> [{ geometry, material, matrix }]: the model fitted to its height, its base at y = 0, its footprint centred
 export function kitParts(gfx, entry, placeholder) {
   if (parts.has(entry)) return parts.get(entry);
-  const T = gfx.three;
-  let model;
-  try { model = gfx.asset(entry.path); } catch { return placeholder(T); } // not generated or not loaded yet: not cached, so the model replaces it once it lands
-  model.rotation.y = entry.yaw;
-  model.updateMatrixWorld(true);
-  const b = new T.Box3().setFromObject(model), size = b.getSize(new T.Vector3()), c = b.getCenter(new T.Vector3());
-  const s = entry.h / size.y, fit = new T.Matrix4().makeScale(s, s, s).multiply(new T.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z));
-  const list = [], paint = new Map(); // generated material -> its paint, shared by every copy in every chunk
-  model.traverse((n) => {
-    if (!n.isMesh) return;
-    if (!paint.has(n.material)) paint.set(n.material, dress(T, n, entry));
-    list.push({ geometry: n.geometry, material: paint.get(n.material), matrix: fit.clone().multiply(n.matrixWorld) });
-  });
+  const T = gfx.three, list = [], paint = new Map(); // generated material -> its paint, shared by every copy in every chunk
+  try { // not generated, not loaded yet, or its paint failed: the stand-in, not cached, so the model replaces it once it lands
+    const model = gfx.asset(entry.path);
+    model.rotation.y = entry.yaw;
+    model.updateMatrixWorld(true);
+    // Anchored on its footprint, not its bounding box: a lamp's pole stands at the placed x, its arm reaching out from there.
+    const b = new T.Box3().setFromObject(model), foot = new T.Box3(), v = new T.Vector3(), top = b.min.y + FOOT * (b.max.y - b.min.y);
+    model.traverse((n) => { if (n.isMesh) for (let i = 0; i < n.geometry.attributes.position.count; i++) if (v.fromBufferAttribute(n.geometry.attributes.position, i).applyMatrix4(n.matrixWorld).y <= top) foot.expandByPoint(v); });
+    const c = foot.getCenter(new T.Vector3()), s = entry.h / (b.max.y - b.min.y);
+    const fit = new T.Matrix4().makeScale(s, s, s).multiply(new T.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z));
+    model.traverse((n) => {
+      if (!n.isMesh) return;
+      if (!paint.has(n.material)) paint.set(n.material, dress(T, n, entry));
+      list.push({ geometry: n.geometry, material: paint.get(n.material), matrix: fit.clone().multiply(n.matrixWorld) });
+    });
+  } catch { return placeholder(T); }
   parts.set(entry, list);
   return list;
 }
@@ -82,7 +87,7 @@ function dress(T, mesh, { glow, repaint }) {
 // left alone. Without a canvas (Node), the map as it is.
 function recolour(T, mesh, { test, rear, to }) {
   const map = mesh.material.map, g = mesh.geometry, pos = g.attributes.position, uv = g.attributes.uv;
-  if (!map?.image || typeof OffscreenCanvas === 'undefined') return map;
+  if (!map?.image || !uv || typeof OffscreenCanvas === 'undefined') return map;
   const W = map.image.width, H = map.image.height, canvas = new OffscreenCanvas(W, H), ctx = canvas.getContext('2d');
   ctx.drawImage(map.image, 0, 0);
   const img = ctx.getImageData(0, 0, W, H), px = img.data;

@@ -5,15 +5,15 @@ import { CROSS } from './street.js';
 // ponytail: calibration knobs from board 15. RHYTHM: metres between copies along each side, x from the road's centre line.
 export const RHYTHM = [
   { kind: 'lamp', every: 24, x: 4.95, alternate: true },
-  { kind: 'tree', every: 18, x: 6.6, offset: 9 },
+  { kind: 'tree', every: 18, x: 5.5, offset: 9 },
   { kind: 'hydrant', every: 40, x: 4.95, offset: 13 },
   { kind: 'bin', every: 30, x: 5.1, offset: 5 },
 ];
 export const SCATTER = [ // about this many a chunk on average, each on a random side and spot
   { kind: 'bench', perChunk: 1, x: 6.9 },
-  { kind: 'newsstand', perChunk: 1, x: 6.5 },
+  { kind: 'newsstand', perChunk: 1, x: 6.4 },
 ];
-export const RARE = { chance: 0.5, kinds: [{ kind: 'bus_shelter', x: 6.3 }, { kind: 'subway', x: 6.4 }] }; // at most one a chunk, on one side
+export const RARE = { chance: 0.5, kinds: [{ kind: 'bus_shelter', x: 6.3 }, { kind: 'subway', x: 5.95 }] }; // at most one a chunk, on one side
 export const CLEAR = 2, JITTER = 0.3, SEAM = 2; // m kept clear of the side street; ± m along the street from the chunk's seed; m kept from the chunk's ends
 const WIDE = 1.5; // half the footprint along z of the widest piece (a bus shelter is about 3 m)
 

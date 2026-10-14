@@ -163,6 +163,9 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 - Task 23: Ruling (kit): the sedan's `h` goes from board 15's 1.5 to 1.9 m — the generated sedan is short for its height (0.98 × 0.59 × 0.62), so 1.5 m made it a 2.5 m car beside the kit taxi's 3.2 m; 1.9 is the taxi's scale (3.2 × 2.0 m) — cost if wrong: one number.
 - Task 23: Ruling (kit): `lamp_double` turns its arms along the street (yaw −π/2, the front rule), not one over the road: its arms span 6.3 m, so one would reach 3 m back into the facades from the curb; it is not placed by board 15 yet — cost if wrong: one yaw.
 - Task 23: Ruling (kit): the traffic light glows its red and green lenses only; its middle lens has no colour of its own: its texels are the yellow housing's (238,177,57 and the housing's orange shading), so no texel test can tell them apart — cost if wrong: a mesh-region test like the sedan's, by height on the head.
+- Task 23: Ruling (kit, fix round 1): the street tree goes from x 6.6 to 5.5 and h 6.0 to 5.4 (−10%): anchored on its trunk its canopy is 4 m across and reached x 8.59, 1.09 m into the buildings; now it reaches 7.30, and over the road its canopy starts at 2.6 m — but its 2.2 m ground base (the tree pit) reaches x 4.39, 0.11 m past the kerb — cost if wrong: two numbers; no x and h within the review's limits (x ≤ 7.3, h −10%) keeps both the canopy and the base on the sidewalk.
+- Task 23: Ruling (kit, fix round 1): the subway goes from x 6.4 to 5.95 and h 2.4 to 2.16 (−10%): it is 2.98 m deep at 2.4, so no x kept it on the 3 m sidewalk inside 7.3; now it spans x 4.61–7.29 — cost if wrong: two numbers.
+- Task 23: Ruling (kit, fix round 1): the newsstand goes from x 6.5 to 6.4: anchored on its footprint it reached 7.56; now 7.29 — cost if wrong: one number.
 
 ## Progress
 
