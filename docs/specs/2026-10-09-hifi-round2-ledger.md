@@ -149,6 +149,11 @@ Budget for the round: about 750 (ask again above about 1,000). Balance at the st
 | 24 | `t24-base-<theme>-{169,916}` (1280×720, 720×1280) | `?fixtures&hifi` after merging Task 24 Step 1, the four shot levels | real facades, storefronts, signs and skylines in every theme; every white surface over-blooms (jugs, crosswalk paint, Milkshake, the taxi) and the bridge water washes out to pale cyan; uptown's far skyline carries a gothic spired tower (flag for Caedon's landmark check on board 17, with downtown-02's spire) | — |
 | 24 | `t24-dt-a`, `t24-dt-b`, `t24-mt-a`, `t24-ut-a`, `t24-br-a`, `t24-br-b` (960×540, 540×960) | `tuneShot` (console: patch the running theme's look, `engine.setSky`, shoot) | threshold 1.0 changed little (lit white reaches ~2 in linear HDR); threshold 1.6–1.8 with ambient 0.65–0.8, env 0.8–0.9 and sun a touch lower gives crisp crosswalks, readable jugs and Milkshake, grey roads, while lamp heads, signals and tail lamps still read lit; the bridge water at #2f86ad reads as water with its ripples | — |
 | 24 | `t24-final-<theme>-{169,916}` (1280×720, 720×1280; strips `t24-final-169`, `t24-final-916`) | `?fixtures&hifi` after merging Task 24 Step 2 (5b2d896), fresh page | the retuned looks hold in all four themes: crisp crosswalks, jugs and Milkshake without halos, grey roads, deep blue bridge water, uptown's dusk; lamp heads and tail lamps read lit; the red signal lenses read pinkish white (emissive 5 under Neutral tone mapping desaturates) — flagged for board 17 / Task 26 | — |
+| 25 | `tl-mid-{0.8,1.2,2,5}`, `tl-near-…` (800×800, 600×900; board 17c) | `?fixtures&hifi` downtown, a close-up camera on one corner light, the signal paint's `emissiveIntensity` set live | at 5 the red lens washes to pink and the green blooms over the housing; 1.2 keeps true red and green with no spill (Caedon's pick); `tl-shipped` after the change matches | — |
+| 26 | `lofi-final-r2.png`, 2160×3840 | `?fixtures&lofi` on a841554 | 464,350 bytes, byte-identical to the round's baseline | 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3 |
+| 26 | `r2-final-<theme>-916` (2160×3840) and `-169` (3840×2160); sheets `r2-final-916-sheet`, `r2-final-169-sheet` beside board 01's keyframes (sent to Caedon) | `?fixtures&hifi` on a841554, fresh page per level | downtown 5,433,677 / 5,619,315 bytes (c48c5984… / d3e849e9…); midtown 5,359,203 / 5,522,527 (d5ab6b9d… / 72e0c970…); uptown 5,635,867 / 5,104,517 (6f260505… / d10d78a4…); bridge 3,929,676 / 4,038,537 (5710c2d1… / ab2f2be7…). Uptown's avenue ends between two of the redrawn strip's own Art Deco spire towers (the middle of A, not a mirror seam; the frame Caedon saw as c17d) | per file |
+| 26 | `hifiProbe` per theme and low-fi | 150 frames at 3024×1964 (1512×982 at dpr 2), browser pane, a841554 | downtown 5.91 ms mean / 10.1 p95, 388 calls, 2,372,964 tris; midtown 6.03 / 11.6, 382, 2,344,574; uptown 6.82 / 11.8, 388, 2,328,482; bridge 5.42 / 11.1, 228, 483,363; low-fi 0.39 / 0.70, 290, 75,834. Every theme under 16.7 ms | — |
+| 26 | texture memory per level (`renderer.info.memory` about 3 s into a run, the rAF shim on) | `?fixtures&hifi`, Garden and Endless started from their (locked) buttons for the measurement only | Up Broadway 108 textures, 131 geometries; Road to the Garden 126, 128; Endless Manhattan 119, 124; the shot levels 94–102 (bridge 43). Counts, not bytes: three's `info.memory` reports no sizes | — |
 
 ## Rulings
 
@@ -352,7 +357,28 @@ Every task against itself:
 
 ## Gap to the reference
 
+Point-in-time read (2026-10-14, a841554) of board 01's teaser keyframes against `r2-final-*` (the sheets sent to Caedon).
+
+Now reads like the teaser:
+- A sunlit Manhattan avenue: three lanes, crosswalks, wide sidewalks with lamps, trees, signals and benches, brick, stone and glass facades with windows, storefronts, blade signs and billboard stacks, a painted skyline at the avenue's end in every theme.
+- Milkshake from behind, glossy and skinned, white with grey spots and lavender hooves; the taxi, the jugs as glowing milk bottles, every obstacle, pickup and prop as a generated model.
+- The light: soft cascaded shadows, tone mapping that keeps the palette, bloom only where something is lit (lamp heads, tail lamps, signals at 1.2, jugs).
+
+Still short of the teaser:
+- The camera: the game keeps its own framing (Milkshake small in the 9:16 frame, the 16:9 shot from street level), so the teaser's big hero cow over the taxi is a framing difference, not an asset one.
+- The teaser's colour-block billboards fill the upper facades; ours are fewer and smaller, and the facades read more realistic than toy.
+- Sparkle trails, steam polish and the ending screens: sub-project 5, out of this round's scope.
+- The taxi's roof sign still blooms large in the 9:16 frame where the camera sits just behind it.
+
 ## Close-out (round 2)
+
+**Round 2 close-out (Task 26, 2026-10-14, a841554, point-in-time).**
+- **Engine diff:** `git diff --stat 9132bae..HEAD -- src/`: 9 files, 282 insertions, 58 deletions (`look.js` 115, `assets.js` 94, `gfx.js` 52, `main.js` 21, `registry.js` 21, `worn.js` 18, `engine.js` 10, `game.js` 8, `world.js` 1). The Engine changes table holds 34 rows (32 in `src/`, 2 in `content/characters/milkshake.js`): 22 generic hooks any pack can use (the instancing-safe bend, shared-asset flags, images and models as assets, per-level preload and release, the pack `lib` folder, the time uniform, worn effects, the dust-puff and skin-weight fixes), 11 HiFi-only (9 in `src/look.js`, 2 in `src/gfx.js`, live only under a look: fog cut, cascades, MSAA, the skyline rings) and 1 with no behaviour change. No row says a module could have done it alone.
+- **Credits:** 750.75 against about 750 (balance 2,979.75 → 2,229): wave 1 45.75, wave 2 with redos 141.5, wave 3 522, Task 23's redraws and their models 38.5, the uptown redraw 3. Every spend was approved by Caedon first.
+- **Frame cost:** every theme 5.4–6.8 ms mean at 3024×1964 (p95 at most 11.8), well under 16.7 ms; low-fi 0.39 ms. Texture counts 108–126 per real level.
+- **Low-fi:** byte-identical to the round's baseline at every check, last on a841554 (3d77a939…, 464,350 bytes).
+- **The modularity read:** the city, 28 generated models, Milkshake's remodel and every hero asset arrived as pack files, images and GLBs; `src/` grew by 282 lines, almost all of them hooks a second pack would reuse. What could not live in a pack was the renderer's own business: bending instanced meshes, owning shared assets across levels, and the look's fog, shadows and horizon. The engine is modular for content and needs a small, generic seam for each new kind of rendering.
+
 - Task 1: complete (commit below; npm test 118 pass; low-fi invariant 3d77a939…)
 - Task 6: complete (commits 8a7b33a..15a52b7, merged as b01785a, review clean; npm test 121; `?lofi` still 3d77a939…, unchanged)
 - Task 6: minor (deferred): `adopt`'s shared flag survives a clone (`BufferGeometry.copy` shares `userData` by reference, `Material.copy` copies it), so a module that clones a shared part to modify it keeps it flagged and `dispose` never frees it; latent, nothing clones a shared part for itself today (Task 11's traffic clones are cached and shared on purpose).
