@@ -1,23 +1,36 @@
 import { material } from './materials.js';
-// Furniture and side-street vehicles. path: the generated model (Task 23 sets yaw, h and glow from the real file);
-// until it is loaded, a code placeholder of the same height stands in. ponytail: calibration knobs.
+import { gloss, glowMap } from './paint.js';
+// The lights, picked from each model's own texels (measured on the generated textures, Task 23): only these glow.
+const warm = (r, g, b) => r > 170 && r - b > 45;                               // the lamp's lens, the double lamp's lanterns
+const signal = (r, g, b) => (r > 200 && g < 100 && b < 110) || (g > 180 && r < 120 && b < 120); // red, green; the middle lens is the housing's yellow
+const globe = (r, g, b) => r > 245 && g > 245 && b > 245;                     // the subway's white globes
+const red = (r, g, b) => r > 150 && g < 90 && b < 90;                         // a red tail lamp (the taxi's isLamp)
+// Furniture and side-street vehicles. path: the generated model; h: its height in metres (board 15); yaw: turns its front
+// (+x on every generated model; the lamp's arm reaches -z) to +z, the way the piece faces; glow: the texel test of its lights;
+// repaint: texels recoloured before the glow (see recolour). Until the model loads, a code placeholder stands in.
+// ponytail: calibration knobs.
+const FRONT = -Math.PI / 2;
 export const KIT = {
-  lamp: { path: 'hifi/furniture/lamp.glb', h: 6.5, yaw: 0, glow: null },
-  lamp_double: { path: 'hifi/furniture/lamp_double.glb', h: 6.5, yaw: 0, glow: null },
-  traffic_light: { path: 'hifi/furniture/traffic_light.glb', h: 5.5, yaw: 0, glow: null },
-  hydrant: { path: 'hifi/furniture/hydrant.glb', h: 0.8, yaw: 0, glow: null },
-  bench: { path: 'hifi/furniture/bench.glb', h: 0.9, yaw: 0, glow: null },
-  bin: { path: 'hifi/furniture/bin.glb', h: 0.9, yaw: 0, glow: null },
-  bin_box: { path: 'hifi/furniture/bin_box.glb', h: 1.0, yaw: 0, glow: null },
-  planter: { path: 'hifi/furniture/planter.glb', h: 1.0, yaw: 0, glow: null },
-  tree: { path: 'hifi/furniture/tree.glb', h: 6.0, yaw: 0, glow: null },
-  newsstand: { path: 'hifi/furniture/newsstand.glb', h: 2.6, yaw: 0, glow: null },
-  bus_shelter: { path: 'hifi/furniture/bus_shelter.glb', h: 2.7, yaw: 0, glow: null },
-  subway: { path: 'hifi/furniture/subway.glb', h: 2.4, yaw: 0, glow: null },
-  sedan: { path: 'hifi/vehicles/sedan.glb', h: 1.5, yaw: 0, glow: null },
-  van: { path: 'hifi/vehicles/van.glb', h: 2.2, yaw: 0, glow: null },
+  lamp: { path: 'hifi/furniture/lamp.glb', h: 6.5, yaw: Math.PI, glow: warm },
+  lamp_double: { path: 'hifi/furniture/lamp_double.glb', h: 6.5, yaw: FRONT, glow: warm }, // arms along the street, clear of the facades
+  traffic_light: { path: 'hifi/furniture/traffic_light.glb', h: 5.5, yaw: FRONT, glow: signal },
+  hydrant: { path: 'hifi/furniture/hydrant.glb', h: 0.8, yaw: FRONT, glow: null },
+  bench: { path: 'hifi/furniture/bench.glb', h: 0.9, yaw: FRONT, glow: null },
+  bin: { path: 'hifi/furniture/bin.glb', h: 0.9, yaw: FRONT, glow: null },
+  bin_box: { path: 'hifi/furniture/bin_box.glb', h: 1.0, yaw: FRONT, glow: null },
+  planter: { path: 'hifi/furniture/planter.glb', h: 1.0, yaw: FRONT, glow: null },
+  tree: { path: 'hifi/furniture/tree.glb', h: 5.4, yaw: FRONT, glow: null }, // board 15's 6.0 less 10%: the 4 m canopy clears the facades
+  newsstand: { path: 'hifi/furniture/newsstand.glb', h: 2.6, yaw: FRONT, glow: null },
+  bus_shelter: { path: 'hifi/furniture/bus_shelter.glb', h: 2.7, yaw: FRONT, glow: null },
+  subway: { path: 'hifi/furniture/subway.glb', h: 2.16, yaw: FRONT, glow: globe }, // 2.4 less 10%: 3 m deep, it filled the sidewalk
+  // The sedan's rear has one red lamp and one cream one (Caedon, 2026-10-13: paint it in code): the cream texels on the rear
+  // fifth of the mesh turn the red lamp's colour; the cream headlights at the front stay. h: the taxi's scale (its model is short).
+  sedan: { path: 'hifi/vehicles/sedan.glb', h: 1.9, yaw: FRONT, glow: red, repaint: { test: (r, g, b) => r > 220 && g > 120 && b > 90, rear: 0.2, to: [232, 82, 71] } },
+  van: { path: 'hifi/vehicles/van.glb', h: 2.2, yaw: FRONT, glow: null }, // no red lamps on the model
   taxi: { path: 'hifi/taxi.glb', h: 2.08, yaw: -Math.PI / 2, glow: null },
 };
+export const KIT_FILES = Object.values(KIT).map((e) => e.path); // the street themes list these in `assets`, so they load before play
+const GLOW = 5; // ponytail: calibration knob — the lights glow this bright, past the looks' bloom threshold (the taxi's LAMP_GLOW)
 // Code stand-ins until the generated models land, roughly the right size and colour: boxes { w along x, h, d along z (the
 // way the piece faces: the road for furniture, ahead for a vehicle), y of the base, z offset, colour, glow }. The lamp's
 // glow is its own head, never a plate laid over it. ponytail: calibration knobs.
@@ -31,7 +44,7 @@ const STAND = {
   newsstand: [{ w: 2, h: 2.6, d: 1.2, color: '#2f5d4a' }],
   bus_shelter: [{ w: 3, h: 2.7, d: 1.4, color: '#8fa3b0' }],
   subway: [{ w: 2.6, h: 2.4, d: 1.6, color: '#2f5d4a' }],
-  sedan: [{ w: 1.8, h: 1.5, d: 4.2, color: '#5c6f8f' }],
+  sedan: [{ w: 2.0, h: 1.9, d: 3.15, color: '#5c6f8f' }],
   van: [{ w: 2, h: 2.2, d: 4.8, color: '#d9d9de' }],
   taxi: [{ w: 1.9, h: 2.08, d: 4.4, color: '#ffc21f' }],
 };
@@ -40,18 +53,63 @@ export const placeholder = (kind) => (T) => (STAND[kind] ?? [{ w: 0.5, h: KIT[ki
   material: material(`kit/${b.color}${b.glow ? '/glow' : ''}`, () => new T.MeshStandardMaterial({ color: b.color, roughness: 0.6, ...(b.glow && { emissive: b.color, emissiveIntensity: 2 }) })),
   matrix: new T.Matrix4(),
 }));
-const parts = new Map(); // entry -> [{ geometry, material, matrix }]: the model fitted to its height, its base at y = 0, centred
+const FOOT = 0.05; // ponytail: calibration knob — the lowest fraction of a piece's height that is its footprint (a pole's foot)
+const parts = new Map(); // entry -> [{ geometry, material, matrix }]: the model fitted to its height, its base at y = 0, its footprint centred
 export function kitParts(gfx, entry, placeholder) {
   if (parts.has(entry)) return parts.get(entry);
-  const T = gfx.three;
-  let model;
-  try { model = gfx.asset(entry.path); } catch { return placeholder(T); } // not generated or not loaded yet: not cached, so the model replaces it once it lands
-  model.rotation.y = entry.yaw;
-  model.updateMatrixWorld(true);
-  const b = new T.Box3().setFromObject(model), size = b.getSize(new T.Vector3()), c = b.getCenter(new T.Vector3());
-  const s = entry.h / size.y, fit = new T.Matrix4().makeScale(s, s, s).multiply(new T.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z));
-  const list = [];
-  model.traverse((n) => { if (n.isMesh) list.push({ geometry: n.geometry, material: n.material, matrix: fit.clone().multiply(n.matrixWorld) }); });
+  const T = gfx.three, list = [], paint = new Map(); // generated material -> its paint, shared by every copy in every chunk
+  try { // not generated, not loaded yet, or its paint failed: the stand-in, not cached, so the model replaces it once it lands
+    const model = gfx.asset(entry.path);
+    model.rotation.y = entry.yaw;
+    model.updateMatrixWorld(true);
+    // Anchored on its footprint, not its bounding box: a lamp's pole stands at the placed x, its arm reaching out from there.
+    const b = new T.Box3().setFromObject(model), foot = new T.Box3(), v = new T.Vector3(), top = b.min.y + FOOT * (b.max.y - b.min.y);
+    model.traverse((n) => { if (n.isMesh) for (let i = 0; i < n.geometry.attributes.position.count; i++) if (v.fromBufferAttribute(n.geometry.attributes.position, i).applyMatrix4(n.matrixWorld).y <= top) foot.expandByPoint(v); });
+    const c = foot.getCenter(new T.Vector3()), s = entry.h / (b.max.y - b.min.y);
+    const fit = new T.Matrix4().makeScale(s, s, s).multiply(new T.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z));
+    model.traverse((n) => {
+      if (!n.isMesh) return;
+      if (!paint.has(n.material)) paint.set(n.material, dress(T, n, entry));
+      list.push({ geometry: n.geometry, material: paint.get(n.material), matrix: fit.clone().multiply(n.matrixWorld) });
+    });
+  } catch { return placeholder(T); }
   parts.set(entry, list);
   return list;
+}
+// The generated material without Tripo's random metal (it reads as dark paint; main session's ruling), its lights lit from
+// their own texels. gloss copies the source's shared flag, so dropping a chunk never frees it.
+function dress(T, mesh, { glow, repaint }) {
+  const map = repaint ? recolour(T, mesh, repaint) : mesh.material.map, lights = glow && glowMap(T, map, glow);
+  return gloss(T, mesh.material, { map, metalness: 0, metalnessMap: null, ...(lights && { emissive: '#ffffff', emissiveMap: lights, emissiveIntensity: GLOW }) });
+}
+// A copy of the colour map with the texels `test` accepts painted `to`, on the triangles wholly inside the rear fraction
+// `rear` of the mesh (-x in its own frame; the generated GLBs carry only a uniform scale on the node). The source map is
+// left alone. Without a canvas (Node), the map as it is.
+function recolour(T, mesh, { test, rear, to }) {
+  const map = mesh.material.map, g = mesh.geometry, pos = g.attributes.position, uv = g.attributes.uv;
+  if (!map?.image || !uv || typeof OffscreenCanvas === 'undefined') return map;
+  const W = map.image.width, H = map.image.height, canvas = new OffscreenCanvas(W, H), ctx = canvas.getContext('2d');
+  ctx.drawImage(map.image, 0, 0);
+  const img = ctx.getImageData(0, 0, W, H), px = img.data;
+  g.computeBoundingBox();
+  const cut = g.boundingBox.min.x + rear * (g.boundingBox.max.x - g.boundingBox.min.x), at = (i) => (g.index ? g.index.getX(i) : i);
+  for (let i = 0; i < (g.index ?? pos).count; i += 3) {
+    const v = [at(i), at(i + 1), at(i + 2)];
+    if (v.some((j) => pos.getX(j) > cut)) continue;
+    const [x0, x1, x2] = v.map((j) => uv.getX(j) * W), [y0, y1, y2] = v.map((j) => (map.flipY ? 1 - uv.getY(j) : uv.getY(j)) * H);
+    const d = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0);
+    if (!d) continue;
+    for (let y = Math.max(0, Math.floor(Math.min(y0, y1, y2))); y < Math.min(H, Math.ceil(Math.max(y0, y1, y2))); y++) {
+      for (let x = Math.max(0, Math.floor(Math.min(x0, x1, x2))); x < Math.min(W, Math.ceil(Math.max(x0, x1, x2))); x++) {
+        const px0 = x + 0.5, py = y + 0.5, k = 4 * (y * W + x); // the texel's centre, barycentric
+        const a = ((x1 - px0) * (y2 - py) - (x2 - px0) * (y1 - py)) / d, b = ((x2 - px0) * (y0 - py) - (x0 - px0) * (y2 - py)) / d;
+        if (a >= 0 && b >= 0 && a + b <= 1 && test(px[k], px[k + 1], px[k + 2])) px.set(to, k);
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = map.clone(); // every sampler setting of the source (flipY, colour space, channel, wrap), its own image
+  t.source = new T.TextureSource(canvas);
+  t.needsUpdate = true;
+  return t;
 }
