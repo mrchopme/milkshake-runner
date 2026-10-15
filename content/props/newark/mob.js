@@ -1,4 +1,4 @@
-import { buildDog, animateDog, bark, heartbeat } from '../../obstacles/newark/stray_dog.js';
+import { buildDog, animateDog } from '../../obstacles/newark/stray_dog.js';
 import { plaque } from '../../themes/newark/brick_city.js';
 
 // The chase. A mob waits at an alley mouth on the sidewalk; as Milkshake passes its line it bursts onto the road and runs at her
@@ -57,15 +57,8 @@ export default {
       update(p, run, dt, halt = false) {
         const d = run.z - p.z, fall = smooth(d / SETTLE_M), tired = smooth((d - TIRE_M) / (length - TIRE_M)), gait = halt ? 0 : fall * (1 - tired);
         const lag = 1 - Math.exp(-dt / 0.15), beat = run.time * 16 * ((run.speed ?? 12) / 12);
-        let urgency = 0;
         for (const m of members) {
           const o = m.object, lunge = m.kind === 'dog' ? Math.max(0, Math.sin(run.time * 2.4 + m.seed * 3)) ** 3 * gait : 0; // a dog surges at her heels every 2.6 s
-          if (m.kind === 'dog') { // barks: from the alley as she nears, at the top of every lunge, and at the station steps
-            const pitch = 0.85 + ((m.seed * 7) % 1) * 0.4;
-            if (d < 0 ? d > -35 && Math.random() < dt * 0.4 : halt && Math.random() < dt * 0.6) bark(pitch);
-            if (lunge > 0.5 && !m.barking) { m.barking = true; bark(pitch); } else if (lunge < 0.2) m.barking = false;
-            urgency = Math.max(urgency, lunge);
-          }
           m.fx += (run.x + m.ox - m.fx) * lag; // follows a lane change a beat late
           o.position.x = m.alley.x + (m.fx - m.alley.x) * fall;
           o.position.z = m.alley.z + (run.z - Math.max(HEEL_M, m.oz - LUNGE_M * lunge) - tired * tired * 24 - p.z - m.alley.z) * fall; // in the prop's frame; a tired mob drops out of the frame below
@@ -74,7 +67,6 @@ export default {
           if (m.kind === 'dog') animateDog(m, run.time, gait, m.seed, lunge);
           else animatePerson(m, Math.sin(beat + m.seed) * gait, tired, fall ? 0 : Math.sin(run.time * 3 + m.seed) * 0.05, gait);
         }
-        if (gait > 0) heartbeat(0.3 * gait + 0.7 * urgency); // her pulse while they are on her, racing when a dog lunges
       },
     };
   },

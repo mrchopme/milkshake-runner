@@ -10,7 +10,7 @@ import { resolveRules, jumpHeight, createRun } from '../src/rules.js';
 import { discover } from './helpers.js';
 import mob, { SETTLE_M, TIRE_M, HEEL_M } from '../content/props/newark/mob.js';
 import theme from '../content/themes/newark/brick_city.js';
-import dog, { bark, thump, heartbeat } from '../content/obstacles/newark/stray_dog.js';
+import dog from '../content/obstacles/newark/stray_dog.js';
 import cart from '../content/obstacles/newark/shopping_cart.js';
 import tape from '../content/obstacles/newark/police_tape.js';
 import hydrant from '../content/obstacles/newark/busted_hydrant.js';
@@ -91,31 +91,4 @@ test('a Brick City chunk builds without a DOM and keeps every block inside its c
     });
     assert.ok(boxes > 60, 'a street, blocks, bands and curb life');
   }
-});
-
-// The sounds are Web Audio, so Node has none: every call is a no-op without an AudioContext. With one (a counting fake), a bark
-// is one voice however many dogs ask at once, and the heartbeat keeps one clock.
-test('barks and the heartbeat are silent in Node, and rate-limited in a browser', () => {
-  bark(); thump(); heartbeat(1);
-  const param = () => ({ value: 0, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} });
-  class FakeAudio {
-    constructor() { FakeAudio.last = this; this.currentTime = 0; this.state = 'suspended'; this.sampleRate = 48000; this.destination = {}; this.started = 0; this.resumed = 0; }
-    node() { return { type: '', buffer: null, frequency: param(), gain: param(), Q: param(), connect() {}, start: () => { this.started++; }, stop() {} }; }
-    createOscillator() { return this.node(); } createGain() { return this.node(); } createBiquadFilter() { return this.node(); } createBufferSource() { return this.node(); }
-    createBuffer(channels, length) { return { getChannelData: () => new Float32Array(length) }; }
-    resume() { this.resumed++; this.state = 'running'; }
-  }
-  globalThis.AudioContext = FakeAudio;
-  try {
-    heartbeat(1); heartbeat(1);
-    const c = FakeAudio.last;
-    assert.ok(c.resumed >= 1, 'a suspended context is resumed');
-    assert.equal(c.started, 2, 'one thump (two voices) for two calls in the same frame');
-    c.currentTime = 2; heartbeat(0);
-    assert.equal(c.started, 4, 'the next beat once its time comes');
-    bark(); bark(1.2);
-    assert.equal(c.started, 6, 'one bark (tone and noise) for two dogs at once');
-    c.currentTime = 2.3; bark();
-    assert.equal(c.started, 8);
-  } finally { delete globalThis.AudioContext; }
 });

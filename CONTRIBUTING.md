@@ -141,6 +141,7 @@ export default {
     const object = gfx.group(gfx.box(0.7, 2.0, 0.5, '#9aa3ad', 0, 1.0));
     return {
       object,
+      steps: 0,                                                   // optional: count your footfalls here and the engine plays a footstep for each
       update(run) { object.position.set(run.x, run.y, run.z); },   // called every frame
       pose(time, { sliding, over, lean, airborne, speed }) {},      // called during endings; speed is the run's m/s
       dispose() { gfx.dispose(object); },
