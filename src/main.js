@@ -11,6 +11,7 @@ import { createWorld } from './world.js';
 import { createRun, resolveRules } from './rules.js';
 import { loadSave, writeSave, recordRun } from './save.js';
 import { isLocked, completeLevel } from './campaign.js';
+import { params, report } from './hatch.js';
 
 const $ = (id) => document.getElementById(id);
 const SCREENS = ['menu', 'select', 'results', 'error', 'help'];
@@ -120,6 +121,7 @@ async function main() {
     } else { engine.render(); await wait(900); }
     recordRun(save, id, run.jugs);
     writeSave(save);
+    report({ levelId: id, outcome, jugs: run.jugs, time: run.time ?? 0, distance: run.z ?? 0 }); // before the chain below, so chained levels report one each
     world?.dispose();
     if (flow.next && levels[flow.next] && valid(flow.next)) return startLevel(flow.next, flow.carry ? { jugs: run.jugs, speed: run.speed } : {});
 
@@ -135,6 +137,9 @@ async function main() {
   $('endless').onclick = () => startLevel('endless');
   $('back').onclick = menu;
   $('to-menu').onclick = menu;
+  const { level } = params(); // Hatch picks the level; campaign locks don't apply, its history is Hatch's (A4)
+  if (level && levels[level] && valid(level)) return startLevel(level);
+  if (level) console.warn(`Unknown or broken level "${level}", showing the menu`);
   await menu();
 }
 main();
