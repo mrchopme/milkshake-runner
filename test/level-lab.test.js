@@ -6,6 +6,7 @@ import { street, simulate, loadRegistry, NOTICE, playtest, scorecard, finishTime
 import { generate, normalizeLevel, rng } from '../src/generator.js';
 import { resolveRules } from '../src/rules.js';
 import { buildRegistry } from '../src/registry.js';
+import { validateLevel } from '../src/validate.js';
 import { discover } from './helpers.js';
 
 let registry, pack;
@@ -15,6 +16,9 @@ before(async () => {
 });
 const broadway = JSON.parse(readFileSync(new URL('../levels/01-broadway.json', import.meta.url), 'utf8'));
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/levels/demo-canal-street-dash.json', import.meta.url), 'utf8'));
+const setPiece = (placements) => ({ ...broadway, sections: [...broadway.sections, { from_m: 1340, to_m: 1420, generation: false, placements }] });
+const ob = (at_m, lane, id) => ({ at_m, lane, kind: 'obstacle', id });
+const allIds = ['01-broadway', '02-garden', 'endless', 'fifth-avenue-dusk', 'last-train-newark'];
 
 test('street groups obstacles into rows and names what each row asks for', () => {
   const s = street(broadway, registry, { seed: 7 });
@@ -44,10 +48,28 @@ test('a run is deterministic and reports actions, windows and the longest idle s
   assert.ok(a.idle.seconds > 0 && a.idle.to_m > a.idle.from_m);
 });
 
-test('placed rows off the grid and a placed mover are played like generated ones', () => {
+test('placed rows off the grid are played like generated ones', () => {
   const s = street(fixture, pack, { seed: fixture.seed });
   assert.ok(s.rows.some((r) => r.z === 210 && r.obs.length === 2 && r.kind === 'dodge2'));
   assert.equal(simulate(fixture, pack, { seed: fixture.seed }).survived, true);
+});
+
+test('a placed mover stays in its lane and its row is played', () => {
+  const level = setPiece([ob(1380, 0, 'taxi'), ob(1380, 1, 'delivery_bike')]);
+  assert.deepEqual(validateLevel(level, { fileId: '01-broadway', allIds, registry }), []);
+  const row = street(level, registry, { seed: 1 }).rows.find((r) => r.z === 1380);
+  assert.equal(row.kind, 'dodge2');
+  assert.equal(row.obs.find((o) => o.id === 'delivery_bike').moveTo, null);
+  assert.equal(simulate(level, registry, { seed: 1 }).survived, true);
+});
+
+test('a staggered set piece is one row, as the validator reads it, and keeps a positive window', () => {
+  const level = setPiece([ob(1380, 0, 'taxi'), ob(1384, 1, 'taxi')]);
+  assert.deepEqual(validateLevel(level, { fileId: '01-broadway', allIds, registry }), []);
+  const row = street(level, registry, { seed: 1 }).rows.find((r) => r.obs.some((o) => o.z === 1384));
+  assert.deepEqual([row.z, row.obs.length, row.kind], [1382, 2, 'dodge2']);
+  assert.ok(Math.min(...simulate(level, registry, { seed: 1 }).windows) > 0);
+  assert.equal(scorecard(level, registry, { seeds: 10 }).gates.find((g) => g.id === 'G-window').ok, true);
 });
 
 test('finish time is the integral of the speed curve', () => {
@@ -95,6 +117,16 @@ test('a file seed is judged on its own and a ship seed is proposed', () => {
   assert.equal(playtest({ ...broadway, seed: 3 }, registry, { seeds: 3, notice: 0.1 }).fileSeed.survived, false, 'the file seed plays at the sweep notice');
 });
 
+test('a file seed that dies fails the card even when the sweep survives', () => {
+  // Broadway seed 118 dies at a 0.43 s notice while seeds 1..10 all live (found by a search, 2026-10-15).
+  const card = scorecard({ ...broadway, seed: 118 }, registry, { seeds: 10, notice: 0.43 });
+  assert.equal(card.gates.find((g) => g.id === 'G-survival').ok, true);
+  assert.equal(card.gates.find((g) => g.id === 'G-seed').ok, false);
+  assert.equal(card.ok, false);
+  assert.ok(card.lines.some((l) => /file seed/.test(l)), card.lines.join('\n'));
+  assert.notEqual(card.shipSeed, null);
+});
+
 test('a lane-and-timing-only obstacle set never builds a full row and still scores', () => {
   const card = scorecard({ ...broadway, obstacles: { taxi: 2, manhole_steam: 1 } }, registry, { seeds: 10 });
   assert.equal(card.stats.luckDeaths, 0);
@@ -123,7 +155,7 @@ test('the CLI checks, refuses to play an invalid file, and plays a valid one', a
   const lab = fileURLToPath(new URL('../scripts/level-lab.js', import.meta.url));
   const run = (...args) => spawnSync(process.execPath, [lab, ...args], { encoding: 'utf8' });
   assert.equal(run('check', 'levels/01-broadway.json').status, 0);
-  const { writeFileSync, mkdtempSync } = await import('node:fs');
+  const { writeFileSync, mkdtempSync, rmSync } = await import('node:fs');
   const dir = mkdtempSync(`${(await import('node:os')).tmpdir()}/lab-`);
   writeFileSync(`${dir}/bad-one.json`, JSON.stringify({ ...broadway, id: 'bad-one', obstacles: { tank: 1 } }));
   const bad = run('play', `${dir}/bad-one.json`);
@@ -135,8 +167,18 @@ test('the CLI checks, refuses to play an invalid file, and plays a valid one', a
   const nan = run('play', 'levels/01-broadway.json', '--seeds', 'abc');
   assert.equal(nan.status, 1);
   assert.match(nan.stdout + nan.stderr, /seeds/);
+  for (const args of [['--seeds', '2.5'], ['--from', '0'], ['--notice', '']]) {
+    const r = run('play', 'levels/01-broadway.json', ...args);
+    assert.equal(r.status, 1, args.join(' '));
+    assert.match(r.stderr, /^usage: .*\n$/, args.join(' '));
+  }
+  writeFileSync(`${dir}/broken.json`, '{"id":');
+  const broken = run('play', `${dir}/broken.json`);
+  assert.equal(broken.status, 1);
+  assert.match(broken.stderr, /broken\.json: .*JSON/);
   const missing = run('check', 'nope.json');
   assert.equal(missing.status, 1);
   assert.match(missing.stderr, /nope\.json/);
   assert.doesNotMatch(missing.stdout + missing.stderr, /\n    at /);
+  rmSync(dir, { recursive: true, force: true });
 });

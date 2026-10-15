@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { basename } from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { generate, normalizeLevel, rng, passable } from '../src/generator.js';
+import { generate, normalizeLevel, rng, passable, ROW_GAP } from '../src/generator.js';
 import { DEFAULT_RULES, RULE_RANGES, resolveRules, speedAt, createRun, act, step, playerBox, obstacleBox, overlaps, hit, updateObstacle } from '../src/rules.js';
 import { buildRegistry } from '../src/registry.js';
 import { validateLevel } from '../src/validate.js';
@@ -17,7 +17,7 @@ export async function loadRegistry() {
   return buildRegistry(await discover(fileURLToPath(new URL('../content/', import.meta.url))));
 }
 
-// The street the game builds for this seed, with its obstacles grouped into rows by exact z.
+// The street the game builds for this seed, with its obstacles grouped into rows the way src/validate.js does: within half a row.
 export function street(level, registry, { seed, from } = {}) {
   const rules = resolveRules(level.rules ?? {}), length = level.length_m ?? ENDLESS_M, norm = normalizeLevel(level), r = rng(seed);
   const state = { lastRow: -Infinity, speedFrom: from ?? rules.speed.start, propEnd: -Infinity };
@@ -27,10 +27,16 @@ export function street(level, registry, { seed, from } = {}) {
     obstacles.push(...c.obstacles); pickups.push(...c.pickups); props.push(...c.props);
   }
   for (const o of obstacles) o.def = registry.obstacle[o.id];
-  const rows = [...Map.groupBy(obstacles, (o) => o.z)].sort(([a], [b]) => a - b).map(([z, obs]) => {
+  const groups = [];
+  for (const o of [...obstacles].sort((a, b) => a.z - b.z)) {
+    const g = groups.at(-1);
+    if (g && o.z - g[0].z <= ROW_GAP / 2) g.push(o); else groups.push([o]);
+  }
+  const rows = groups.map((obs) => {
     const escapes = new Set(obs.filter((o) => passable(o.def, rules)).map((o) => o.def.avoid));
     const kind = obs.length < 3 ? `dodge${obs.length}` : escapes.size ? `wall-${[...escapes].sort().join('+')}` : 'wall-luck';
-    return { z, obs, halfD: Math.max(...obs.map((o) => o.def.box.d / 2)), kind };
+    const first = obs[0].z, last = obs.at(-1).z; // a staggered row spans first..last; an exact-z row has no spread
+    return { z: (first + last) / 2, obs, halfD: (last - first) / 2 + Math.max(...obs.map((o) => o.def.box.d / 2)), kind };
   });
   return { rules, length, obstacles, pickups, props, rows };
 }
@@ -38,6 +44,7 @@ export function street(level, registry, { seed, from } = {}) {
 const eff = (o) => o.moveTo ?? o.lane; // a mover ends up in moveTo
 
 // A reaction-limited bot plays the street: it sees a row only `notice` seconds ahead.
+// ponytail: the bot takes no pickups, so a shield never saves it; stricter than the game. Upgrade: collect and let hit() spend the shield.
 export function simulate(level, registry, { seed, notice = NOTICE, from } = {}) {
   const { rules, length, rows } = street(level, registry, { seed, from });
   const speedFrom = from ?? rules.speed.start, speedOf = (z) => speedAt(level, z, rules, speedFrom);
@@ -63,6 +70,7 @@ export function simulate(level, registry, { seed, notice = NOTICE, from } = {}) 
       if (!wait) {
         const o = occ.get(best);
         plan = { target: best, action: o ? o.def.avoid : null, obstacle: o };
+        // ponytail: idle is measured between busy rows only; the lead-in and the tail are not counted. Upgrade: start the clock at 0 m.
         if (best !== run.lane || o) {
           if (lastBusy && run.time - lastBusy.time > idle.seconds) Object.assign(idle, { seconds: run.time - lastBusy.time, from_m: lastBusy.z, to_m: row.z });
           lastBusy = { time: run.time, z: row.z };
@@ -146,7 +154,7 @@ export function scorecard(level, registry, { seeds = 100, notice = NOTICE, from 
   const gates = [
     { id: 'G-survival', ok: stats.survival >= GATES.survival, text: `survival ${Math.round(stats.survival * 100)}% under ${GATES.survival * 100}%: ${stats.deaths.slice(0, 5).map(at).join(', ')}` },
     { id: 'G-luck', ok: stats.luckDeaths === 0, text: stats.deaths.filter((d) => d.kind === 'wall-luck').map(at).join(', ') },
-    { id: 'G-window', ok: stats.windowMin >= GATES.windowMin, text: `window ${s2(w.window)} s under ${GATES.windowMin} s at ${w.z} m (seed ${w.seed})` },
+    { id: 'G-window', ok: stats.windowMin >= GATES.windowMin, text: `window ${w.window.toFixed(3)} s under ${GATES.windowMin} s at ${w.z} m (seed ${w.seed})` },
     ...(fs ? [{ id: 'G-seed', ok: fs.survived && fs.windowMin >= GATES.windowMin, text: `file seed ${fs.seed} ${fs.survived ? 'survives' : 'dies'} with a ${s2(fs.windowMin)} s window` }] : []),
   ];
   const staged = (level.sections ?? []).filter((s) => STAGING.some((k) => s[k])).length, d = level.density;
@@ -154,8 +162,9 @@ export function scorecard(level, registry, { seeds = 100, notice = NOTICE, from 
     endless ? { id: 'B-speed', ok: rules.speed.ramp > 0, text: 'speed never ramps' }
       : { id: 'B-speed', ok: rules.speed.end / rules.speed.start >= BANDS.speedRatio, text: `speed rises ×${s2(rules.speed.end / rules.speed.start)}, under ×${BANDS.speedRatio}` },
     { id: 'B-density', ok: d.end - d.start >= BANDS.densityRise, text: `density rises ${s2(d.end - d.start)}, under ${BANDS.densityRise}` },
-    { id: 'B-actions', ok: inside(stats.actionsPerMin, BANDS.actionsPerMin), text: `${Math.round(stats.actionsPerMin)} actions a minute, outside ${BANDS.actionsPerMin.join('–')}` },
-    { id: 'B-idle', ok: stats.idleMean <= BANDS.idleMax, text: `idle ${stats.idleMean.toFixed(1)} s on average, band <= ${BANDS.idleMax} s; longest ${Math.round(idle.seconds)} s without a row to play at ${idle.from_m}–${idle.to_m} m (seed ${idle.seed})` },
+    // Both are means over surviving runs: with none they are NaN, so the bands are skipped and the survival gate speaks.
+    ...(stats.survival ? [{ id: 'B-actions', ok: inside(stats.actionsPerMin, BANDS.actionsPerMin), text: `${Math.round(stats.actionsPerMin)} actions a minute, outside ${BANDS.actionsPerMin.join('–')}` },
+    { id: 'B-idle', ok: stats.idleMean <= BANDS.idleMax, text: `idle ${stats.idleMean.toFixed(1)} s on average, band <= ${BANDS.idleMax} s; longest ${Math.round(idle.seconds)} s without a row to play at ${idle.from_m}–${idle.to_m} m (seed ${idle.seed})` }] : []),
     ...(endless ? [] : [{ id: 'B-finish', ok: inside(stats.finish, BANDS.finish), text: `finishes in ${Math.round(stats.finish)} s, outside ${BANDS.finish.join('–')} s` }]),
     { id: 'B-jugs', ok: inside(level.jugs.per_100m, BANDS.jugsPer100m) && level.jugs.powerups.length >= 1, text: `${level.jugs.per_100m} jugs per 100 m and ${level.jugs.powerups.length} power-ups, want ${BANDS.jugsPer100m.join('–')} and at least one` },
     endless ? { id: 'B-staging', ok: !!level.curve || staged >= 1, text: 'no curve and no staged section' }
@@ -191,7 +200,9 @@ export function contentSheet(registry) {
 export function loadLevelFile(path) {
   const id = basename(path, '.json');
   const ids = readdirSync(new URL('../levels/', import.meta.url)).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5));
-  return { id, level: JSON.parse(readFileSync(path, 'utf8')), allIds: [...new Set([...ids.filter((i) => i !== 'index' && i !== 'campaign'), id])] };
+  let level;
+  try { level = JSON.parse(readFileSync(path, 'utf8')); } catch (e) { throw e instanceof SyntaxError ? new Error(`${path}: ${e.message}`) : e; }
+  return { id, level, allIds: [...new Set([...ids.filter((i) => i !== 'index' && i !== 'campaign'), id])] };
 }
 
 export function check(path, registry) {
@@ -209,7 +220,11 @@ async function main() {
   if (cmd === 'check') return void console.log('ok');
   const n = (x) => x === undefined ? undefined : Number(x);
   const [seeds, notice, from] = [v.seeds, v.notice, v.from].map(n);
-  if ([seeds, notice, from].some((x) => x !== undefined && !Number.isFinite(x)) || seeds < 1) throw new Error('usage: --seeds N (1 or more), --notice S and --from V must be numbers');
+  const [lo, hi] = RULE_RANGES.speed.start; // a speed of 0 never moves the bot, so --from is held to the start speed's range
+  const bad = (x, ok) => x !== undefined && !ok(x);
+  if (bad(seeds, (x) => Number.isInteger(x) && x >= 1) || bad(notice, (x) => x > 0) || bad(from, (x) => x >= lo && x <= hi)) {
+    console.error(`usage: --seeds N (a whole number, 1 or more), --notice S (seconds, above 0), --from V (${lo}–${hi} m/s)`); process.exitCode = 1; return;
+  }
   const card = scorecard(loadLevelFile(file).level, registry, { seeds, notice, from });
   console.log(v.json ? JSON.stringify(card, null, 2) : card.lines.join('\n'));
   if (!card.ok) process.exitCode = 1;

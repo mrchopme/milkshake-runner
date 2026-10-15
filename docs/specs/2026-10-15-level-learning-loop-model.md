@@ -122,6 +122,11 @@ The shipped levels as the first reference band (bot with 0.45 s notice, 100 seed
 | last-train-newark | 1600 m | 49 | 87 s | 23 | 11.5 s | 88 % | 12 % |
 | endless, first 3000 m | ∞ | 111 | – | 34 | 10 s | 62 % | 38 % |
 
+Note (2026-10-15, after the build): the numbers above are the pre-fix probe and are kept as they were. With the
+built lab all four levels in the table survive 100 % of seeds; the lab builds the street in 120 m chunks on one rng like
+the game (§7 describes the probe's one-call build); the window gate is 0.35 s (`GATES.windowMin`), not the 0.4 s in
+F1; and "longest idle" is the mean, over runs, of each run's longest stretch.
+
 Reading: the shipped levels are already "fair" in every way except the timing walls; what separates them is pace
 (Endless is nearly twice as busy as Broadway) and staging (each has a turn, a dip with an overpass, a tunnel, a bridge
 or a sprint, in that order, with Newark adding a fixed-density last 200 m).
@@ -212,6 +217,6 @@ A snapshot of the steps used for `levels/fifth-avenue-dusk.json`, not a fixed pr
 1. Run `npm run lab -- sheet`, and read CONTRIBUTING §1 plus two shipped files (`levels/01-broadway.json`, `levels/endless.json`).
 2. Write `levels/<id>.json` from the prompt: obstacle weights for the move mix, a density rise of at least 0.25, a speed ratio of at least 1.8, and one set piece per 300 m (turn, dip with an overpass, tunnel with a low camera, bridge theme with a high camera and railings on 120 m lines, a fixed-density sprint).
 3. Run `npm run lab -- check levels/<id>.json`, then `npm run lab -- play levels/<id>.json`.
-4. Fix every failed gate and every band warning the prompt does not justify, and re-run `play`, until it exits 0.
+4. Fix every failed gate and every band warning the prompt does not justify, and re-run `play`, until it exits 0 and prints no band warning the prompt does not justify (band warnings do not change the exit code).
 5. Write the proposed ship seed into the file as `seed`, `play` once more (`G-seed` judges that seed), and run `npm test`.
 6. Play it in the pane (every set piece where the file puts it, the ending, no console errors), then commit.
