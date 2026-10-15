@@ -121,7 +121,7 @@ async function main() {
     } else { engine.render(); await wait(900); }
     recordRun(save, id, run.jugs);
     writeSave(save);
-    report({ levelId: id, outcome, jugs: run.jugs, time: run.time ?? 0 }); // before the chain below, so chained levels report one each
+    report({ levelId: id, outcome, jugs: run.jugs, time: run.time ?? 0, distance: run.z ?? 0 }); // before the chain below, so chained levels report one each
     world?.dispose();
     if (flow.next && levels[flow.next] && valid(flow.next)) return startLevel(flow.next, flow.carry ? { jugs: run.jugs, speed: run.speed } : {});
 

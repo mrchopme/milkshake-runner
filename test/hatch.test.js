@@ -10,7 +10,7 @@ test('params in: the level id is picked out, everything else stays an opaque con
 test('result out: posted to the parent only when framed', () => {
   const sent = [];
   const parent = { postMessage: (...a) => sent.push(a) };
-  const result = { levelId: '02-garden', outcome: 'dead', jugs: 7, time: 12.5 };
+  const result = { levelId: '02-garden', outcome: 'dead', jugs: 7, time: 12.5, distance: 140 };
   report(result, { parent });
   assert.deepEqual(sent, [[result, '*']]);
   const alone = { postMessage: () => assert.fail('standalone must not post') };
