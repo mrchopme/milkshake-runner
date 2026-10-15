@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { lookState, cascadeHook, ringWrap } from '../src/look.js';
+import { lookState, cascadeHook, ringWrap, lookFog } from '../src/look.js';
 import { checkLook, checkModule } from '../src/registry.js';
 import { createWorld } from '../src/world.js';
 import { resolveRules } from '../src/rules.js';
@@ -35,6 +35,18 @@ test('a look fills its defaults, and the sky fades to the level colour at the ho
   assert.equal(s.skyTop, '#9fd3f5', 'no skyTop: a flat sky in the level colour');
   assert.equal(s.skyBottom, '#9fd3f5');
   assert.equal(lookState({ sky: '#9fd3f5', look: LOOK }).skyTop, '#5ea9ec');
+});
+
+test('under a look the fog starts at 120 m and fades to the level sky paled 45% toward white; no look keeps the low-fi fog (Caedon, board 19)', () => {
+  const sky = '#c98bd8', far = 260 - 0.35 * 160, lowFi = () => new THREE.Fog(sky, far * 0.3, far); // uptown's, as engine.setSky makes it
+  const c = new THREE.Color(sky), fog = lookFog(lowFi(), lookState({ sky, look: {} }));
+  assert.equal(fog.near, 120);
+  assert.equal(fog.far, far, 'the far, the streaming edge, stays');
+  for (const k of ['r', 'g', 'b']) assert.ok(Math.abs(fog.color[k] - (c[k] + (1 - c[k]) * 0.45)) < 1e-9, `${k}: ${fog.color[k]} is not 45% of the way from ${c[k]} to white`);
+  assert.ok(lookFog(fog, lookState({ sky, look: {} })).color.equals(fog.color), 'applied twice, the same pale');
+  const plain = lookFog(lowFi(), lookState({ sky, fog: 0.35 }));
+  assert.ok(plain.near === far * 0.3 && plain.far === far && plain.color.equals(c), 'no look: the low-fi fog as it was');
+  assert.equal(lookFog(new THREE.Fog(sky, 30, 100), lookState({ sky, look: {} })).near, 30, 'a fog too thick to start at 120 m keeps its own near');
 });
 
 test('look values are checked on themes', () => {
