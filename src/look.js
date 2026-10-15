@@ -43,6 +43,21 @@ export const cascadeHook = (csm) => (m) => {
   m.addEventListener('dispose', () => csm.shaders.delete(m)); // a material used again recompiles, and CSM records it again
 };
 
+// Under a look the fog starts at `near` m, not the engine's 0.3 × far, and fades to the level sky `pale` of the way to white:
+// faded into the full sky colour from about 62 m, midtown's and uptown's far avenue misted over in orange and purple (Caedon,
+// board 19, 2026-10-15). ponytail: calibration knobs.
+const FOG = { near: 120, pale: 0.45 };
+const WHITE = new THREE.Color('#ffffff');
+
+// The look's fog, made from the low-fi one engine.setSky just built: its near pushed out (its far, the streaming edge, stays;
+// a fog too thick to start at FOG.near keeps its own) and its colour paled. No look leaves it as it is. Tested in Node.
+export function lookFog(fog, s) {
+  if (!s) return fog;
+  if (FOG.near < fog.far) fog.near = FOG.near;
+  fog.color.set(s.skyBottom).lerp(WHITE, FOG.pale);
+  return fog;
+}
+
 // How a skyline image wraps its ring: a whole number of times round, the repeat count that would stand it `target` metres tall
 // rounded, so each copy keeps the image's own aspect (the generated strips are cropped to their towers) and stands near the
 // target, not always the nearest height a whole count allows. `turn` is how far to turn the ring so the middle of a half
@@ -78,7 +93,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   room.dispose(); // final review, minor: the bake's scene is not needed afterwards
   pmrem.dispose();
 
-  // A camera-centred dome, drawn first and outside the fog; the horizon colour is the level's sky, so the fog meets it.
+  // A camera-centred dome, drawn first and outside the fog; the horizon colour is the fog's (lookFog), so the fog meets it.
   const dome = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 16), new THREE.ShaderMaterial({
     uniforms: { top: { value: new THREE.Color() }, bottom: { value: new THREE.Color() } },
     vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false, fog: false,
@@ -90,7 +105,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
 
   // The skyline (round 2): up to two camera-centred open cylinders wearing look.skyline, far side first, between the dome and
   // the far plane; unbent, unfogged, no shadows. A missing image hides its ring. ponytail: calibration knobs.
-  // Its foot fades to the level sky over the lowest `fade` of the ring (the spec's "tinted to the level sky at its base"),
+  // Its foot fades to the fog's colour over the lowest `fade` of the ring (the spec's "tinted to the level sky at its base"),
   // so it meets the fogged street and buildings without a band; apply() re-tints it on every theme switch. Each ring stands
   // its look's skylineHeight (SKYLINE_HEIGHT above).
   const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08 };
@@ -140,6 +155,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       const s = lookState(theme);
       active = !!s;
       fogCut.value = s ? 1 : 0;
+      lookFog(scene.fog, s);
       renderer.toneMapping = s ? THREE.NeutralToneMapping : THREE.NoToneMapping;
       renderer.toneMappingExposure = s?.exposure ?? 1;
       renderer.shadowMap.enabled = !!s;
@@ -155,9 +171,11 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       for (const l of csm.lights) { l.color.copy(sun.color); l.intensity = sun.intensity; }
       hemi.intensity = s.ambient;
       dome.material.uniforms.top.value.set(s.skyTop);
-      dome.material.uniforms.bottom.value.set(s.skyBottom);
+      // the fog, the dome's horizon and the rings' feet in one pale: where the fog cut drops a fully fogged fragment at the
+      // horizon, the ring's foot or the dome between its towers shows the very colour it had faded to, so nothing bands
+      dome.material.uniforms.bottom.value.copy(scene.fog.color);
       Object.assign(bloom, s.bloom);
-      tint.value.set(s.skyBottom); // the colour the fog and the dome's horizon fade to
+      tint.value.copy(scene.fog.color);
       if (s.sun.dir) sunDir.set(...s.sun.dir).normalize();
       rings.forEach((ring, i) => {
         const list = s.skyline, path = list.length === 2 ? list[i] : i === 1 ? list[0] : undefined; // two images: far, near; one: the near ring
