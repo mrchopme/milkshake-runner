@@ -2,7 +2,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { street, simulate, loadRegistry, NOTICE } from '../scripts/level-lab.js';
+import { street, simulate, loadRegistry, NOTICE, playtest, scorecard, finishTime, GATES } from '../scripts/level-lab.js';
 import { generate, normalizeLevel, rng } from '../src/generator.js';
 import { resolveRules } from '../src/rules.js';
 import { buildRegistry } from '../src/registry.js';
@@ -48,4 +48,54 @@ test('placed rows off the grid and a placed mover are played like generated ones
   const s = street(fixture, pack, { seed: fixture.seed });
   assert.ok(s.rows.some((r) => r.z === 210 && r.obs.length === 2 && r.kind === 'dodge2'));
   assert.equal(simulate(fixture, pack, { seed: fixture.seed }).survived, true);
+});
+
+test('finish time is the integral of the speed curve', () => {
+  const rules = { ...resolveRules(), speed: { start: 12, end: 24, cap: 30, ramp: 0.006 } };
+  assert.ok(Math.abs(finishTime({ length_m: 1500 }, rules) - 1500 / 12 * Math.log(2)) < 1);
+  assert.ok(Number.isNaN(finishTime({ length_m: null }, rules)));
+});
+
+test('the shipped levels pass every gate and sit inside the band', () => {
+  const card = scorecard(broadway, registry, { seeds: 20 });
+  assert.equal(card.ok, true, card.lines.join('\n'));
+  assert.ok(card.bands.every((b) => b.ok), card.lines.join('\n'));
+  assert.ok(Number.isInteger(card.shipSeed) && card.shipSeed >= 1);
+});
+
+test('a level that leaves no time to react fails the survival and window gates', () => {
+  const tight = { ...broadway, rules: { reaction: 0.2, speed: { start: 30, end: 30 } }, density: { start: 1, end: 1 } };
+  const card = scorecard(tight, registry, { seeds: 20 });
+  assert.equal(card.ok, false);
+  assert.ok(card.gates.find((g) => g.id === 'G-window').ok === false);
+  assert.ok(card.lines.some((l) => /window/.test(l)));
+});
+
+test('a flat level passes the gates but gets pacing and staging warnings', () => {
+  const flat = { ...broadway, rules: { speed: { start: 12, end: 12 } }, density: { start: 0.3, end: 0.3 }, sections: undefined };
+  const card = scorecard(flat, registry, { seeds: 20 });
+  assert.equal(card.ok, true);
+  for (const id of ['B-speed', 'B-density', 'B-staging']) assert.equal(card.bands.find((b) => b.id === id).ok, false, id);
+});
+
+test('an endless level is played to 3000 m and finite-only bands are skipped', () => {
+  const endless = JSON.parse(readFileSync(new URL('../levels/endless.json', import.meta.url), 'utf8'));
+  const card = scorecard(endless, registry, { seeds: 10 });
+  assert.equal(card.ok, true, card.lines.join('\n'));
+  assert.ok(!card.bands.some((b) => b.id === 'B-finish'));
+  assert.ok(Number.isNaN(card.stats.finish));
+});
+
+test('a file seed is judged on its own and a ship seed is proposed', () => {
+  const seeded = { ...broadway, seed: 5 };
+  const card = scorecard(seeded, registry, { seeds: 10 });
+  assert.equal(card.stats.fileSeed.seed, 5);
+  assert.equal(card.gates.find((g) => g.id === 'G-seed').ok, true);
+  assert.ok(card.lines.at(-1).includes(`ship seed ${card.shipSeed}`));
+});
+
+test('a lane-and-timing-only obstacle set never builds a full row and still scores', () => {
+  const card = scorecard({ ...broadway, obstacles: { taxi: 2, manhole_steam: 1 } }, registry, { seeds: 10 });
+  assert.equal(card.stats.luckDeaths, 0);
+  assert.equal(card.gates.find((g) => g.id === 'G-luck').ok, true);
 });
