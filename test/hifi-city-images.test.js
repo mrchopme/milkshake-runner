@@ -23,9 +23,8 @@ const load = (p) => { if (!stand.has(p)) stand.set(p, new T.Texture()); adopt(p,
 const pathOf = (map) => [...stand].find(([, t]) => t === map)?.[0];
 
 test('each street theme lists its five facade tiles, four storefronts, every sign image it draws and its far and near skylines', () => {
-  // the LED faces stay in public/, but nothing draws them since the stack panels turned colour blocks (Caedon, 2026-10-14, board 18)
   const SIGNS = fileURLToPath(new URL('../public/hifi/city/signs/', import.meta.url));
-  assert.deepEqual(Object.values(SIGN_FILES).flat().sort(), readdirSync(SIGNS).filter((f) => !f.startsWith('led-')).map((f) => `hifi/city/signs/${f}`).sort(), 'every generated sign but the LED faces');
+  assert.deepEqual(Object.values(SIGN_FILES).flat().sort(), readdirSync(SIGNS).map((f) => `hifi/city/signs/${f}`).sort(), 'every generated sign, and nothing else');
   for (const [hifi] of STREET) {
     assert.ok(!hifi.assets.some((p) => p.startsWith('hifi/city/signs/led-')), `${hifi.id} loads no LED face`);
     assert.deepEqual(hifi.look.skyline, files('sky', hifi.id, 2), `${hifi.id}: the far ring's image, then the near one's`);
