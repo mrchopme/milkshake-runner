@@ -1,8 +1,12 @@
 // The level lab: plays a level headless over the pure generator and rules, so a level can be judged without a browser.
-import { fileURLToPath } from 'node:url';
+import { readFileSync, readdirSync } from 'node:fs';
+import { basename } from 'node:path';
+import { parseArgs } from 'node:util';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { generate, normalizeLevel, rng, passable } from '../src/generator.js';
-import { resolveRules, speedAt, createRun, act, step, playerBox, obstacleBox, overlaps, hit, updateObstacle } from '../src/rules.js';
+import { DEFAULT_RULES, RULE_RANGES, resolveRules, speedAt, createRun, act, step, playerBox, obstacleBox, overlaps, hit, updateObstacle } from '../src/rules.js';
 import { buildRegistry } from '../src/registry.js';
+import { validateLevel } from '../src/validate.js';
 import { discover } from '../test/helpers.js';
 
 export const NOTICE = 0.45, ENDLESS_M = 3000;
@@ -135,8 +139,8 @@ export function playtest(level, registry, { seeds = 100, notice = NOTICE, from }
 const STAGING = ['curve', 'camera', 'theme', 'props', 'placements'];
 
 // Gates must pass to ship (fairness); bands only warn (pacing, against the hand-made levels). Does not validate: `check` does.
-export function scorecard(level, registry, { seeds = 100, from } = {}) {
-  const stats = playtest(level, registry, { seeds, from }), rules = resolveRules(level.rules ?? {}), endless = level.length_m == null;
+export function scorecard(level, registry, { seeds = 100, notice = NOTICE, from } = {}) {
+  const stats = playtest(level, registry, { seeds, notice, from }), rules = resolveRules(level.rules ?? {}), endless = level.length_m == null;
   const at = (d) => `${d.kind ?? d.id} at ${d.z} m (seed ${d.seed})`, s2 = (x) => x.toFixed(2), inside = (x, [lo, hi]) => x >= lo && x <= hi;
   const { windowAt: w, idle, fileSeed: fs } = stats;
   const gates = [
@@ -162,3 +166,51 @@ export function scorecard(level, registry, { seeds = 100, from } = {}) {
   lines.push(stats.shipSeed === null ? 'no seed survived, so no ship seed' : `ship seed ${stats.shipSeed}`);
   return { ok: gates.every((x) => x.ok), gates, bands, stats, shipSeed: stats.shipSeed, lines };
 }
+
+// What an author may use, as markdown. CONTRIBUTING.md §1 is the prose; this is only the numbers.
+export function contentSheet(registry) {
+  const table = (title, note, head, rows) => `## ${title}\n${note}\n\n| ${head.join(' | ')} |\n|${head.map(() => '---').join('|')}|\n${rows.map((r) => `| ${r.join(' | ')} |`).join('\n')}\n`;
+  const of = (kind, f) => Object.values(registry[kind]).map(f);
+  const ranges = Object.entries(RULE_RANGES).flatMap(([k, v]) => Array.isArray(v) ? [[k, v, DEFAULT_RULES[k]]] : Object.entries(v).map(([s, r]) => [`speed.${s}`, r, DEFAULT_RULES.speed[s]]));
+  return [
+    table('Obstacles', 'move: what clears it (lane, jump, slide, timing); h, y, d: box height, bottom and depth in metres; moves: it changes lane; cycle: period/on seconds.',
+      ['id', 'move', 'h', 'y', 'd', 'moves', 'cycle'], of('obstacle', (o) => [o.id, o.avoid, o.box.h, o.box.y ?? 0, o.box.d, o.moves ? 'yes' : '', o.cycle ? `${o.cycle.period}/${o.cycle.on}` : ''])),
+    table('Pickups', 'value: jugs; effect: what it does while it lasts; duration: seconds or untilHit.',
+      ['id', 'name', 'value', 'effect', 'duration', 'blurb'], of('pickup', (p) => [p.id, p.name ?? '', p.value ?? '', p.effect ? JSON.stringify(p.effect) : '', p.duration ?? '', p.blurb ?? ''])),
+    table('Props', 'length: metres of street it takes.', ['id', 'length'], of('prop', (p) => [p.id, p.length])),
+    table('Themes', 'sky and fog as the theme sets them; buildings: minimum and maximum height in metres.',
+      ['id', 'sky', 'fog', 'buildings'], of('theme', (t) => [t.id, t.sky, t.fog, `${t.buildings.minH}-${t.buildings.maxH}`])),
+    table('Characters', 'height and width in metres.', ['id', 'height', 'width'], of('character', (c) => [c.id, c.height, c.width])),
+    table('Endings', 'params: name: type, with max and default where set; streetAfter: metres of street past the finish line.',
+      ['id', 'params', 'streetAfter'], of('ending', (e) => [e.id, Object.entries(e.params ?? {}).map(([k, s]) => `${k}: ${s.type}${s.max != null ? ` max ${s.max}` : ''}${s.default != null ? ` default ${s.default}` : ''}`).join(', '), e.streetAfter ?? ''])),
+    `## Rules\nname min..max (default): ${ranges.map(([k, [lo, hi], d]) => `${k} ${lo}..${hi} (${d})`).join(', ')}\n`,
+    `## Band\nGATES (must pass): ${JSON.stringify(GATES)}\nBANDS (warn only): ${JSON.stringify(BANDS)}\n`,
+  ].join('\n');
+}
+
+export function loadLevelFile(path) {
+  const id = basename(path, '.json');
+  const ids = readdirSync(new URL('../levels/', import.meta.url)).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5));
+  return { id, level: JSON.parse(readFileSync(path, 'utf8')), allIds: [...new Set([...ids.filter((i) => i !== 'index' && i !== 'campaign'), id])] };
+}
+
+export function check(path, registry) {
+  const { id, level, allIds } = loadLevelFile(path);
+  return validateLevel(level, { fileId: id, allIds, registry });
+}
+
+async function main() {
+  const { positionals: [cmd, file], values: v } = parseArgs({ allowPositionals: true, options: { seeds: { type: 'string' }, notice: { type: 'string' }, from: { type: 'string' }, json: { type: 'boolean' } } });
+  if (cmd !== 'sheet' && !((cmd === 'check' || cmd === 'play') && file)) { console.error('usage: level-lab sheet | check <file> | play <file> [--seeds N] [--notice S] [--from V] [--json]'); process.exitCode = 1; return; }
+  const registry = await loadRegistry();
+  if (cmd === 'sheet') return void console.log(contentSheet(registry));
+  const errors = check(file, registry);
+  if (errors.length) { console.log(errors.join('\n')); process.exitCode = 1; return; }
+  if (cmd === 'check') return void console.log('ok');
+  const n = (x) => x === undefined ? undefined : Number(x);
+  const card = scorecard(loadLevelFile(file).level, registry, { seeds: n(v.seeds), notice: n(v.notice), from: n(v.from) });
+  console.log(v.json ? JSON.stringify(card, null, 2) : card.lines.join('\n'));
+  if (!card.ok) process.exitCode = 1;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();

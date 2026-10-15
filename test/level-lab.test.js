@@ -2,7 +2,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { street, simulate, loadRegistry, NOTICE, playtest, scorecard, finishTime, GATES } from '../scripts/level-lab.js';
+import { street, simulate, loadRegistry, NOTICE, playtest, scorecard, finishTime, GATES, contentSheet, check, loadLevelFile } from '../scripts/level-lab.js';
 import { generate, normalizeLevel, rng } from '../src/generator.js';
 import { resolveRules } from '../src/rules.js';
 import { buildRegistry } from '../src/registry.js';
@@ -99,4 +99,37 @@ test('a lane-and-timing-only obstacle set never builds a full row and still scor
   const card = scorecard({ ...broadway, obstacles: { taxi: 2, manhole_steam: 1 } }, registry, { seeds: 10 });
   assert.equal(card.stats.luckDeaths, 0);
   assert.equal(card.gates.find((g) => g.id === 'G-luck').ok, true);
+});
+
+test('the content sheet names every registered id with the facts an author needs', () => {
+  const sheet = contentSheet(registry);
+  for (const id of Object.keys(registry.obstacle)) assert.ok(sheet.includes(`| ${id} |`), id);
+  assert.match(sheet, /taxi \| lane \| 2(\.0)? /);
+  assert.match(sheet, /manhole_steam \| timing/);
+  for (const id of Object.keys(registry.ending)) assert.ok(sheet.includes(`| ${id} |`), id);
+  assert.match(sheet, /transition .*next.*level/);
+  assert.match(sheet, /reaction/);
+  assert.match(sheet, /survival/);
+});
+
+test('check runs the validator on a file by its name', () => {
+  const file = fileURLToPath(new URL('../levels/01-broadway.json', import.meta.url));
+  assert.deepEqual(check(file, registry), []);
+  assert.deepEqual(loadLevelFile(file).allIds.sort(), ['01-broadway', '02-garden', 'endless', 'last-train-newark']);
+});
+
+test('the CLI checks, refuses to play an invalid file, and plays a valid one', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const lab = fileURLToPath(new URL('../scripts/level-lab.js', import.meta.url));
+  const run = (...args) => spawnSync(process.execPath, [lab, ...args], { encoding: 'utf8' });
+  assert.equal(run('check', 'levels/01-broadway.json').status, 0);
+  const { writeFileSync, mkdtempSync } = await import('node:fs');
+  const dir = mkdtempSync(`${(await import('node:os')).tmpdir()}/lab-`);
+  writeFileSync(`${dir}/bad-one.json`, JSON.stringify({ ...broadway, id: 'bad-one', obstacles: { tank: 1 } }));
+  const bad = run('play', `${dir}/bad-one.json`);
+  assert.equal(bad.status, 1);
+  assert.match(bad.stdout + bad.stderr, /unknown obstacle "tank"/);
+  const good = run('play', 'levels/01-broadway.json', '--seeds', '5');
+  assert.equal(good.status, 0, good.stdout + good.stderr);
+  assert.match(good.stdout, /ship seed/);
 });
