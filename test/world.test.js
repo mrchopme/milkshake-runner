@@ -128,6 +128,30 @@ test('a level-wide curve is fully straight at the finish line, not just aiming t
   world.dispose();
 });
 
+test('the world publishes the street\'s heading at the bend start, and a turn brings round the skyline the street pointed at; disposed, it is 0', () => {
+  const registry = { obstacle: {}, pickup: {}, prop: {}, theme: { t: theme }, character: {}, ending: {} };
+  for (const turn of [-1, 1]) { // -1 is a left turn: the bend runs to +x, the view's left (the camera looks down +z)
+    const world = createWorld(new THREE.Scene(), { ...level, length_m: 1200, obstacles: {}, sections: [{ from_m: 150, to_m: 400, curve: { turn } }] }, { registry, rules, seed: 1, end: 1200 });
+    const run = createRun(rules, { height: 1.9, width: 1 });
+    world.update(run, 0);
+    assert.equal(gfx.heading.value, 0, 'no heading until the bend start reaches the turn');
+    const ahead = Math.atan2(gfx.bendOffset(701).x - gfx.bendOffset(700).x, 1); // where the avenue's end after the turn lies from here: radians off +z, toward +x
+    assert.equal(Math.sign(ahead), -turn, 'a left turn bends to +x');
+    run.z = 200;
+    world.update(run, 0);
+    assert.ok(Math.abs(gfx.heading.value - gfx.TURN_K * turn * (200 + gfx.DEAD - 150)) < 1e-12, `part way: TURN_K × the turn behind the bend start (${gfx.heading.value})`);
+    run.z = 500;
+    world.update(run, 0);
+    assert.ok(Math.abs(gfx.heading.value - gfx.TURN_K * turn * 250) < 1e-12, 'after it: the whole turn');
+    const ring = new THREE.Object3D(); // the look turns its skyline rings by the heading
+    ring.rotation.y = gfx.heading.value; ring.updateMatrixWorld();
+    const v = new THREE.Vector3(Math.sin(ahead), 0, Math.cos(ahead)).applyMatrix4(ring.matrixWorld), now = Math.atan2(v.x, v.z);
+    assert.ok(Math.abs(now) < 0.05, `turn ${turn}: the skyline at the end of the avenue after the turn (${ahead.toFixed(3)} rad off before it) now faces the avenue (${now.toFixed(3)} rad off)`);
+    world.dispose();
+    assert.equal(gfx.heading.value, 0, 'a disposed world straightens the heading with the bend');
+  }
+});
+
 test('the world hands shaders the run clock, so pause freezes animation and stills pin it', () => {
   const registry = { obstacle: {}, pickup: {}, prop: {}, theme: { t: theme }, character: {}, ending: {} };
   const world = createWorld(new THREE.Scene(), { ...level, obstacles: {} }, { registry, rules, seed: 1, end: 600 });

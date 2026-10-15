@@ -6,7 +6,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CSM } from 'three/addons/csm/CSM.js';
 import { texture } from './assets.js';
-import { fogCut, hook } from './gfx.js';
+import { fogCut, heading, hook } from './gfx.js';
 
 // The HiFi look (spec §4): tone mapping, sun shadows, studio reflections, a gradient sky and bloom, from a theme's `look`.
 // main.js loads this file only in HiFi sessions; without a look the engine renders exactly as before.
@@ -120,7 +120,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
         .replace('#include <map_fragment>', `#include <map_fragment>\n  diffuseColor.rgb = mix( tint, diffuseColor.rgb, smoothstep( 0.0, ${RING.fade.toFixed(3)}, vRingY ) );`);
     };
     const m = new THREE.Mesh(geo, mat);
-    m.renderOrder = -0.9 + i * 0.1; m.frustumCulled = false; m.visible = false; m.rotation.y = RING.yaw;
+    m.renderOrder = -0.9 + i * 0.1; m.frustumCulled = false; m.visible = false; m.userData.yaw = RING.yaw;
     scene.add(m);
     return m;
   });
@@ -188,12 +188,15 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
         map.wrapS = THREE.RepeatWrapping; map.repeat.x = wrap.repeats; // the strips come mirrored, so they loop seamlessly
         ring.material.map = map; ring.material.needsUpdate = true;
         ring.scale.y = wrap.height;
-        ring.rotation.y = RING.yaw + wrap.turn; // an image's middle, not its mirror seam, at the avenue's end
+        ring.userData.yaw = RING.yaw + wrap.turn; // an image's middle, not its mirror seam, at the avenue's end
       });
     },
     render() {
       dome.position.copy(camera.position);
-      for (const r of rings) r.position.set(camera.position.x, camera.position.y + RING.base, camera.position.z);
+      for (const r of rings) {
+        r.position.set(camera.position.x, camera.position.y + RING.base, camera.position.z);
+        r.rotation.y = r.userData.yaw + heading.value; // turned with the street: after a turn, what lay at its far end faces the avenue
+      }
       const v = `${camera.fov} ${camera.aspect}`;
       if (v !== view) { view = v; csm.updateFrustums(); } // the speed-eased fov and resizes move the cascade splits
       camera.updateMatrixWorld(); // follow() moved the camera since the last render
