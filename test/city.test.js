@@ -17,17 +17,19 @@ import { waterMaterial } from '../packs/hifi/lib/bridge.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 const chunk = (seed, z0 = 0, length = 120) => downtown.createChunk.call({ ...shipped, ...downtown }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shipped, ...downtown } });
-const zSpan = (g) => { // world z extent of everything, instances included
-  let lo = Infinity, hi = -Infinity;
+const bridgeChunk = (z0, seed = 1, length = 120) => bridge.createChunk.call({ ...shippedBridge, ...bridge }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shippedBridge, ...bridge } });
+const bounds = (g, keep = () => true) => { // world box of the meshes `keep` picks, instances included (empty when none)
+  const out = new THREE.Box3();
   g.updateMatrixWorld(true);
   g.traverse((n) => {
-    if (!n.geometry) return;
+    if (!n.geometry || !keep(n)) return;
     n.geometry.computeBoundingBox();
     const each = n.isInstancedMesh ? Array.from({ length: n.count }, (_, i) => { const m = new THREE.Matrix4(); n.getMatrixAt(i, m); return m.premultiply(n.matrixWorld); }) : [n.matrixWorld];
-    for (const m of each) { const b = n.geometry.boundingBox.clone().applyMatrix4(m); lo = Math.min(lo, b.min.z); hi = Math.max(hi, b.max.z); }
+    for (const m of each) out.union(n.geometry.boundingBox.clone().applyMatrix4(m));
   });
-  return [lo, hi];
+  return out;
 };
+const zSpan = (g) => { const b = bounds(g); return [b.min.z, b.max.z]; }; // world z extent of everything
 const fingerprint = (g) => { const out = []; g.traverse((n) => { if (n.geometry) out.push(n.type, n.geometry.attributes.position.count, ...(n.isInstancedMesh ? n.instanceMatrix.array.slice(0, 32) : [])); }); return out.join(','); };
 
 test('the same seed builds the same city chunk, and another seed a different one', () => {
@@ -244,13 +246,23 @@ test('a loaded car model drives along the cross street whatever its own frame, a
 
 test('the HiFi bridge stays inside its chunk and keeps a road', () => {
   for (const seed of [1, 2, 3]) for (const z0 of [1080, 1200]) { // 1200 % 240 === 0: the chunk with a tower pair and its cables
-    const g = bridge.createChunk.call({ ...shippedBridge, ...bridge }, gfx, { z0, length: 120, lanes, rng: rng(seed), theme: { ...shippedBridge, ...bridge } });
+    const g = bridgeChunk(z0, seed);
     const [lo, hi] = zSpan(g);
     assert.ok(lo >= z0 - 1e-6 && hi <= z0 + 120 + 1e-6, `${lo}..${hi}`);
     let road = false, meshes = 0; g.traverse((n) => { if (n.userData.road) road = true; if (n.isMesh) meshes++; });
     assert.ok(road);
     assert.ok(meshes <= 45, `${meshes} meshes`);
   }
+});
+
+// Smooth transitions to and from the bridge (Task 31a, Caedon, 2026-10-15): "the bridge water is too low and when you're moving
+// from that to the buildings you see floating buildings with nothing underneath it".
+test('the bridge water lies 2.5 m under the deck, and the tower pair stands in it with its tops still 32 m up', () => {
+  const g = bridgeChunk(1200), water = bounds(g, (n) => n.material === waterMaterial(gfx)), towers = [];
+  g.traverse((n) => { if (n.isMesh && !n.isInstancedMesh) { const b = bounds(n); if (b.max.y - b.min.y > 20) towers.push(b); } });
+  assert.ok(water.min.y === -2.5 && water.max.y === -2.5, `the water at ${water.min.y}`);
+  assert.equal(towers.length, 2);
+  for (const b of towers) assert.ok(b.min.y < water.min.y && Math.abs(b.max.y - 32) < 1e-6, `a tower from ${b.min.y} to ${b.max.y}`);
 });
 
 test('the road is one warm grey from the avenues onto the bridge, its lane lines solid but across the crosswalk (Caedon, board 18)', async () => {

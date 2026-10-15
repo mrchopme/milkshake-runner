@@ -5,11 +5,13 @@ import { box, wall, instanced } from './shapes.js';
 import { material } from './materials.js';
 import { DASH } from './street.js';
 import { facadeMaterial, TILE, cityFiles } from './facade.js';
-// ponytail: calibration knobs, metres (board 15): the deck in the avenues' warm grey (board 18), tower pairs 38 m tall every
-// 240 m, cables down to the deck, low waterfront blocks 30–50 m out wearing downtown's facades, rippling water, no sidewalks or
-// blocks on the deck.
-const DECK = { w: 10, road: '#6b675a', paint: '#f2f2f2' }, WATER = { y: -6, color: '#2f86ad', tile: 10, scroll: 0.03 };
-const TOWER = { every: 240, at: 60, h: 38, w: 1.6, x: 6.2, beam: 1.2 }, CABLE = { segs: 8, thick: 0.25, deckX: 4.8, deckY: 1.2, clear: 0.5 };
+// ponytail: calibration knobs, metres (board 15): the deck in the avenues' warm grey (board 18), tower pairs every 240 m topping
+// out 32 m above the deck, cables down to the deck, low waterfront blocks 30–50 m out wearing downtown's facades, rippling water,
+// no sidewalks or blocks on the deck. The water 2.5 m under the deck (Caedon, 2026-10-15: "the bridge water is too low"; was 6);
+// whatever stands in it reaches `below` under the surface, so no seam of the bend shows a sliver of sky under it.
+export const WATER = { y: -2.5, below: 1.5, color: '#2f86ad', tile: 10, scroll: 0.03 };
+const DECK = { w: 10, road: '#6b675a', paint: '#f2f2f2' };
+const TOWER = { every: 240, at: 60, top: 32, w: 1.6, x: 6.2, beam: 1.2 }, CABLE = { segs: 8, thick: 0.25, deckX: 4.8, deckY: 1.2, clear: 0.5 };
 const LOW = { x: 30.5, spread: 20, w: 8, minH: 2, maxH: 8 };
 export const WATERFRONT = { id: 'downtown', lit: 0, facades: cityFiles('facades', 'downtown', 5), buildings: { colors: ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3'] } }; // downtown's tiles and `lit` (they share its material key, so the two must agree)
 
@@ -60,8 +62,8 @@ export function bridgeChunk(gfx, args, style) {
   g.add(new T.Mesh(water, waterMaterial(gfx)));
   // a tower pair standing in the water, and its cables sagging down to the deck at both chunk edges
   if (z0 % TOWER.every === 0 && length >= 2 * TOWER.at) {
-    const zt = z0 + TOWER.at, top = WATER.y + TOWER.h, steel = std('tower', '#c9ccd4', 0.5), cables = [];
-    for (const side of [-1, 1]) g.add(box(T, TOWER.w, TOWER.h, TOWER.w, steel, side * TOWER.x, WATER.y + TOWER.h / 2, zt));
+    const zt = z0 + TOWER.at, top = TOWER.top, foot = WATER.y - WATER.below, steel = std('tower', '#c9ccd4', 0.5), cables = [];
+    for (const side of [-1, 1]) g.add(box(T, TOWER.w, top - foot, TOWER.w, steel, side * TOWER.x, (top + foot) / 2, zt));
     g.add(box(T, TOWER.x * 2 + TOWER.w, TOWER.beam, TOWER.w, steel, 0, top - 2 * TOWER.beam, zt));
     const at = (side, dir, t) => new T.Vector3( // t 0 at the tower top, 1 at the deck; y sags as (1 - t)^2, a half catenary
       side * (TOWER.x + (CABLE.deckX - TOWER.x) * t), CABLE.deckY + (top - TOWER.beam - CABLE.deckY) * (1 - t) ** 2, zt + dir * (TOWER.at - CABLE.clear) * t);
