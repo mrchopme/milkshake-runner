@@ -115,7 +115,7 @@ test('the content sheet names every registered id with the facts an author needs
 test('check runs the validator on a file by its name', () => {
   const file = fileURLToPath(new URL('../levels/01-broadway.json', import.meta.url));
   assert.deepEqual(check(file, registry), []);
-  assert.deepEqual(loadLevelFile(file).allIds.sort(), ['01-broadway', '02-garden', 'endless', 'last-train-newark']);
+  assert.deepEqual(loadLevelFile(file).allIds.sort(), ['01-broadway', '02-garden', 'endless', 'fifth-avenue-dusk', 'last-train-newark']);
 });
 
 test('the CLI checks, refuses to play an invalid file, and plays a valid one', async () => {
