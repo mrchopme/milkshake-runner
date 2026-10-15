@@ -19,9 +19,10 @@ export function rng(seed) {
   };
 }
 
-// Can the player get past this obstacle in its own lane under these rules? Dimensions decide, not the label alone.
+// Can the player get past this obstacle in its own lane under these rules? Dimensions decide for jump and slide.
+// Timing is luck, never an escape: there is no speed control, so the player cannot choose when to arrive.
 export function passable(def, rules) {
-  if (def.avoid === 'timing') return true;
+  if (def.avoid === 'timing') return false;
   const bottom = def.box.y ?? 0;
   if (def.avoid === 'jump') return bottom === 0 && def.box.h <= jumpHeight(rules);
   if (def.avoid === 'slide') return bottom >= rules.slideHeight;

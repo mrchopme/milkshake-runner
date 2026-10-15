@@ -200,6 +200,12 @@ test('with nothing to jump or slide, a row never fills all three lanes', () => {
   for (const s of seeds) for (const row of rowsOf(all(lvl({ obstacles: { taxi: 1 } }), s).obstacles).values()) assert.ok(row.length <= 2);
 });
 
+test('a timing obstacle is luck, never a full row\'s only escape', () => {
+  assert.equal(passable(registry.obstacle.manhole_steam, R), false);
+  for (const s of seeds) for (const row of rowsOf(all(lvl({ obstacles: { taxi: 2, manhole_steam: 1 } }), s).obstacles).values()) assert.ok(row.length <= 2, `seed ${s}`);
+  for (const s of seeds) for (const row of rowsOf(all(lvl(), s).obstacles).values()) if (row.length === 3) assert.ok(row.some((o) => ['jump', 'slide'].includes(registry.obstacle[o.id].avoid)), `seed ${s}`);
+});
+
 test('fairness follows the level rules: a weak jump makes the barrier a wall', () => {
   const weak = resolveRules({ jumpSpeed: 5 });
   assert.equal(passable(registry.obstacle.barrier_low, R), true);

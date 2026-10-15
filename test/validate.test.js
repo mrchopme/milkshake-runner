@@ -78,6 +78,7 @@ test('sections and placements', () => {
   assert.match(s([{ from_m: 0, to_m: 100, placements: [{ at_m: 50, lane: 0, kind: 'drone', id: 'taxi' }] }]), /kind/);
   assert.match(s([{ from_m: 0, to_m: 100, placements: [{ at_m: 50, lane: 0, kind: 'pickup', id: 'taxi' }] }]), /unknown pickup/);
   assert.match(s([{ from_m: 0, to_m: 100, placements: [0, 1, 2].map((lane) => ({ at_m: 50, lane, kind: 'obstacle', id: 'taxi' })) }]), /block every lane/);
+  assert.match(s([{ from_m: 0, to_m: 100, placements: [0, 1, 2].map((lane) => ({ at_m: 50, lane, kind: 'obstacle', id: lane === 1 ? 'manhole_steam' : 'taxi' })) }]), /block every lane/);
   assert.equal(s([{ from_m: 0, to_m: 100, placements: [0, 1, 2].map((lane) => ({ at_m: 50, lane, kind: 'obstacle', id: lane === 1 ? 'barrier_low' : 'taxi' })) }]), '');
   assert.match(s([{ from_m: 0, to_m: 100, rows: 3 }]), /unknown key "rows"/);
   assert.match(s([{ from_m: 0, to_m: 100, placements: [[50, 0], [51, 1], [52, 2]].map(([at_m, lane]) => ({ at_m, lane, kind: 'obstacle', id: 'taxi' })) }]), /block every lane/);
