@@ -7,6 +7,7 @@ import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
 import { street, CROSS, WALK, FACADE_X } from '../packs/hifi/lib/street.js';
 import { buildings } from '../packs/hifi/lib/buildings.js';
+import { furniture } from '../packs/hifi/lib/furniture.js';
 import { ROAD_HALF } from '../src/world.js';
 import { DRIVE } from '../packs/hifi/lib/traffic.js';
 import { adopt } from '../src/assets.js';
@@ -144,8 +145,8 @@ test('side-street traffic never enters the avenue: each car reappears behind the
   assert.ok(seen > 0, 'traffic was built');
 });
 
-test('board 15: nothing but the traffic lights within 2 m of the side street, at most one shelter or subway a chunk', () => {
-  for (let seed = 1; seed <= 20; seed++) {
+test('nothing but the traffic lights within 2 m of the side street, at most one shelter or subway a chunk', () => {
+  for (let seed = 1; seed <= 100; seed++) {
     const g = chunk(seed), cz = g.userData.cross.z, rare = new Set();
     g.traverse((n) => {
       const kind = n.userData.furniture;
@@ -155,6 +156,32 @@ test('board 15: nothing but the traffic lights within 2 m of the side street, at
     });
     assert.ok(rare.size <= 1, `seed ${seed}: ${rare.size} shelters or subways`);
   }
+});
+
+// Furniture in random stretches (Caedon, 2026-10-14, board 18): "WAY too many trees and streetlamps ... trees are too repetitive".
+const pieces = (g) => { let n = 0; const first = new Set(); g.traverse((m) => { const k = m.userData.furniture; if (k && !first.has(k)) { first.add(k); n += m.count; } }); return n; }; // one instance a piece in each of its kind's part meshes
+
+test('furniture stands in random stretches: the same seed places the same pieces, and a chunk holds well under half of board 15\'s rhythm', () => {
+  const placed = (seed) => { const out = []; furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 50 }).traverse((n) => { if (n.isInstancedMesh) out.push(n.userData.furniture, ...n.instanceMatrix.array); }); return out.join(); };
+  assert.equal(placed(7), placed(7));
+  assert.notEqual(placed(7), placed(8));
+  const N = 300, RHYTHM = 37.7; // board 15's rhythm, counted the same way over 500 chunks at f07cc2a
+  let n = 0;
+  for (let seed = 1; seed <= N; seed++) n += pieces(chunk(seed));
+  assert.ok(n / N < RHYTHM / 2, `${(n / N).toFixed(1)} pieces a chunk on average; board 15's rhythm placed ${RHYTHM}`);
+});
+
+test('trees come in more than one size and turn', () => {
+  const sizes = new Set(), turns = new Set(), m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+  for (let seed = 1; seed <= 20; seed++) {
+    let done = false;
+    chunk(seed).traverse((n) => {
+      if (done || n.userData.furniture !== 'tree') return;
+      done = true; // the first of the tree's part meshes: every part carries the same placement
+      for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); m.decompose(p, q, s); if (p.x > 0) { sizes.add(s.y.toFixed(3)); turns.add(q.toArray().map((v) => v.toFixed(3)).join()); } }
+    });
+  }
+  assert.ok(sizes.size > 1 && turns.size > 1, `${sizes.size} sizes and ${turns.size} turns among the right side's trees`);
 });
 
 test('two hundred dropped chunks free every instanced mesh they made and no shared material', () => {
