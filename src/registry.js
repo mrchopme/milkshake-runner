@@ -88,7 +88,10 @@ export function checkLook(l) {
   for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'bloom', 'skyline', 'skylineHeight'].includes(k)) e.push(`look: unknown key "${k}"`);
   for (const [k, [lo, hi]] of Object.entries(LOOK_RANGES)) if (l[k] !== undefined && !num(l[k], lo, hi)) e.push(`look.${k} must be ${lo} to ${hi}`);
   if (l.skyTop !== undefined && !HEX.test(l.skyTop)) e.push('look.skyTop must be a hex colour');
-  if (l.skyline !== undefined) { const s = [].concat(l.skyline); if (!(s.length >= 1 && s.length <= 2 && s.every((p) => typeof p === 'string' && ASSET.test(p) && !p.endsWith('.glb')))) e.push('look.skyline must be one or two image paths under public/'); }
+  if (l.skyline !== undefined) {
+    const s = [].concat(l.skyline), img = (p) => typeof p === 'string' && ASSET.test(p) && !p.endsWith('.glb'), near = s.at(-1); // the last is the near ring's, which may be a list
+    if (!(s.length >= 1 && s.length <= 2 && s.slice(0, -1).every(img) && (img(near) || (Array.isArray(near) && near.length >= 1 && near.length <= 8 && near.every(img))))) e.push('look.skyline must be one or two image paths under public/ (the near one may be a list of 1 to 8)');
+  }
   if (l.skylineHeight !== undefined && !(Array.isArray(l.skylineHeight) && l.skylineHeight.length === 2 && l.skylineHeight.every((h) => num(h, 10, 400)))) e.push('look.skylineHeight must be [far, near], each 10 to 400 metres');
   if (l.sun !== undefined) {
     if (!isObj(l.sun) || Object.keys(l.sun).some((k) => !['color', 'intensity', 'dir'].includes(k))) e.push('look.sun may only set color, intensity and dir');

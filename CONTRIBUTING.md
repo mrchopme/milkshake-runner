@@ -144,7 +144,11 @@ bloom: { strength, threshold, radius }, skyline, skylineHeight }`, every field o
 `skyTop` is the top of the sky gradient; the horizon is the level's sky colour. `sun.dir` is the way the sunlight travels,
 `[x, y, z]` with y below 0. `skyline` is one or two images from the theme's `assets` wrapped round the horizon (two: the
 far ring's, then the near one's; one: the near ring), and `skylineHeight` their heights `[far, near]` in metres (10–400;
-90 and 80 by default). Low-fi ignores it.
+90 and 80 by default). A single image is tiled with its mirror (`A|mirror(A)`, `scripts/tile-image.py --mirror`). The near
+ring may instead wear a list of 1 to 8 images, `skyline: [far, [near1, near2, …]]` (or `[[near1, …]]` with no far ring):
+they go round in order, each once and unmirrored, so each strip's own edges meet its neighbours; the whole sequence repeats
+as many whole times as fits at the target height, and `near1`'s middle faces the avenue. Both rings turn with the street
+through every turn. Low-fi ignores it.
 
 ### Character
 

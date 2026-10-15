@@ -166,7 +166,7 @@ test('swipes and keys map to actions', () => {
 
 import { before } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { generate, normalizeLevel, densityAt, rng, passable, curveSegments, FINISH_STRAIGHT_M, cameraAt, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
+import { generate, normalizeLevel, densityAt, rng, passable, curveSegments, turnedBy, FINISH_STRAIGHT_M, cameraAt, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
 import * as gfx from '../src/gfx.js';
 import { buildRegistry } from '../src/registry.js';
 import { discover } from './helpers.js';
@@ -419,6 +419,30 @@ test('curveSegments merges touching stretches with the same bend, so a level-wid
   assert.deepEqual(curveSegments(norm, 150, 250), [{ from: 100, to: 300, turn: 1, hill: 0 }], 'inside a window the merge covers the sections in view');
   const split = normalizeLevel(lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 100, to_m: 200, curve: { turn: 1, hill: 0.5 } }] }));
   assert.equal(curveSegments(split, 0, 1500).length, 3, 'a different bend in the middle keeps three stretches');
+});
+
+test('turnedBy is how far the street has turned by z (turn × metres): 0 on the straight, each turn whole after it, continuous, and blind to how stretches merge', () => {
+  assert.equal(turnedBy(normalizeLevel(lvl()), 1000), 0, 'a straight level never turns');
+  const two = normalizeLevel(lvl({ sections: [{ from_m: 150, to_m: 400, curve: { turn: 1 } }, { from_m: 600, to_m: 800, curve: { turn: -0.5, hill: 0.5 } }, { from_m: 900, to_m: 1000, curve: { hill: 1 } }] }));
+  assert.equal(turnedBy(two, 150), 0, 'nothing before the first turn');
+  assert.equal(turnedBy(two, 275), 125, 'half way through it, half of it');
+  assert.equal(turnedBy(two, 1400), 250 * 1 + 200 * -0.5, 'after the last: every turn times its length, summed; a hill turns nothing');
+  const E = normalizeLevel(lvl({ length_m: null, curve: 'random' }));
+  for (const seed of [3, 7, 11]) {
+    const segs = curveSegments(E, 0, 2400, seed);
+    assert.ok(segs.some((s) => s.turn), `seed ${seed} turns somewhere`);
+    assert.equal(turnedBy(E, 2400, seed), segs.reduce((sum, s) => sum + s.turn * (s.to - s.from), 0), `seed ${seed}: the random picks behind, summed`);
+  }
+  for (const [norm, seed, to] of [[two, 0, 1500], [E, 3, 4000], [E, 7, 4000], [E, 11, 4000]]) {
+    let prev = turnedBy(norm, 0, seed);
+    for (let z = 0.5; z <= to; z += 0.5) {
+      const t = turnedBy(norm, z, seed);
+      assert.ok(Math.abs(t - prev) <= 0.5 + 1e-9, `seed ${seed}: ${prev} to ${t} between ${z - 0.5} and ${z} m`); // at most a full turn's half metre
+      prev = t;
+    }
+  }
+  const merged = normalizeLevel(lvl({ curve: { turn: 1 }, sections: [{ from_m: 100, to_m: 200, density: { start: 1, end: 1 } }] }));
+  for (const z of [50, 150, 250, 1450]) assert.equal(turnedBy(merged, z), Math.min(z, 1500 - FINISH_STRAIGHT_M), `${z} m under one merged stretch`);
 });
 
 test('gfx.box subdivides along z so long road pieces bend', () => {
