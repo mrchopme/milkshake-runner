@@ -132,4 +132,11 @@ test('the CLI checks, refuses to play an invalid file, and plays a valid one', a
   const good = run('play', 'levels/01-broadway.json', '--seeds', '5');
   assert.equal(good.status, 0, good.stdout + good.stderr);
   assert.match(good.stdout, /ship seed/);
+  const nan = run('play', 'levels/01-broadway.json', '--seeds', 'abc');
+  assert.equal(nan.status, 1);
+  assert.match(nan.stdout + nan.stderr, /seeds/);
+  const missing = run('check', 'nope.json');
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /nope\.json/);
+  assert.doesNotMatch(missing.stdout + missing.stderr, /\n    at /);
 });

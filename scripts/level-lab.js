@@ -208,9 +208,11 @@ async function main() {
   if (errors.length) { console.log(errors.join('\n')); process.exitCode = 1; return; }
   if (cmd === 'check') return void console.log('ok');
   const n = (x) => x === undefined ? undefined : Number(x);
-  const card = scorecard(loadLevelFile(file).level, registry, { seeds: n(v.seeds), notice: n(v.notice), from: n(v.from) });
+  const [seeds, notice, from] = [v.seeds, v.notice, v.from].map(n);
+  if ([seeds, notice, from].some((x) => x !== undefined && !Number.isFinite(x)) || seeds < 1) throw new Error('usage: --seeds N (1 or more), --notice S and --from V must be numbers');
+  const card = scorecard(loadLevelFile(file).level, registry, { seeds, notice, from });
   console.log(v.json ? JSON.stringify(card, null, 2) : card.lines.join('\n'));
   if (!card.ok) process.exitCode = 1;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch((e) => { console.error(e.message); process.exitCode = 1; });
