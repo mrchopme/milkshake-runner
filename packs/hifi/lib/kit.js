@@ -12,7 +12,7 @@ const red = (r, g, b) => r > 150 && g < 90 && b < 90;                         //
 // ponytail: calibration knobs.
 const FRONT = -Math.PI / 2;
 export const KIT = {
-  lamp: { path: 'hifi/furniture/lamp.glb', h: 6.5, yaw: Math.PI, glow: warm },
+  lamp: { path: 'hifi/furniture/lamp.glb', h: 4.5, yaw: Math.PI, glow: warm }, // 4.5 (was 6.5; Caedon, 2026-10-14, board 18): the lamps stood too big
   lamp_double: { path: 'hifi/furniture/lamp_double.glb', h: 6.5, yaw: FRONT, glow: warm }, // arms along the street, clear of the facades
   // bright 1.2 (Caedon, 2026-10-14, board 17c): at GLOW the red lens washes out to pink and the green throws a halo over the housing
   traffic_light: { path: 'hifi/furniture/traffic_light.glb', h: 5.5, yaw: FRONT, glow: signal, bright: 1.2 },
@@ -37,7 +37,7 @@ const GLOW = 5; // ponytail: calibration knob — the lights glow this bright, p
 // way the piece faces: the road for furniture, ahead for a vehicle), y of the base, z offset, colour, glow }. The lamp's
 // glow is its own head, never a plate laid over it. ponytail: calibration knobs.
 const STAND = {
-  lamp: [{ w: 0.18, h: 6.5, d: 0.18, color: '#3a3d48' }, { w: 0.35, h: 0.18, d: 0.9, y: 6.3, z: 0.45, color: '#fff1c4', glow: true }],
+  lamp: [{ w: 0.18, h: 4.5, d: 0.18, color: '#3a3d48' }, { w: 0.35, h: 0.18, d: 0.9, y: 4.3, z: 0.45, color: '#fff1c4', glow: true }],
   traffic_light: [{ w: 0.25, h: 5.5, d: 0.25, color: '#2a2c34' }],
   hydrant: [{ w: 0.35, h: 0.8, d: 0.35, color: '#c8352e' }],
   bench: [{ w: 1.8, h: 0.9, d: 0.6, color: '#7a5636' }],

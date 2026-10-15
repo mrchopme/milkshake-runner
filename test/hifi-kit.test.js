@@ -69,7 +69,7 @@ test('a kit piece stands on its footprint: a lamp\'s pole at the placed x, its a
   const [p, a] = [pole, arm].map((m) => { m.geometry.computeBoundingBox(); return m.geometry.boundingBox.clone().applyMatrix4(parts.find((x) => x.geometry === m.geometry).matrix); });
   const c = p.getCenter(new THREE.Vector3());
   assert.ok(Math.abs(c.x) < 1e-6 && Math.abs(c.z) < 1e-6 && Math.abs(p.min.y) < 1e-6, `the pole stands at ${c.x.toFixed(2)}, ${c.z.toFixed(2)}`);
-  assert.ok(a.max.z > 3, 'the arm reaches toward the road');
+  assert.ok(a.max.z > KIT.lamp.h / 2, 'the arm reaches toward the road'); // 0.625 of the stand-in's height out from the pole
 });
 
 test('each kit piece is painted once without the generator\'s random metal, and every copy in every chunk shares that paint', () => {
