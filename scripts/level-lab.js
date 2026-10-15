@@ -34,7 +34,8 @@ export function street(level, registry, { seed, from } = {}) {
   }
   const rows = groups.map((obs) => {
     const escapes = new Set(obs.filter((o) => passable(o.def, rules)).map((o) => o.def.avoid));
-    const kind = obs.length < 3 ? `dodge${obs.length}` : escapes.size ? `wall-${[...escapes].sort().join('+')}` : 'wall-luck';
+    const lanes = new Set(obs.map(eff)).size; // a staggered row can put two obstacles in one lane: count what is blocked
+    const kind = lanes < 3 ? `dodge${lanes}` : escapes.size ? `wall-${[...escapes].sort().join('+')}` : 'wall-luck';
     const first = obs[0].z, last = obs.at(-1).z; // a staggered row spans first..last; an exact-z row has no spread
     return { z: (first + last) / 2, obs, halfD: (last - first) / 2 + Math.max(...obs.map((o) => o.def.box.d / 2)), kind };
   });

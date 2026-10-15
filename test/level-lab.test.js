@@ -70,6 +70,10 @@ test('a staggered set piece is one row, as the validator reads it, and keeps a p
   assert.deepEqual([row.z, row.obs.length, row.kind], [1382, 2, 'dodge2']);
   assert.ok(Math.min(...simulate(level, registry, { seed: 1 }).windows) > 0);
   assert.equal(scorecard(level, registry, { seeds: 10 }).gates.find((g) => g.id === 'G-window').ok, true);
+  const third = setPiece([ob(1380, 0, 'taxi'), ob(1384, 1, 'taxi'), ob(1386, 0, 'barrier_low')]);
+  assert.deepEqual(validateLevel(third, { fileId: '01-broadway', allIds, registry }), []);
+  const row3 = street(third, registry, { seed: 1 }).rows.find((r) => r.obs.some((o) => o.z === 1386));
+  assert.deepEqual([row3.obs.length, row3.kind], [3, 'dodge2'], 'three obstacles in two lanes is a dodge, not a wall');
 });
 
 test('finish time is the integral of the speed curve', () => {
