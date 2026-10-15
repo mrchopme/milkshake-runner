@@ -120,7 +120,7 @@ export function playtest(level, registry, { seeds = 100, notice = NOTICE, from }
   // ponytail: the ship seed maximises the minimum window only. Upgrade: also prefer seeds with a wider action mix.
   let shipSeed = null, best = -Infinity;
   for (const r of live) if (Math.min(...r.windows) > best) { best = Math.min(...r.windows); shipSeed = r.seed; }
-  const own = level.seed == null ? null : simulate(level, registry, { seed: level.seed, from });
+  const own = level.seed == null ? null : simulate(level, registry, { seed: level.seed, notice, from });
   return {
     seeds, survival: live.length / seeds, deaths, luckDeaths: deaths.filter((d) => d.kind === 'wall-luck').length,
     windowMin: windowAt.window, windowAt, windowP10: all[Math.floor(all.length * 0.1)] ?? Infinity,

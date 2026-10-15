@@ -92,6 +92,7 @@ test('a file seed is judged on its own and a ship seed is proposed', () => {
   assert.equal(card.stats.fileSeed.seed, 5);
   assert.equal(card.gates.find((g) => g.id === 'G-seed').ok, true);
   assert.ok(card.lines.at(-1).includes(`ship seed ${card.shipSeed}`));
+  assert.equal(playtest({ ...broadway, seed: 3 }, registry, { seeds: 3, notice: 0.1 }).fileSeed.survived, false, 'the file seed plays at the sweep notice');
 });
 
 test('a lane-and-timing-only obstacle set never builds a full row and still scores', () => {
