@@ -8,8 +8,9 @@ import { facadeMaterial, TILE, cityFiles } from './facade.js';
 // ponytail: calibration knobs, metres (board 15): the deck in the avenues' warm grey (board 18), tower pairs every 240 m topping
 // out 32 m above the deck, cables down to the deck, low waterfront blocks 30–50 m out wearing downtown's facades, rippling water,
 // no sidewalks or blocks on the deck. The water 2.5 m under the deck (Caedon, 2026-10-15: "the bridge water is too low"; was 6);
-// whatever stands in it reaches `below` under the surface, so no seam of the bend shows a sliver of sky under it.
-export const WATER = { y: -2.5, below: 1.5, color: '#2f86ad', tile: 10, scroll: 0.03 };
+// whatever stands in it reaches `below` under the surface, so no seam of the bend shows a sliver of sky under it. It runs `half`
+// out either side, past where the view's edges meet the fog's far end (about 210 m), so the horizon meets water, not a pale band.
+export const WATER = { y: -2.5, below: 1.5, half: 250, color: '#2f86ad', tile: 10, scroll: 0.03 };
 const DECK = { w: 10, road: '#6b675a', paint: '#f2f2f2' }, PIER = { every: 30, w: 7, d: 3, top: -0.9 }; // one wide pier, its top 0.1 m up inside the deck's 1 m slab
 const TOWER = { every: 240, at: 60, top: 32, w: 1.6, x: 6.2, beam: 1.2 }, CABLE = { segs: 8, thick: 0.25, deckX: 4.8, deckY: 1.2, clear: 0.5 };
 const LOW = { x: 30.5, spread: 20, w: 8, minH: 2, maxH: 8 };
@@ -76,7 +77,7 @@ export function bridgeChunk(gfx, args, style) {
   pierMesh.userData.pier = true;
   g.add(pierMesh);
   // the water, its uvs in world metres so the ripples run on across chunks
-  const water = new T.PlaneGeometry(400, length, 8, Math.ceil(length / 4)).rotateX(-Math.PI / 2).translate(0, WATER.y, zc);
+  const water = new T.PlaneGeometry(WATER.half * 2, length, 8, Math.ceil(length / 4)).rotateX(-Math.PI / 2).translate(0, WATER.y, zc);
   const p = water.attributes.position, uv = water.attributes.uv;
   for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / WATER.tile, -p.getZ(i) / WATER.tile);
   g.add(new T.Mesh(water, waterMaterial(gfx)));
