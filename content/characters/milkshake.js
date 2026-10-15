@@ -61,9 +61,10 @@ export default {
       if (head) head.rotation.z = -HEAD_SWING * stride;             // a counter-nod against the stride
       return stride;
     };
-    return {
+    const view = {
       object: root,
       pose,
+      steps: 0, // every footfall, counted: the engine plays a footstep for each
       update(run) {
         root.position.set(run.x, run.y, run.z);
         shadow.position.y = -run.y + 0.01; // the shadow stays on the road while Milkshake jumps
@@ -71,6 +72,7 @@ export default {
         if (run.y === 0 && run.slideT === 0 && !run.over && stride !== 0 && Math.sign(stride) !== Math.sign(lastStride)) {
           const p = pool[nextPuff++ % pool.length];
           p.visible = true; p.userData.born = run.time; p.userData.x = run.x + (nextPuff % 2 ? 0.18 : -0.18); p.userData.z = run.z - 0.4; // where it landed, in world space
+          view.steps++;
         }
         lastStride = stride;
         for (const p of pool) if (p.visible) {
@@ -83,6 +85,7 @@ export default {
       },
       dispose() { pool.forEach((p) => p.material.dispose()); gfx.dispose(root); },
     };
+    return view;
   },
 };
 

@@ -1,6 +1,7 @@
 import { createRun, act, step, speedAt, playerBox, obstacleBox, overlaps, hit, inReach, collect, resolveRules } from './rules.js';
 import { createWorld } from './world.js';
 import { bindInput } from './input.js';
+import { footstep } from './audio.js';
 
 // Runs one level to its end. A content hook that throws ends the run with outcome 'error' instead of freezing.
 export function playLevel({ engine, level, registry, hud, character, carryJugs = 0, carrySpeed }) {
@@ -14,7 +15,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
       end: level.length_m === null ? Infinity : level.length_m + streetAfter, speedFrom: run.speedFrom,
     });
     if (import.meta.env.DEV) window.__milkshake = { run, world, level, engine }; // dev-only hook for the manual pass; stripped from builds
-    let paused = false, last = performance.now(), raf = 0, skyKey = '';
+    let paused = false, last = performance.now(), raf = 0, skyKey = '', steps = character.steps ?? 0;
 
     const setPaused = (p) => { paused = p; hud.setPaused(p); last = performance.now(); };
     hud.onPause(() => setPaused(!paused));
@@ -35,6 +36,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
       const sky = world.skyAt(run.z), key = `${sky.sky}/${sky.fog}`;
       if (key !== skyKey) { skyKey = key; engine.setSky(sky); }
       character.update(run);
+      if (character.steps > steps) { steps = character.steps; footstep(steps % 2 ? 1 : -1, run.speed); } // a character that counts its footfalls is heard
       engine.follow(run, world.cameraAt(run.z), dt);
       hud.update(run, level, registry);
       if (run.over) end('dead');
