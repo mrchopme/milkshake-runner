@@ -5,12 +5,16 @@ import { box, wall, instanced } from './shapes.js';
 import { material } from './materials.js';
 import { DASH } from './street.js';
 import { facadeMaterial, TILE, cityFiles } from './facade.js';
-// ponytail: calibration knobs, metres (board 15): the deck in the avenues' warm grey (board 18), tower pairs 38 m tall every
-// 240 m, cables down to the deck, low waterfront blocks 30–50 m out wearing downtown's facades, rippling water, no sidewalks or
-// blocks on the deck.
-const DECK = { w: 10, road: '#6b675a', paint: '#f2f2f2' }, WATER = { y: -6, color: '#2f86ad', tile: 10, scroll: 0.03 };
-const TOWER = { every: 240, at: 60, h: 38, w: 1.6, x: 6.2, beam: 1.2 }, CABLE = { segs: 8, thick: 0.25, deckX: 4.8, deckY: 1.2, clear: 0.5 };
+// ponytail: calibration knobs, metres (board 15): the deck in the avenues' warm grey (board 18), tower pairs every 240 m topping
+// out 32 m above the deck, cables down to the deck, low waterfront blocks 30–50 m out wearing downtown's facades, rippling water,
+// no sidewalks or blocks on the deck. The water 2.5 m under the deck (Caedon, 2026-10-15: "the bridge water is too low"; was 6);
+// whatever stands in it reaches `below` under the surface, so no seam of the bend shows a sliver of sky under it. It runs `half`
+// out either side, past where the view's edges meet the fog's far end (about 210 m), so the horizon meets water, not a pale band.
+export const WATER = { y: -2.5, below: 1.5, half: 300, color: '#2f86ad', tile: 10, scroll: 0.03 };
+const DECK = { w: 10, road: '#6b675a', paint: '#f2f2f2' }, PIER = { every: 30, w: 7, d: 3, top: -0.9 }; // one wide pier, its top 0.1 m up inside the deck's 1 m slab
+const TOWER = { every: 240, at: 60, top: 32, w: 1.6, x: 6.2, beam: 1.2 }, CABLE = { segs: 8, thick: 0.25, deckX: 4.8, deckY: 1.2, clear: 0.5 };
 const LOW = { x: 30.5, spread: 20, w: 8, minH: 2, maxH: 8 };
+const STONE = { dry: 0.7, wet: 0.5, band: 0.6, row: 0.25 }; // the theme's darkest building colour × dry; × wet below `band` above the water
 export const WATERFRONT = { id: 'downtown', lit: 0, facades: cityFiles('facades', 'downtown', 5), buildings: { colors: ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3'] } }; // downtown's tiles and `lit` (they share its material key, so the two must agree)
 
 // A Node-safe ripple normal map: a few crossing sine waves, tiling, encoded as tangent-space normals.
@@ -43,6 +47,19 @@ export function waterMaterial(gfx) {
   });
 }
 
+// Stone standing in the water (Task 31a): the quay under a street chunk, the bridge's piers. A block `w` wide and `d` long from
+// under the water up to `top`, centred on x 0 and z 0, in the darkest of `colors` (a theme's buildings) darkened, darker still in
+// a wet band at the waterline; vertex-coloured on one shared material, so a chunk's stone is one draw call.
+export function stone(gfx, colors, w, top, d) {
+  const T = gfx.three, foot = WATER.y - WATER.below, h = top - foot;
+  const geo = new T.BoxGeometry(w, h, d, 1, Math.ceil(h / STONE.row), Math.max(1, Math.ceil(d / 4))).translate(0, foot + h / 2, 0);
+  const dry = colors.map((c) => new T.Color(c)).sort((a, b) => a.getHSL({}).l - b.getHSL({}).l)[0].multiplyScalar(STONE.dry), wet = dry.clone().multiplyScalar(STONE.wet);
+  const p = geo.attributes.position, c = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) (p.getY(i) < WATER.y + STONE.band ? wet : dry).toArray(c, i * 3); // rows every 0.25 m: the band's edge blends over one
+  geo.setAttribute('color', new T.BufferAttribute(c, 3));
+  return new T.Mesh(geo, material('stone', () => new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })));
+}
+
 export function bridgeChunk(gfx, args, style) {
   const T = gfx.three, { z0, length, lanes } = args, r = chunkRng(args.rng), g = gfx.group(), zc = z0 + length / 2;
   const std = (key, color, rough) => material(`${style.id}/${key}`, () => new T.MeshStandardMaterial({ color, roughness: rough }));
@@ -53,15 +70,21 @@ export function bridgeChunk(gfx, args, style) {
   const dashes = [];
   for (let z = z0; z + DASH.len <= z0 + length; z += DASH.every) for (const x of [lanes.width / 2, -lanes.width / 2]) dashes.push(new T.Matrix4().makeTranslation(x, 0.011, z + DASH.len / 2));
   g.add(instanced(T, new T.BoxGeometry(DASH.w, 0.02, DASH.len), std('paint', DECK.paint, 0.6), dashes));
+  // stone piers under the deck into the water (Task 31a), 15 m in from each seam, so the 30 m spacing runs on across chunks
+  const pier = stone(gfx, WATERFRONT.buildings.colors, PIER.w, PIER.top, PIER.d), piers = [];
+  for (let z = z0 + PIER.every / 2; z + PIER.d / 2 <= z0 + length; z += PIER.every) piers.push(new T.Matrix4().makeTranslation(0, 0, z));
+  const pierMesh = instanced(T, pier.geometry, pier.material, piers);
+  pierMesh.userData.pier = true;
+  g.add(pierMesh);
   // the water, its uvs in world metres so the ripples run on across chunks
-  const water = new T.PlaneGeometry(400, length, 8, Math.ceil(length / 4)).rotateX(-Math.PI / 2).translate(0, WATER.y, zc);
+  const water = new T.PlaneGeometry(WATER.half * 2, length, 8, Math.ceil(length / 4)).rotateX(-Math.PI / 2).translate(0, WATER.y, zc);
   const p = water.attributes.position, uv = water.attributes.uv;
   for (let i = 0; i < p.count; i++) uv.setXY(i, p.getX(i) / WATER.tile, -p.getZ(i) / WATER.tile);
   g.add(new T.Mesh(water, waterMaterial(gfx)));
   // a tower pair standing in the water, and its cables sagging down to the deck at both chunk edges
   if (z0 % TOWER.every === 0 && length >= 2 * TOWER.at) {
-    const zt = z0 + TOWER.at, top = WATER.y + TOWER.h, steel = std('tower', '#c9ccd4', 0.5), cables = [];
-    for (const side of [-1, 1]) g.add(box(T, TOWER.w, TOWER.h, TOWER.w, steel, side * TOWER.x, WATER.y + TOWER.h / 2, zt));
+    const zt = z0 + TOWER.at, top = TOWER.top, foot = WATER.y - WATER.below, steel = std('tower', '#c9ccd4', 0.5), cables = [];
+    for (const side of [-1, 1]) g.add(box(T, TOWER.w, top - foot, TOWER.w, steel, side * TOWER.x, (top + foot) / 2, zt));
     g.add(box(T, TOWER.x * 2 + TOWER.w, TOWER.beam, TOWER.w, steel, 0, top - 2 * TOWER.beam, zt));
     const at = (side, dir, t) => new T.Vector3( // t 0 at the tower top, 1 at the deck; y sags as (1 - t)^2, a half catenary
       side * (TOWER.x + (CABLE.deckX - TOWER.x) * t), CABLE.deckY + (top - TOWER.beam - CABLE.deckY) * (1 - t) ** 2, zt + dir * (TOWER.at - CABLE.clear) * t);
@@ -79,7 +102,7 @@ export function bridgeChunk(gfx, args, style) {
     if (depth < 3) break;
     const d = depth - 1, near = cx - LOW.w / 2, bz = z + depth / 2, y = WATER.y + h / 2;
     put(facadeMaterial(gfx, WATERFRONT, i), wall(T, d, h, -side, TILE.w, TILE.h).translate(side * near, y, bz));
-    put(std(`body/${i}`, colors[i], 0.8), new T.BoxGeometry(LOW.w, h, d, 1, 1, Math.max(1, Math.ceil(d / 4))).translate(side * (near + 0.02 + LOW.w / 2), y, bz));
+    put(std(`body/${i}`, colors[i], 0.8), new T.BoxGeometry(LOW.w, h + WATER.below, d, 1, 1, Math.max(1, Math.ceil(d / 4))).translate(side * (near + 0.02 + LOW.w / 2), y - WATER.below / 2, bz)); // standing in the water (Task 31a)
     z += depth;
   }
   for (const [mat, geos] of groups) { const m = new T.Mesh(mergeGeometries(geos), mat); geos.forEach((x) => x.dispose()); m.userData.building = true; g.add(m); }

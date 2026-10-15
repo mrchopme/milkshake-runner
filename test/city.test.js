@@ -13,21 +13,23 @@ import { DRIVE } from '../packs/hifi/lib/traffic.js';
 import { adopt } from '../src/assets.js';
 import bridge from '../packs/hifi/themes/bridge.js';
 import shippedBridge from '../content/themes/bridge.js';
-import { waterMaterial } from '../packs/hifi/lib/bridge.js';
+import { waterMaterial, WATER } from '../packs/hifi/lib/bridge.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 const chunk = (seed, z0 = 0, length = 120) => downtown.createChunk.call({ ...shipped, ...downtown }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shipped, ...downtown } });
-const zSpan = (g) => { // world z extent of everything, instances included
-  let lo = Infinity, hi = -Infinity;
+const bridgeChunk = (z0, seed = 1, length = 120) => bridge.createChunk.call({ ...shippedBridge, ...bridge }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shippedBridge, ...bridge } });
+const bounds = (g, keep = () => true) => { // world box of the meshes `keep` picks, instances included (empty when none)
+  const out = new THREE.Box3();
   g.updateMatrixWorld(true);
   g.traverse((n) => {
-    if (!n.geometry) return;
+    if (!n.geometry || !keep(n)) return;
     n.geometry.computeBoundingBox();
     const each = n.isInstancedMesh ? Array.from({ length: n.count }, (_, i) => { const m = new THREE.Matrix4(); n.getMatrixAt(i, m); return m.premultiply(n.matrixWorld); }) : [n.matrixWorld];
-    for (const m of each) { const b = n.geometry.boundingBox.clone().applyMatrix4(m); lo = Math.min(lo, b.min.z); hi = Math.max(hi, b.max.z); }
+    for (const m of each) out.union(n.geometry.boundingBox.clone().applyMatrix4(m));
   });
-  return [lo, hi];
+  return out;
 };
+const zSpan = (g) => { const b = bounds(g); return [b.min.z, b.max.z]; }; // world z extent of everything
 const fingerprint = (g) => { const out = []; g.traverse((n) => { if (n.geometry) out.push(n.type, n.geometry.attributes.position.count, ...(n.isInstancedMesh ? n.instanceMatrix.array.slice(0, 32) : [])); }); return out.join(','); };
 
 test('the same seed builds the same city chunk, and another seed a different one', () => {
@@ -244,12 +246,64 @@ test('a loaded car model drives along the cross street whatever its own frame, a
 
 test('the HiFi bridge stays inside its chunk and keeps a road', () => {
   for (const seed of [1, 2, 3]) for (const z0 of [1080, 1200]) { // 1200 % 240 === 0: the chunk with a tower pair and its cables
-    const g = bridge.createChunk.call({ ...shippedBridge, ...bridge }, gfx, { z0, length: 120, lanes, rng: rng(seed), theme: { ...shippedBridge, ...bridge } });
+    const g = bridgeChunk(z0, seed);
     const [lo, hi] = zSpan(g);
     assert.ok(lo >= z0 - 1e-6 && hi <= z0 + 120 + 1e-6, `${lo}..${hi}`);
     let road = false, meshes = 0; g.traverse((n) => { if (n.userData.road) road = true; if (n.isMesh) meshes++; });
     assert.ok(road);
     assert.ok(meshes <= 45, `${meshes} meshes`);
+  }
+});
+
+// Smooth transitions to and from the bridge (Task 31a, Caedon, 2026-10-15): "the bridge water is too low and when you're moving
+// from that to the buildings you see floating buildings with nothing underneath it".
+test('the bridge water lies 2.5 m under the deck, out to the horizon either side, and the tower pair stands in it with its tops still 32 m up', () => {
+  const g = bridgeChunk(1200), water = bounds(g, (n) => n.material === waterMaterial(gfx)), towers = [];
+  g.traverse((n) => { if (n.isMesh && !n.isInstancedMesh) { const b = bounds(n); if (b.max.y - b.min.y > 20) towers.push(b); } });
+  assert.ok(water.min.y === -2.5 && water.max.y === -2.5, `the water at ${water.min.y}`);
+  assert.ok(water.min.x <= -300 && water.max.x >= 300, `the water spans x ${water.min.x}..${water.max.x}: it stops short of the fog's far end (the main session's Task 31a fix round 1)`);
+  assert.equal(towers.length, 2);
+  for (const b of towers) assert.ok(b.min.y < water.min.y && Math.abs(b.max.y - 32) < 1e-6, `a tower from ${b.min.y} to ${b.max.y}`);
+});
+
+test('a street chunk stands on land: a stone quay under the whole chunk, from just under the street down into the water', async () => {
+  for (const id of ['downtown', 'midtown', 'uptown']) for (const seed of [1, 2, 3]) for (const [z0, length] of [[0, 120], [240, 80]]) {
+    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
+    const g = hifi.createChunk.call(theme, gfx, { z0, length, lanes, rng: rng(seed), theme }), at = `${id}, seed ${seed}, chunk ${z0}`;
+    const land = bounds(g, (n) => n.userData.land), rest = bounds(g, (n) => !n.userData.land);
+    assert.ok(Math.abs(land.min.z - z0) < 1e-6 && Math.abs(land.max.z - (z0 + length)) < 1e-6, `${at}: the land runs ${land.min.z}..${land.max.z}`);
+    assert.ok(land.min.y < WATER.y, `${at}: its foot at ${land.min.y}, above the water`);
+    assert.ok(land.max.y < rest.min.y && land.max.y < 0, `${at}: its top at ${land.max.y}, the street's lowest part at ${rest.min.y}`); // so nothing of it enters the play space either
+    assert.ok(land.min.x <= rest.min.x && land.max.x >= rest.max.x, `${at}: the land spans x ${land.min.x}..${land.max.x}, the chunk builds ${rest.min.x}..${rest.max.x}`);
+    assert.ok(land.min.x <= -300 && land.max.x >= 300, `${at}: the land spans x ${land.min.x}..${land.max.x}, not the wide shore the bridge water meets`);
+  }
+});
+
+test('stone piers carry the bridge deck every 30 m, seam to seam, from its underside down into the water', () => {
+  for (const z0 of [1080, 1200]) {
+    const g = bridgeChunk(z0), deck = bounds(g, (n) => n.userData.road), piers = bounds(g, (n) => n.userData.pier), zs = [], m = new THREE.Matrix4();
+    assert.ok(piers.max.y >= deck.min.y && piers.max.y < 0 && piers.min.y < WATER.y, `chunk ${z0}: piers from ${piers.min.y} to ${piers.max.y}, the deck's underside at ${deck.min.y}`); // under the road, so out of the play space
+    assert.ok(piers.min.x >= deck.min.x && piers.max.x <= deck.max.x, `chunk ${z0}: piers ${piers.min.x}..${piers.max.x} stick out of the deck`);
+    g.traverse((n) => { if (n.userData.pier) for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); zs.push(m.elements[14]); } });
+    assert.deepEqual(zs, [15, 45, 75, 105].map((z) => z0 + z), 'every 30 m, 15 m in from each seam, so the spacing runs on across chunks');
+  }
+});
+
+test('every waterfront block stands in the water, its body reaching under the surface', () => {
+  for (const seed of [1, 2, 3]) for (const z0 of [1080, 1200]) {
+    const g = bridgeChunk(z0, seed), sides = { '-1': [], 1: [] }; // each side's triangles as [z from, z to, lowest y]
+    g.updateMatrixWorld(true);
+    g.traverse((n) => {
+      if (!n.userData.building) return;
+      const p = n.geometry.attributes.position, idx = n.geometry.index, at = (k) => new THREE.Vector3().fromBufferAttribute(p, idx ? idx.getX(k) : k).applyMatrix4(n.matrixWorld);
+      for (let t = 0; t < (idx ?? p).count; t += 3) { const v = [at(t), at(t + 1), at(t + 2)]; sides[Math.sign(v[0].x)].push([Math.min(...v.map((q) => q.z)), Math.max(...v.map((q) => q.z)), Math.min(...v.map((q) => q.y))]); }
+    });
+    for (const tris of Object.values(sides)) { // a block's facade and body share its z span; blocks stand 1 m apart along z
+      const blocks = [];
+      for (const [lo, hi, y] of tris.sort((a, b) => a[0] - b[0])) { const b = blocks.at(-1); if (b && lo - b.hi < 0.5) Object.assign(b, { hi: Math.max(b.hi, hi), foot: Math.min(b.foot, y) }); else blocks.push({ lo, hi, foot: y }); }
+      assert.ok(blocks.length >= 8, `seed ${seed}, chunk ${z0}: ${blocks.length} blocks on a side`);
+      for (const b of blocks) assert.ok(b.foot < WATER.y, `seed ${seed}, chunk ${z0}: the block at z ${b.lo.toFixed(2)}..${b.hi.toFixed(2)} stands at ${b.foot}, the water at ${WATER.y}`);
+    }
   }
 });
 

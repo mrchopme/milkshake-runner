@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as gfx from './gfx.js';
-import { generate, normalizeLevel, rng, sectionAt, curveSegments, cameraAt } from './generator.js';
+import { generate, normalizeLevel, rng, sectionAt, curveSegments, turnedBy, cameraAt } from './generator.js';
 import { laneX, obstacleBox, updateObstacle, pull } from './rules.js';
 import { safeCall } from './registry.js';
 
@@ -95,7 +95,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
       if (p.view.update) safeCall(`pickup ${p.id} update`, () => p.view.update(p, run, dt));
     }
     for (const p of live.props) if (p.view.update) safeCall(`prop ${p.id} update`, () => p.view.update(p, run, dt));
-    gfx.setBend({ origin: run.z, segments: curveSegments(norm, run.z, builtTo, seed) }); // every stretch the built street lies in, so nothing pops when it enters view; nothing eases, the street is the anchor
+    gfx.setBend({ origin: run.z, segments: curveSegments(norm, run.z, builtTo, seed), turned: turnedBy(norm, run.z + gfx.DEAD, seed) }); // every stretch the built street lies in, so nothing pops when it enters view; nothing eases, the street is the anchor
   }
 
   const skyAt = (z) => {

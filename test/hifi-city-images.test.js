@@ -27,8 +27,8 @@ test('each street theme lists its five facade tiles, four storefronts, every sig
   assert.deepEqual(Object.values(SIGN_FILES).flat().sort(), readdirSync(SIGNS).map((f) => `hifi/city/signs/${f}`).sort(), 'every generated sign, and nothing else');
   for (const [hifi] of STREET) {
     assert.ok(!hifi.assets.some((p) => p.startsWith('hifi/city/signs/led-')), `${hifi.id} loads no LED face`);
-    assert.deepEqual(hifi.look.skyline, files('sky', hifi.id, 2), `${hifi.id}: the far ring's image, then the near one's`);
-    for (const p of [...files('facades', hifi.id, 5), ...files('shops', hifi.id, 4), ...Object.values(SIGN_FILES).flat(), ...hifi.look.skyline]) assert.ok(hifi.assets.includes(p), `${hifi.id} lists ${p}`);
+    assert.deepEqual(hifi.look.skyline, [[1, 2, 3, 4].map((n) => `hifi/city/sky/${hifi.id}-near-${n}.webp`)], `${hifi.id}: the near ring's four images, no far ring`);
+    for (const p of [...files('facades', hifi.id, 5), ...files('shops', hifi.id, 4), ...Object.values(SIGN_FILES).flat(), ...hifi.look.skyline.flat()]) assert.ok(hifi.assets.includes(p), `${hifi.id} lists ${p}`);
   }
   assert.deepEqual(bridge.look.skyline, files('sky', 'bridge', 2));
   assert.deepEqual(WATERFRONT.facades, files('facades', 'downtown', 5), 'the waterfront wears downtown\'s tiles');

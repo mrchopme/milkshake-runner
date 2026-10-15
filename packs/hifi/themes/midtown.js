@@ -7,10 +7,10 @@ import { KIT_FILES } from '../lib/kit.js';
 import { cityFiles } from '../lib/facade.js';
 // HiFi look for midtown (level 2, a low orange sun). ponytail: calibration knobs; `lit` is the windows' glow; `road` the teaser's warm grey (Caedon, 2026-10-14, board 18).
 const STYLE = { id: 'midtown', road: '#6b675a', walk: '#a3a0ab', paint: '#f2f2f2', parts: [buildings, signs, furniture, traffic], signs: ['#ff3b3b', '#2f7cff', '#ffd23f', '#2ecc71', '#ff4fd8', '#ff8a1f', '#ffffff'], lit: 0, facades: cityFiles('facades', 'midtown', 5), shops: cityFiles('shops', 'midtown', 4), ...SIGN_FILES }; // the generated city (round 2), board 15
-const SKYLINE = cityFiles('sky', 'midtown', 2); // the far ring's strip, then the near one's; skylineHeight was [200, 150], where the far strip wrapped the ring once at under 1 px a metre and smeared into ghost towers (Caedon, board 19, 2026-10-15)
+const SKYLINE = [[1, 2, 3, 4].map((n) => `hifi/city/sky/midtown-near-${n}.webp`)]; // the near ring alone, four images in order round it, the first facing the avenue (Caedon, 2026-10-15: board 20's images; board 21, the far ring dropped: its hazy strip drew ghost towers and, turned, its mirror seam)
 export default {
   kind: 'theme', id: 'midtown',
-  assets: [...STYLE.facades, ...STYLE.shops, ...Object.values(SIGN_FILES).flat(), ...SKYLINE, ...KIT_FILES],
+  assets: [...STYLE.facades, ...STYLE.shops, ...Object.values(SIGN_FILES).flat(), ...SKYLINE.flat(), ...KIT_FILES],
   look: { skyline: SKYLINE, skylineHeight: [110, 80], exposure: 0.95, sun: { color: '#ffd2a1', intensity: 2.0 }, ambient: 0.65, env: 0.85, skyTop: '#e07b5a', bloom: { strength: 0.5, threshold: 1.8, radius: 0.45 } },
   createChunk(gfx, args) { return cityChunk(gfx, args, { ...STYLE, buildings: args.theme.buildings }); },
 };

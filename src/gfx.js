@@ -99,8 +99,15 @@ export function bend(object) {
   });
   return object;
 }
-// The stretches in view, nearest first, as { from, to, turn, hill } (metres, -1..1). No stretches straightens the street.
-export function setBend({ origin = 0, segments = [] } = {}) {
+// The street's heading at the bend start: how far its turns have swung the view, as a yaw about +y (three's rotation.y, so
+// positive is a right turn, as `turn` is): TURN_K radians a metre of a full turn, about the angle the drawn street leaves a
+// 240 m turn at. setBend sets it from `turned` (generator.turnedBy at the bend start); the HiFi skyline turns its rings by it,
+// and nothing low-fi reads it. ponytail: calibration knob, the rate.
+export const heading = { value: 0 };
+// The stretches in view, nearest first, as { from, to, turn, hill } (metres, -1..1), and the turn·m behind the bend start.
+// No stretches straightens the street.
+export function setBend({ origin = 0, segments = [], turned = 0 } = {}) {
+  heading.value = turned * TURN_K;
   bendStart.value = origin + DEAD;
   bendSegments.value.forEach((v, i) => { const s = segments[i]; if (s) v.set(s.from, s.to, 0 - s.turn * TURN_K, s.hill * HILL_K); else v.set(0, 0, 0, 0); }); // 0 - …: a straight road is +0, never -0
 }
