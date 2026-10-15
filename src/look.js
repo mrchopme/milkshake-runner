@@ -217,6 +217,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
         const { full } = ring.userData, r = RING.radius[i];
         full.visible = !Array.isArray(entry);
         if (Array.isArray(entry)) { // a list: each image once, unmirrored, round in order, the first one's middle at the avenue's end
+          for (const m of maps) if (m.wrapS !== THREE.ClampToEdgeWrapping || m.repeat.x !== 1) { m.wrapS = THREE.ClampToEdgeWrapping; m.repeat.x = 1; m.needsUpdate = true; } // a single ring may have wrapped this shared texture
           const { height, arcs } = ringArcs(r, maps.map((m) => [m.image.width, m.image.height]), s.skylineHeight[i]);
           const parts = maps.map((map, k) => [ringArc(r, arcs[k].length), ringMaterial(map)]); // the first lap holds each image once, in order
           for (const a of arcs) {

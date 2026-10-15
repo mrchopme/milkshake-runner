@@ -2,7 +2,7 @@ import { chunkRng } from './rand.js';
 import { street, CROSS } from './street.js';
 import { stone, WATER } from './bridge.js';
 // ponytail: calibration knob, metres (Task 31a): the land's top just under the road's and the side street's 0.1 m slabs; its sides
-// run out as far as the bridge water, so from the bridge the city sits on a wide shore (Caedon's look, fix round 1)
+// run out as far as the bridge water, so from the bridge the city sits on a wide shore (the main session's fix round 1, after looking in the game)
 const LAND_TOP = -0.12;
 // The HiFi city (round 2 spec): one chunk of street, buildings, signs and furniture, all inside [z0, z0 + length].
 // Each later task adds its part here; a part that throws is skipped, so the street is always there.

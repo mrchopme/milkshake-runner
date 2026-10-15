@@ -261,7 +261,7 @@ test('the bridge water lies 2.5 m under the deck, out to the horizon either side
   const g = bridgeChunk(1200), water = bounds(g, (n) => n.material === waterMaterial(gfx)), towers = [];
   g.traverse((n) => { if (n.isMesh && !n.isInstancedMesh) { const b = bounds(n); if (b.max.y - b.min.y > 20) towers.push(b); } });
   assert.ok(water.min.y === -2.5 && water.max.y === -2.5, `the water at ${water.min.y}`);
-  assert.ok(water.min.x <= -250 && water.max.x >= 250, `the water spans x ${water.min.x}..${water.max.x}: it stops short of the fog's far end (Caedon's look, Task 31a fix round 1)`);
+  assert.ok(water.min.x <= -300 && water.max.x >= 300, `the water spans x ${water.min.x}..${water.max.x}: it stops short of the fog's far end (the main session's Task 31a fix round 1)`);
   assert.equal(towers.length, 2);
   for (const b of towers) assert.ok(b.min.y < water.min.y && Math.abs(b.max.y - 32) < 1e-6, `a tower from ${b.min.y} to ${b.max.y}`);
 });
@@ -275,7 +275,7 @@ test('a street chunk stands on land: a stone quay under the whole chunk, from ju
     assert.ok(land.min.y < WATER.y, `${at}: its foot at ${land.min.y}, above the water`);
     assert.ok(land.max.y < rest.min.y && land.max.y < 0, `${at}: its top at ${land.max.y}, the street's lowest part at ${rest.min.y}`); // so nothing of it enters the play space either
     assert.ok(land.min.x <= rest.min.x && land.max.x >= rest.max.x, `${at}: the land spans x ${land.min.x}..${land.max.x}, the chunk builds ${rest.min.x}..${rest.max.x}`);
-    assert.ok(land.min.x <= -250 && land.max.x >= 250, `${at}: the land spans x ${land.min.x}..${land.max.x}, not the wide shore the bridge water meets`);
+    assert.ok(land.min.x <= -300 && land.max.x >= 300, `${at}: the land spans x ${land.min.x}..${land.max.x}, not the wide shore the bridge water meets`);
   }
 });
 
