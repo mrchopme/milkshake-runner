@@ -14,7 +14,7 @@ const DECK = { w: 10, road: '#6b675a', paint: '#f2f2f2' }, PIER = { every: 30, w
 const TOWER = { every: 240, at: 60, top: 32, w: 1.6, x: 6.2, beam: 1.2 }, CABLE = { segs: 8, thick: 0.25, deckX: 4.8, deckY: 1.2, clear: 0.5 };
 const LOW = { x: 30.5, spread: 20, w: 8, minH: 2, maxH: 8 };
 const STONE = { dry: 0.7, wet: 0.5, band: 0.6, row: 0.25 }; // the theme's darkest building colour × dry; × wet below `band` above the water
-export const WATERFRONT ={ id: 'downtown', lit: 0, facades: cityFiles('facades', 'downtown', 5), buildings: { colors: ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3'] } }; // downtown's tiles and `lit` (they share its material key, so the two must agree)
+export const WATERFRONT = { id: 'downtown', lit: 0, facades: cityFiles('facades', 'downtown', 5), buildings: { colors: ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3'] } }; // downtown's tiles and `lit` (they share its material key, so the two must agree)
 
 // A Node-safe ripple normal map: a few crossing sine waves, tiling, encoded as tangent-space normals.
 function rippleTexture(T, n = 64) {
