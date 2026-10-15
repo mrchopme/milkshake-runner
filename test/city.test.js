@@ -287,6 +287,24 @@ test('stone piers carry the bridge deck every 30 m, seam to seam, from its under
   }
 });
 
+test('every waterfront block stands in the water, its body reaching under the surface', () => {
+  for (const seed of [1, 2, 3]) for (const z0 of [1080, 1200]) {
+    const g = bridgeChunk(z0, seed), sides = { '-1': [], 1: [] }; // each side's triangles as [z from, z to, lowest y]
+    g.updateMatrixWorld(true);
+    g.traverse((n) => {
+      if (!n.userData.building) return;
+      const p = n.geometry.attributes.position, idx = n.geometry.index, at = (k) => new THREE.Vector3().fromBufferAttribute(p, idx ? idx.getX(k) : k).applyMatrix4(n.matrixWorld);
+      for (let t = 0; t < (idx ?? p).count; t += 3) { const v = [at(t), at(t + 1), at(t + 2)]; sides[Math.sign(v[0].x)].push([Math.min(...v.map((q) => q.z)), Math.max(...v.map((q) => q.z)), Math.min(...v.map((q) => q.y))]); }
+    });
+    for (const tris of Object.values(sides)) { // a block's facade and body share its z span; blocks stand 1 m apart along z
+      const blocks = [];
+      for (const [lo, hi, y] of tris.sort((a, b) => a[0] - b[0])) { const b = blocks.at(-1); if (b && lo - b.hi < 0.5) Object.assign(b, { hi: Math.max(b.hi, hi), foot: Math.min(b.foot, y) }); else blocks.push({ lo, hi, foot: y }); }
+      assert.ok(blocks.length >= 8, `seed ${seed}, chunk ${z0}: ${blocks.length} blocks on a side`);
+      for (const b of blocks) assert.ok(b.foot < WATER.y, `seed ${seed}, chunk ${z0}: the block at z ${b.lo.toFixed(2)}..${b.hi.toFixed(2)} stands at ${b.foot}, the water at ${WATER.y}`);
+    }
+  }
+});
+
 test('the road is one warm grey from the avenues onto the bridge, its lane lines solid but across the crosswalk (Caedon, board 18)', async () => {
   const roads = new Set();
   for (const id of ['downtown', 'midtown', 'uptown', 'bridge']) {

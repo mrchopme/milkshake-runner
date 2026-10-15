@@ -101,7 +101,7 @@ export function bridgeChunk(gfx, args, style) {
     if (depth < 3) break;
     const d = depth - 1, near = cx - LOW.w / 2, bz = z + depth / 2, y = WATER.y + h / 2;
     put(facadeMaterial(gfx, WATERFRONT, i), wall(T, d, h, -side, TILE.w, TILE.h).translate(side * near, y, bz));
-    put(std(`body/${i}`, colors[i], 0.8), new T.BoxGeometry(LOW.w, h, d, 1, 1, Math.max(1, Math.ceil(d / 4))).translate(side * (near + 0.02 + LOW.w / 2), y, bz));
+    put(std(`body/${i}`, colors[i], 0.8), new T.BoxGeometry(LOW.w, h + WATER.below, d, 1, 1, Math.max(1, Math.ceil(d / 4))).translate(side * (near + 0.02 + LOW.w / 2), y - WATER.below / 2, bz)); // standing in the water (Task 31a)
     z += depth;
   }
   for (const [mat, geos] of groups) { const m = new T.Mesh(mergeGeometries(geos), mat); geos.forEach((x) => x.dispose()); m.userData.building = true; g.add(m); }
