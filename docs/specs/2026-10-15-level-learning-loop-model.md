@@ -184,3 +184,23 @@ seconds ahead, moves to the nearest free lane without crossing a lane still bloc
 a lane also free in the next row, else takes a jump or slide lane (a timing lane only as a last resort), jumps 0.2 s
 and slides 0.1 s before the obstacle's leading edge, and waits behind a row rather than committing to a bad lane.
 Results were identical for notice 0.45, 0.6 and 1.0 s and collapsed at 0.3 s. Whole run: about 3 s.
+
+## 8. Decisions (Caedon, 2026-10-15, in chat)
+
+| # | Topic | Decision |
+|---|---|---|
+| 1 | timing walls | Fix in the engine: a timing obstacle never counts as a full row's escape; generator and validator inherit it; one test |
+| 2 | first loop | The inner offline loop first (content sheet, validator entry, headless bot, scorecard) |
+| 3 | where levels live | Committed in `levels/`; CI validates; Hatch picks by id; `index.json` and `campaign.json` untouched |
+| 4 | seeds | Score across seeds, ship one seed that passed with margin |
+| 5 | fun targets | The shipped levels' band (§3) is the first target; pane feedback adjusts it |
+| 6 | v1 driver | Claude in-session runs generate, check, revise; no API key, no new dependency |
+| 7 | Chat 2 note | Sent as a cross-session message from this session (§9) |
+| 8 | next stage | Plan |
+
+## 9. Note for Chat 2, the Hatch harness (sent 2026-10-15)
+
+- `?level=` should accept any loaded, valid level id (`levels[id]` exists and `valid(id)`), not only ids listed in
+  `index.json`: generated levels are unlisted by design and reach Hatch by id.
+- For D2: a death result should carry the distance reached (`run.z`, metres), so the outer loop learns where
+  people die, not only that they do.
