@@ -1,7 +1,8 @@
 import { box, instanced } from './shapes.js';
 import { material } from './materials.js';
-// ponytail: calibration knobs, metres (board 15)
-export const KERB = 0.18, WALK = 6, DASH = { w: 0.12, len: 3, every: 6 };
+// ponytail: calibration knobs, metres (board 15); the lane lines solid, each dash meeting the next (Caedon, 2026-10-14, board 18:
+// the teaser's road; was 0.12 wide, 3 long every 6)
+export const KERB = 0.18, WALK = 6, DASH = { w: 0.16, len: 6, every: 6 };
 export const FACADE_X = 4.5 + WALK; // the facade line: the road's edge (ROAD_HALF in src/world.js, which a pack cannot import; a test holds the two together) plus the sidewalk
 export const CROSS = { width: 12, stripe: 0.6, reach: FACADE_X + 10 }; // reach: the cross street's paving runs out to the back of the blocks (10 m deep)
 

@@ -5,7 +5,7 @@ import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
-import { street, CROSS, WALK, FACADE_X } from '../packs/hifi/lib/street.js';
+import { street, CROSS, WALK, FACADE_X, DASH } from '../packs/hifi/lib/street.js';
 import { buildings } from '../packs/hifi/lib/buildings.js';
 import { furniture } from '../packs/hifi/lib/furniture.js';
 import { ROAD_HALF } from '../src/world.js';
@@ -233,6 +233,23 @@ test('the HiFi bridge stays inside its chunk and keeps a road', () => {
     assert.ok(road);
     assert.ok(meshes <= 45, `${meshes} meshes`);
   }
+});
+
+test('the road is one warm grey from the avenues onto the bridge, its lane lines solid but across the crosswalk (Caedon, board 18)', async () => {
+  const roads = new Set();
+  for (const id of ['downtown', 'midtown', 'uptown', 'bridge']) {
+    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
+    hifi.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: rng(1), theme }).traverse((n) => { if (n.userData.road) roads.add(n.material.color.getHexString()); });
+  }
+  assert.deepEqual([...roads], ['6b675a'], 'the teaser\'s road, measured');
+  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, { id: 'test', road: '#000', walk: '#888', paint: '#fff' }, cross);
+  let lines; g.traverse((n) => { if (n.isInstancedMesh && n.geometry.parameters.width === DASH.w) lines = n; });
+  const spans = [], m = new THREE.Matrix4(), p = new THREE.Vector3();
+  for (let i = 0; i < lines.count; i++) { lines.getMatrixAt(i, m); p.setFromMatrixPosition(m); if (p.x > 0) spans.push([p.z - DASH.len / 2, p.z + DASH.len / 2]); }
+  spans.sort((a, b) => a[0] - b[0]);
+  const gaps = spans.slice(1).map((x, i) => [spans[i][1], x[0]]).filter(([a, b]) => b - a > 1e-6);
+  assert.ok(spans[0][0] < 1e-6 && spans.at(-1)[1] > 120 - 1e-6, 'from one end of the chunk to the other');
+  assert.ok(gaps.length === 1 && gaps[0][0] <= cross.z && gaps[0][1] >= cross.z + CROSS.width, `breaks at ${gaps.map(([a, b]) => `${a}..${b}`).join(', ')}`);
 });
 
 test('the bridge water ripples through its own normal map, scrolled by the run clock', () => {
