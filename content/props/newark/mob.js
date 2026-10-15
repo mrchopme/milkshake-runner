@@ -1,18 +1,20 @@
 import { buildDog, animateDog } from '../../obstacles/newark/stray_dog.js';
 import { plaque } from '../../themes/newark/brick_city.js';
 
-// The chase. A mob waits at an alley mouth on the sidewalk; as Milkshake passes its line it sprints onto the road and runs at her
-// heels, gives up before its 40 m are out, and the next mob (placed by weight every 40 m) takes over, so somebody is always
-// behind her. Props never collide: the mob is theatre, the obstacles do the hurting.
-export const SETTLE_M = 12, TIRE_M = 28; // metres past the mob's line: at the heels by SETTLE_M, tiring from TIRE_M to the end
+// The chase. A mob waits at an alley mouth on the sidewalk; as Milkshake passes its line it bursts onto the road and runs at her
+// heels, the dogs lunging at them and one running on her flank, gives up only in its last metres, and the next mob (placed by
+// weight every 40 m) takes over, so somebody is always behind her. Props never collide: the mob is theatre, the obstacles do the hurting.
+export const SETTLE_M = 6, TIRE_M = 32; // metres past the mob's line: at the heels by SETTLE_M, tiring from TIRE_M to the end
+export const LUNGE_M = 0.8, HEEL_M = 0.25; // a lunging dog surges this far forward, and never closer than this to her heels
 const SIGNS = ['SPARE A JUG?', 'WILL CHASE 4 MILK', 'TRAIN FARE PLS', 'ANYTHING HELPS', 'NOT EVEN FROM HERE', 'ASK ME ABOUT JUGS', '1 JUG = 1 PRAYER'];
 const HOODIES = ['#4a4d5c', '#7a2e2e', '#2f4f3a', '#5a4a7a'], SKINS = ['#8d5a3b', '#c68e62', '#e0b08a', '#5a3a24'];
-// Who runs, and where each runs relative to Milkshake (x beside her, z behind her). Nobody tall runs dead centre: it would hide her from the camera.
+// Who runs, and where each runs relative to Milkshake (x beside her, z behind her). Nobody tall runs dead centre: it would hide
+// her from the camera. A dog at z 0.3-0.5 runs on her flank in the next lane, below anything ahead on the screen.
 const PACKS = [
-  [['dog', 0, 1.8], ['dog', 1.3, 2.4], ['dog', -1.3, 2.4]],
-  [['person', 1.1, 1.8], ['person', -1.1, 1.9], ['dog', 0, 2.6]],
-  [['person', -1.2, 1.8], ['dog', 0.3, 1.7], ['dog', 1.5, 2.6]],
-  [['dog', 0, 1.7], ['person', 1.3, 2.0], ['dog', -1.4, 2.5], ['person', -2.2, 2.3]],
+  [['dog', 0, 1.3], ['dog', 1.4, 1.7], ['dog', -1.4, 1.7], ['dog', 2.4, 0.3]],
+  [['person', 1.2, 2.0], ['dog', 0, 1.4], ['dog', -1.5, 1.2], ['person', -2.3, 2.4]],
+  [['dog', 0.4, 1.3], ['dog', -0.6, 1.8], ['dog', 1.6, 1.5], ['person', -1.4, 2.3], ['dog', -2.5, 0.4]],
+  [['dog', 0, 1.4], ['person', 1.3, 2.2], ['dog', -1.3, 1.3], ['person', -2.3, 2.5], ['dog', 2.4, 0.5]],
 ];
 const smooth = (t) => { t = Math.min(1, Math.max(0, t)); return t * t * (3 - 2 * t); };
 
@@ -31,11 +33,11 @@ function buildPerson(gfx, k, sign) {
   return { object: g, legs, arms, body, kind: 'person' };
 }
 
-function animatePerson(m, stride, tired, sway) {
-  m.legs.forEach((l, i) => (l.rotation.x = stride * 0.65 * (i ? 1 : -1)));
-  m.arms.forEach((a, i) => (a.rotation.x = stride * 0.7 * (i ? -1 : 1)));
-  m.body.position.y = 0.85 + Math.abs(stride) * 0.07;
-  m.body.rotation.x = tired * 0.9; // hands on knees
+function animatePerson(m, stride, tired, sway, lean = 0) {
+  m.legs.forEach((l, i) => (l.rotation.x = stride * 0.8 * (i ? 1 : -1)));
+  m.arms.forEach((a, i) => (a.rotation.x = stride * 1.1 * (i ? -1 : 1))); // arms flailing
+  m.body.position.y = 0.85 + Math.abs(stride) * 0.08;
+  m.body.rotation.x = tired * 0.9 + lean * 0.28; // leaning into the sprint, or hands on knees
   m.body.rotation.z = sway;
 }
 
@@ -54,15 +56,16 @@ export default {
       // The engine passes (p, run, dt). The ending passes a fourth, halt: the mob stands where it is and snarls.
       update(p, run, dt, halt = false) {
         const d = run.z - p.z, fall = smooth(d / SETTLE_M), tired = smooth((d - TIRE_M) / (length - TIRE_M)), gait = halt ? 0 : fall * (1 - tired);
-        const lag = 1 - Math.exp(-dt / 0.2), beat = run.time * 14 * ((run.speed ?? 12) / 12);
+        const lag = 1 - Math.exp(-dt / 0.15), beat = run.time * 16 * ((run.speed ?? 12) / 12);
         for (const m of members) {
-          const o = m.object;
+          const o = m.object, lunge = m.kind === 'dog' ? Math.max(0, Math.sin(run.time * 2.4 + m.seed * 3)) ** 3 * gait : 0; // a dog surges at her heels every 2.6 s
           m.fx += (run.x + m.ox - m.fx) * lag; // follows a lane change a beat late
           o.position.x = m.alley.x + (m.fx - m.alley.x) * fall;
-          o.position.z = m.alley.z + (run.z - m.oz - tired * tired * 24 - p.z - m.alley.z) * fall; // in the prop's frame; a tired mob drops out of the frame below
+          o.position.z = m.alley.z + (run.z - Math.max(HEEL_M, m.oz - LUNGE_M * lunge) - tired * tired * 24 - p.z - m.alley.z) * fall; // in the prop's frame; a tired mob drops out of the frame below
+          o.position.y = lunge * 0.4;
           o.rotation.y = 0 - side * (Math.PI / 2) * (1 - fall); // 0 - …: fallen in is +0, never -0
-          if (m.kind === 'dog') animateDog(m, run.time, gait, m.seed);
-          else animatePerson(m, Math.sin(beat + m.seed) * gait, tired, fall ? 0 : Math.sin(run.time * 3 + m.seed) * 0.05);
+          if (m.kind === 'dog') animateDog(m, run.time, gait, m.seed, lunge);
+          else animatePerson(m, Math.sin(beat + m.seed) * gait, tired, fall ? 0 : Math.sin(run.time * 3 + m.seed) * 0.05, gait);
         }
       },
     };

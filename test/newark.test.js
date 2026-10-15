@@ -8,7 +8,7 @@ import { validateAll } from '../src/validate.js';
 import { generate, normalizeLevel, rng, passable } from '../src/generator.js';
 import { resolveRules, jumpHeight, createRun } from '../src/rules.js';
 import { discover } from './helpers.js';
-import mob, { SETTLE_M, TIRE_M } from '../content/props/newark/mob.js';
+import mob, { SETTLE_M, TIRE_M, HEEL_M } from '../content/props/newark/mob.js';
 import theme from '../content/themes/newark/brick_city.js';
 import dog from '../content/obstacles/newark/stray_dog.js';
 import cart from '../content/obstacles/newark/shopping_cart.js';
@@ -48,12 +48,18 @@ test('a mob waits in its alley, falls in at Milkshake\'s heels, then gives up an
   run.z = 370; view.update(p, run, 1 / 60);
   assert.ok(view.members.every((m) => Math.abs(world(m).x) > lanes.roadHalf), 'off the road, at the alley mouth');
   run.z = 400 + SETTLE_M + 4; run.x = 2.5;
-  for (let i = 0; i < 20; i++) view.update(p, run, 0.1);
-  for (const m of view.members) {
-    const w = world(m);
-    assert.ok(Math.abs(w.x - run.x) < 2.4 && w.behind > 1.4 && w.behind < 3, `${m.kind} runs beside and behind her: x ${w.x.toFixed(2)}, ${w.behind.toFixed(2)} m back`);
-    assert.equal(m.object.rotation.y, 0, 'facing up the street');
+  for (let i = 0; i < 10; i++) view.update(p, run, 0.1); // the lane lag settles
+  let closest = Infinity;
+  for (let i = 0; i < 40; i++) {
+    run.time += 0.1; view.update(p, run, 0.1);
+    for (const m of view.members) {
+      const w = world(m);
+      closest = Math.min(closest, w.behind);
+      assert.ok(Math.abs(w.x - run.x) < 2.6 && w.behind >= HEEL_M - 1e-9 && w.behind < 3, `${m.kind} runs beside and behind her, never past her: x ${w.x.toFixed(2)}, ${w.behind.toFixed(2)} m back`);
+      assert.equal(m.object.rotation.y, 0, 'facing up the street');
+    }
   }
+  assert.ok(closest < 0.6, `a lunging dog gets within a stride of her heels (closest ${closest.toFixed(2)} m)`);
   run.z = 400 + 39.5;
   for (let i = 0; i < 10; i++) view.update(p, run, 0.1);
   assert.ok(view.members.every((m) => world(m).behind > 15), 'left far behind before the prop is dropped');

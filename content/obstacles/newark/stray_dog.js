@@ -9,7 +9,7 @@ export function buildDog(gfx, fur = 0) {
   const body = gfx.capsule(0.21, 0.55, c, 0, 0.55, 0); body.rotation.x = Math.PI / 2;
   const head = gfx.group(gfx.sphere(0.19, c, 0, 0, 0), gfx.box(0.17, 0.13, 0.26, c, 0, -0.04, 0.22), gfx.sphere(0.05, P.eye, 0, -0.01, 0.36));
   head.position.set(0, 0.72, 0.42);
-  for (const s of [-1, 1]) head.add(gfx.sphere(0.035, '#ff2a2a', s * 0.09, 0.07, 0.15, { emissive: '#ff2a2a', emissiveIntensity: 0.8 }), gfx.cone(0.06, 0.16, c, s * 0.12, 0.2, -0.04));
+  for (const s of [-1, 1]) head.add(gfx.sphere(0.045, '#ff2a2a', s * 0.09, 0.07, 0.15, { emissive: '#ff2a2a', emissiveIntensity: 1.2 }), gfx.cone(0.06, 0.16, c, s * 0.12, 0.2, -0.04));
   const jaw = gfx.group(gfx.box(0.15, 0.05, 0.22, c, 0, -0.03, 0.11), gfx.box(0.03, 0.05, 0.03, P.lane, -0.05, 0, 0.2), gfx.box(0.03, 0.05, 0.03, P.lane, 0.05, 0, 0.2));
   jaw.position.set(0, -0.1, 0.1); head.add(jaw);
   const foam = gfx.sphere(0.06, P.lane, 0, -0.06, 0.26); jaw.add(foam);
@@ -21,14 +21,16 @@ export function buildDog(gfx, fur = 0) {
   return { object: g, body, head, jaw, foam, legs, kind: 'dog' };
 }
 
-// gait 1 gallops, 0 stands and snarls; seed staggers a pack so it does not move as one.
-export function animateDog(d, time, gait = 1, seed = 0) {
-  const t = time * 15 + seed, snap = (Math.sin(time * 9 + seed) + 1) / 2;
-  d.legs.forEach((l, i) => (l.rotation.x = Math.sin(t + (i < 2 ? 0 : Math.PI)) * 0.75 * gait + Math.sin(t * 0.3 + i) * 0.06 * (1 - gait)));
-  d.body.position.y = 0.55 + Math.abs(Math.sin(t)) * 0.06 * gait;
-  d.head.rotation.x = -0.15 + Math.sin(t * 0.5) * 0.08 * gait;
-  d.jaw.rotation.x = snap * 0.55;
-  d.foam.visible = snap > 0.45;
+// gait 1 gallops flat out, 0 stands and snarls; seed staggers a pack so it does not move as one; lunge (0-1) throws the head up
+// and the jaws wide.
+export function animateDog(d, time, gait = 1, seed = 0, lunge = 0) {
+  const t = time * (15 + 9 * gait) + seed, snap = (Math.sin(time * 11 + seed) + 1) / 2;
+  d.legs.forEach((l, i) => (l.rotation.x = Math.sin(t + (i < 2 ? 0 : Math.PI)) * 0.9 * gait + Math.sin(t * 0.3 + i) * 0.06 * (1 - gait)));
+  d.body.position.y = 0.55 + Math.abs(Math.sin(t)) * 0.07 * gait;
+  d.body.rotation.x = Math.PI / 2 - lunge * 0.35; // nose up as it leaves the ground
+  d.head.rotation.x = -0.15 + Math.sin(t * 0.5) * 0.08 * gait - lunge * 0.5;
+  d.jaw.rotation.x = Math.max(snap * 0.55, lunge * 0.85);
+  d.foam.visible = snap > 0.35 || lunge > 0.3;
 }
 
 export default {
@@ -36,6 +38,16 @@ export default {
   createView(gfx) {
     const d = buildDog(gfx);
     d.object.rotation.y = Math.PI; // faces Milkshake
-    return { object: d.object, update(o, run) { animateDog(d, run.time, 0, o.z); } };
+    return {
+      object: d.object,
+      // Snarls in place from afar, runs on the spot harder as she closes, and in the last 9 m leaps at her: up 0.5 m and 0.4 m
+      // forward, which stays inside its 1.6 m hitbox, so the leap is a scare and not a cheat.
+      update(o, run) {
+        const gap = o.z - run.z, charge = Math.min(1, Math.max(0, (25 - gap) / 15)), leap = gap > 0 && gap < 9 ? Math.sin(Math.PI * (9 - gap) / 9) : 0;
+        d.object.position.y = leap * 0.5;
+        d.object.position.z = o.z - leap * 0.4;
+        animateDog(d, run.time, charge, o.z, leap);
+      },
+    };
   },
 };
