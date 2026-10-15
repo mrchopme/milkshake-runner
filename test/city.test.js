@@ -5,8 +5,9 @@ import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
-import { street, CROSS, WALK, FACADE_X } from '../packs/hifi/lib/street.js';
+import { street, CROSS, WALK, FACADE_X, DASH } from '../packs/hifi/lib/street.js';
 import { buildings } from '../packs/hifi/lib/buildings.js';
+import { furniture } from '../packs/hifi/lib/furniture.js';
 import { ROAD_HALF } from '../src/world.js';
 import { DRIVE } from '../packs/hifi/lib/traffic.js';
 import { adopt } from '../src/assets.js';
@@ -144,8 +145,8 @@ test('side-street traffic never enters the avenue: each car reappears behind the
   assert.ok(seen > 0, 'traffic was built');
 });
 
-test('board 15: nothing but the traffic lights within 2 m of the side street, at most one shelter or subway a chunk', () => {
-  for (let seed = 1; seed <= 20; seed++) {
+test('nothing but the traffic lights within 2 m of the side street, at most one shelter or subway a chunk', () => {
+  for (let seed = 1; seed <= 100; seed++) {
     const g = chunk(seed), cz = g.userData.cross.z, rare = new Set();
     g.traverse((n) => {
       const kind = n.userData.furniture;
@@ -155,6 +156,32 @@ test('board 15: nothing but the traffic lights within 2 m of the side street, at
     });
     assert.ok(rare.size <= 1, `seed ${seed}: ${rare.size} shelters or subways`);
   }
+});
+
+// Furniture in random stretches (Caedon, 2026-10-14, board 18): "WAY too many trees and streetlamps ... trees are too repetitive".
+const pieces = (g) => { let n = 0; const first = new Set(); g.traverse((m) => { const k = m.userData.furniture; if (k && !first.has(k)) { first.add(k); n += m.count; } }); return n; }; // one instance a piece in each of its kind's part meshes
+
+test('furniture stands in random stretches: the same seed places the same pieces, and a chunk holds well under half of board 15\'s rhythm', () => {
+  const placed = (seed) => { const out = []; furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 50 }).traverse((n) => { if (n.isInstancedMesh) out.push(n.userData.furniture, ...n.instanceMatrix.array); }); return out.join(); };
+  assert.equal(placed(7), placed(7));
+  assert.notEqual(placed(7), placed(8));
+  const N = 300, RHYTHM = 37.7; // board 15's rhythm, counted the same way over 500 chunks at f07cc2a
+  let n = 0;
+  for (let seed = 1; seed <= N; seed++) n += pieces(chunk(seed));
+  assert.ok(n / N < RHYTHM / 2, `${(n / N).toFixed(1)} pieces a chunk on average; board 15's rhythm placed ${RHYTHM}`);
+});
+
+test('trees come in more than one size and turn', () => {
+  const sizes = new Set(), turns = new Set(), m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+  for (let seed = 1; seed <= 20; seed++) {
+    let done = false;
+    chunk(seed).traverse((n) => {
+      if (done || n.userData.furniture !== 'tree') return;
+      done = true; // the first of the tree's part meshes: every part carries the same placement
+      for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); m.decompose(p, q, s); if (p.x > 0) { sizes.add(s.y.toFixed(3)); turns.add(q.toArray().map((v) => v.toFixed(3)).join()); } }
+    });
+  }
+  assert.ok(sizes.size > 1 && turns.size > 1, `${sizes.size} sizes and ${turns.size} turns among the right side's trees`);
 });
 
 test('two hundred dropped chunks free every instanced mesh they made and no shared material', () => {
@@ -206,6 +233,23 @@ test('the HiFi bridge stays inside its chunk and keeps a road', () => {
     assert.ok(road);
     assert.ok(meshes <= 45, `${meshes} meshes`);
   }
+});
+
+test('the road is one warm grey from the avenues onto the bridge, its lane lines solid but across the crosswalk (Caedon, board 18)', async () => {
+  const roads = new Set();
+  for (const id of ['downtown', 'midtown', 'uptown', 'bridge']) {
+    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
+    hifi.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: rng(1), theme }).traverse((n) => { if (n.userData.road) roads.add(n.material.color.getHexString()); });
+  }
+  assert.deepEqual([...roads], ['6b675a'], 'the teaser\'s road, measured');
+  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, { id: 'test', road: '#000', walk: '#888', paint: '#fff' }, cross);
+  let lines; g.traverse((n) => { if (n.isInstancedMesh && n.geometry.parameters.width === DASH.w) lines = n; });
+  const spans = [], m = new THREE.Matrix4(), p = new THREE.Vector3();
+  for (let i = 0; i < lines.count; i++) { lines.getMatrixAt(i, m); p.setFromMatrixPosition(m); if (p.x > 0) spans.push([p.z - DASH.len / 2, p.z + DASH.len / 2]); }
+  spans.sort((a, b) => a[0] - b[0]);
+  const gaps = spans.slice(1).map((x, i) => [spans[i][1], x[0]]).filter(([a, b]) => b - a > 1e-6);
+  assert.ok(spans[0][0] < 1e-6 && spans.at(-1)[1] > 120 - 1e-6, 'from one end of the chunk to the other');
+  assert.ok(gaps.length === 1 && gaps[0][0] <= cross.z && gaps[0][1] >= cross.z + CROSS.width, `breaks at ${gaps.map(([a, b]) => `${a}..${b}`).join(', ')}`);
 });
 
 test('the bridge water ripples through its own normal map, scrolled by the run clock', () => {

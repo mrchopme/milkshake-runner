@@ -5,9 +5,10 @@ import { box, wall, instanced } from './shapes.js';
 import { material } from './materials.js';
 import { DASH } from './street.js';
 import { facadeMaterial, TILE, cityFiles } from './facade.js';
-// ponytail: calibration knobs, metres (board 15): tower pairs 38 m tall every 240 m, cables down to the deck, low
-// waterfront blocks 30–50 m out wearing downtown's facades, rippling water, no sidewalks or blocks on the deck.
-const DECK = { w: 10, road: '#5a5c72', paint: '#f2f2f2' }, WATER = { y: -6, color: '#2f86ad', tile: 10, scroll: 0.03 };
+// ponytail: calibration knobs, metres (board 15): the deck in the avenues' warm grey (board 18), tower pairs 38 m tall every
+// 240 m, cables down to the deck, low waterfront blocks 30–50 m out wearing downtown's facades, rippling water, no sidewalks or
+// blocks on the deck.
+const DECK = { w: 10, road: '#6b675a', paint: '#f2f2f2' }, WATER = { y: -6, color: '#2f86ad', tile: 10, scroll: 0.03 };
 const TOWER = { every: 240, at: 60, h: 38, w: 1.6, x: 6.2, beam: 1.2 }, CABLE = { segs: 8, thick: 0.25, deckX: 4.8, deckY: 1.2, clear: 0.5 };
 const LOW = { x: 30.5, spread: 20, w: 8, minH: 2, maxH: 8 };
 export const WATERFRONT = { id: 'downtown', lit: 0, facades: cityFiles('facades', 'downtown', 5), buildings: { colors: ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3'] } }; // downtown's tiles and `lit` (they share its material key, so the two must agree)

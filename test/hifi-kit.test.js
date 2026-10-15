@@ -25,21 +25,23 @@ const standIn = ([x, y, z] = [1, 0, 0], map = null) => {
 };
 // The placed pieces at their real proportions, measured on the decoded GLBs (model units): the bounding box, and the x, z box
 // of the lowest 5% of the height, where the piece stands. A stand-in: a body filling the box above that band and a slab on
-// the footprint, so it fits and anchors as the real model does.
+// the footprint, so it fits and anchors as the real model does. A tree turns any way (board 18), so its body is its canopy's
+// reach from the trunk in any direction, a cylinder of that radius about the footprint's centre (0.37725, measured on the
+// decoded GLB: 2.31 m at KIT's 6 m; its box's corners are air).
 const REAL = {
   lamp: [[-0.1516, -0.49059, -0.27532], [0.15129, 0.4908, 0.27511], [-0.0895, 0.0412], [0.1513, 0.2751]],
   traffic_light: [[-0.20752, -0.4896, -0.16442], [0.20794, 0.48998, 0.16374], [-0.2075, -0.1284], [0.0495, 0.1288]],
   hydrant: [[-0.36861, -0.48921, -0.40538], [0.36849, 0.48897, 0.40539], [-0.2352, -0.2412], [0.2347, 0.241]],
   bench: [[-0.2859, -0.38101, -0.49045], [0.2851, 0.38177, 0.49005], [-0.2379, -0.4887], [0.2782, 0.4869]],
   bin: [[-0.28695, -0.48944, -0.28576], [0.28743, 0.49029, 0.28623], [-0.2187, -0.2194], [0.2148, 0.216]],
-  tree: [[-0.32407, -0.4901, -0.33912], [0.3248, 0.49014, 0.33846], [-0.1973, -0.2123], [0.2031, 0.1914]],
+  tree: [[-0.32407, -0.4901, -0.33912], [0.3248, 0.49014, 0.33846], [-0.1973, -0.2123], [0.2031, 0.1914], 0.37725],
   newsstand: [[-0.35633, -0.43682, -0.49027], [0.35603, 0.43757, 0.49056], [-0.3293, -0.3661], [0.2165, 0.3652]],
   bus_shelter: [[-0.30145, -0.45037, -0.48947], [0.30162, 0.4506, 0.48967], [-0.2919, -0.4717], [0.2865, 0.4729]],
   subway: [[-0.48947, -0.39242, -0.41083], [0.48956, 0.39741, 0.4108], [-0.4895, -0.4108], [0.4896, 0.4107]],
 };
-const real = ([min, max, footMin, footMax]) => {
-  const paint = tripo(), h = max[1] - min[1], body = new THREE.Mesh(new THREE.BoxGeometry(max[0] - min[0], 0.94 * h, max[2] - min[2]), paint);
-  body.position.set((min[0] + max[0]) / 2, min[1] + 0.53 * h, (min[2] + max[2]) / 2);
+const real = ([min, max, footMin, footMax, round]) => {
+  const paint = tripo(), h = max[1] - min[1], body = new THREE.Mesh(round ? new THREE.CylinderGeometry(round, round, 0.94 * h, 64) : new THREE.BoxGeometry(max[0] - min[0], 0.94 * h, max[2] - min[2]), paint);
+  body.position.set(round ? (footMin[0] + footMax[0]) / 2 : (min[0] + max[0]) / 2, min[1] + 0.53 * h, round ? (footMin[1] + footMax[1]) / 2 : (min[2] + max[2]) / 2);
   const foot = new THREE.Mesh(new THREE.BoxGeometry(footMax[0] - footMin[0], 0.04 * h, footMax[1] - footMin[1]), paint);
   foot.position.set((footMin[0] + footMax[0]) / 2, min[1] + 0.02 * h, (footMin[1] + footMax[1]) / 2);
   foot.geometry.userData.foot = true;
@@ -69,7 +71,7 @@ test('a kit piece stands on its footprint: a lamp\'s pole at the placed x, its a
   const [p, a] = [pole, arm].map((m) => { m.geometry.computeBoundingBox(); return m.geometry.boundingBox.clone().applyMatrix4(parts.find((x) => x.geometry === m.geometry).matrix); });
   const c = p.getCenter(new THREE.Vector3());
   assert.ok(Math.abs(c.x) < 1e-6 && Math.abs(c.z) < 1e-6 && Math.abs(p.min.y) < 1e-6, `the pole stands at ${c.x.toFixed(2)}, ${c.z.toFixed(2)}`);
-  assert.ok(a.max.z > 3, 'the arm reaches toward the road');
+  assert.ok(a.max.z > KIT.lamp.h / 2, 'the arm reaches toward the road'); // 0.625 of the stand-in's height out from the pole
 });
 
 test('each kit piece is painted once without the generator\'s random metal, and every copy in every chunk shares that paint', () => {
@@ -95,10 +97,9 @@ test('at their real proportions no placed piece reaches into the buildings or th
   for (let seed = 1; seed <= 40; seed++) furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 60 }).traverse((n) => {
     const kind = n.userData.furniture;
     if (!kind) return;
-    n.geometry.computeBoundingBox();
     for (let i = 0; i < n.count; i++) {
       n.getMatrixAt(i, m);
-      const b = n.geometry.boundingBox.clone().applyMatrix4(m), [near, far] = [Math.abs(b.min.x), Math.abs(b.max.x)].sort((p, q) => p - q);
+      const b = new THREE.Box3().setFromBufferAttribute(n.geometry.attributes.position.clone().applyMatrix4(m)), [near, far] = [Math.abs(b.min.x), Math.abs(b.max.x)].sort((p, q) => p - q);
       assert.ok(far <= FACADE_X - WALL + 1e-6, `seed ${seed}: ${kind} reaches x ${far.toFixed(2)}`);
       if (b.max.y > UNDER) assert.ok(far <= BLADES + 1e-6, `seed ${seed}: a ${kind} ${b.max.y.toFixed(2)} m tall reaches x ${far.toFixed(2)}, the blade signs ${BLADES.toFixed(2)} from ${UNDER.toFixed(2)} m up`);
       if (n.geometry.userData.foot) { seen.add(kind); assert.ok(near >= KERB - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`); }

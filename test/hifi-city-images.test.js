@@ -5,9 +5,10 @@ import { fileURLToPath } from 'node:url';
 import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
 import { adopt } from '../src/assets.js';
-import { facadeMaterial } from '../packs/hifi/lib/facade.js';
+import { facadeMaterial, SHOP_H } from '../packs/hifi/lib/facade.js';
 import { signs, SIGN_FILES } from '../packs/hifi/lib/signs.js';
 import { FACADE_X } from '../packs/hifi/lib/street.js';
+import { CORNICE } from '../packs/hifi/lib/buildings.js';
 import { WATERFRONT } from '../packs/hifi/lib/bridge.js';
 import bridge from '../packs/hifi/themes/bridge.js';
 
@@ -21,10 +22,12 @@ const stand = new Map(); // a stand-in texture per file, adopted as if it had lo
 const load = (p) => { if (!stand.has(p)) stand.set(p, new T.Texture()); adopt(p, stand.get(p)); };
 const pathOf = (map) => [...stand].find(([, t]) => t === map)?.[0];
 
-test('each street theme lists its five facade tiles, four storefronts, every sign image and its far and near skylines', () => {
+test('each street theme lists its five facade tiles, four storefronts, every sign image it draws and its far and near skylines', () => {
+  // the LED faces stay in public/, but nothing draws them since the stack panels turned colour blocks (Caedon, 2026-10-14, board 18)
   const SIGNS = fileURLToPath(new URL('../public/hifi/city/signs/', import.meta.url));
-  assert.deepEqual(Object.values(SIGN_FILES).flat().sort(), readdirSync(SIGNS).map((f) => `hifi/city/signs/${f}`).sort(), 'every generated sign');
+  assert.deepEqual(Object.values(SIGN_FILES).flat().sort(), readdirSync(SIGNS).filter((f) => !f.startsWith('led-')).map((f) => `hifi/city/signs/${f}`).sort(), 'every generated sign but the LED faces');
   for (const [hifi] of STREET) {
+    assert.ok(!hifi.assets.some((p) => p.startsWith('hifi/city/signs/led-')), `${hifi.id} loads no LED face`);
     assert.deepEqual(hifi.look.skyline, files('sky', hifi.id, 2), `${hifi.id}: the far ring's image, then the near one's`);
     for (const p of [...files('facades', hifi.id, 5), ...files('shops', hifi.id, 4), ...Object.values(SIGN_FILES).flat(), ...hifi.look.skyline]) assert.ok(hifi.assets.includes(p), `${hifi.id} lists ${p}`);
   }
@@ -71,25 +74,32 @@ test('a facade tile\'s own glass is glossy, only its warm lit panes glow (and on
   } finally { globalThis.OffscreenCanvas = saved; }
 });
 
-test('sign stacks wear the generated LED faces and posters, blade signs hang over the storefronts, each in its image\'s aspect', () => {
-  const style = { signs: ['#ff3b3b', '#2f7cff'], ...SIGN_FILES }, cross = { z: 50 };
+test('sign stacks are colour blocks and posters, blade signs hang over the storefronts: a block takes its drawn size, a poster or blade its image\'s aspect', () => {
+  // the teaser's big flat colour panels (Caedon, 2026-10-14, board 18): unlit-bright, never blooming or blinking
+  const style = { signs: ['#ff3b3b', '#2f7cff'], ...SIGN_FILES, buildings: STREET[1][1].buildings }, cross = { z: 50 };
   const build = (seed) => signs(gfx, { z0: 0, length: 120 }, style, rng(seed), cross).children;
+  const block = (n) => n.material.isMeshBasicMaterial;
   for (let seed = 1; seed <= 5; seed++) {
     const kids = build(seed);
-    assert.ok(kids.length === 2 && kids.every((n) => !n.material.map), 'nothing loaded: flat LED panels in bezels, and no blade signs');
-    assert.ok(kids.some((n) => n.material.isMeshBasicMaterial && n.instanceColor && n.count > 0), 'the flat panels keep their palette colours');
+    assert.ok(kids.length === 2 && kids.every((n) => !n.material.map), 'nothing loaded: colour blocks in bezels, and no blade signs');
   }
   Object.values(SIGN_FILES).flat().forEach(load);
-  const KIND = { led: SIGN_FILES.leds, poster: SIGN_FILES.posters, blade: SIGN_FILES.blades }, ASPECT = { led: 1024 / 439, poster: 1024 / 573, blade: 688 / 1024 };
+  const KIND = { poster: SIGN_FILES.posters, blade: SIGN_FILES.blades }, ASPECT = { poster: 1024 / 573, blade: 688 / 1024 };
   const seen = new Set(), m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3();
   for (let seed = 1; seed <= 20; seed++) {
     const kids = build(seed);
     assert.ok(kids.length <= 6, `seed ${seed}: ${kids.length} sign meshes`);
     for (const n of kids) {
+      if (block(n)) {
+        seen.add('block');
+        assert.ok(!n.material.map && n.instanceColor && n.count > 0 && n.material.onBeforeCompile === T.Material.prototype.onBeforeCompile, 'a block wears its palette colour, no image, and does not blink');
+        assert.ok(Math.max(n.material.color.r, n.material.color.g, n.material.color.b) < 1.6, 'a white block stays under every look\'s bloom threshold');
+        for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); m.decompose(p, q, s); assert.ok(s.x >= 4 - 1e-6 && s.x <= 6 + 1e-6 && s.y >= 3 - 1e-6 && s.y <= 4.2 + 1e-6, `a block ${s.x.toFixed(2)} x ${s.y.toFixed(2)} m`); }
+        continue;
+      }
       const path = pathOf(n.material.map), kind = Object.keys(KIND).find((k) => KIND[k].includes(path));
-      if (!path) { assert.ok(n.material.isMeshStandardMaterial && !n.material.map, 'only the bezels wear no image'); continue; }
+      if (!path) { assert.ok(n.material.isMeshStandardMaterial && !n.material.map, 'only the bezels and the blocks wear no image'); continue; }
       seen.add(kind);
-      if (kind === 'led') assert.ok(!n.instanceColor, 'an LED face shows its own colours');
       for (let i = 0; i < n.count; i++) {
         n.getMatrixAt(i, m); m.decompose(p, q, s);
         assert.ok(Math.abs(s.x / s.y / ASPECT[kind] - 1) < 1e-6, `${kind}: ${s.x.toFixed(2)} x ${s.y.toFixed(2)}`); // instance matrices are float32
@@ -100,14 +110,14 @@ test('sign stacks wear the generated LED faces and posters, blade signs hang ove
       }
     }
   }
-  assert.deepEqual([...seen].sort(), ['blade', 'led', 'poster']);
+  assert.deepEqual([...seen].sort(), ['blade', 'block', 'poster']);
   for (const theme of STREET) for (const seed of [1, 2, 3]) { let n = 0; chunk(theme, seed).traverse((x) => { if (x.isMesh) n++; }); assert.ok(n <= 45, `${theme[0].id} seed ${seed}: ${n} meshes with every image loaded`); }
 });
 
 test('every blade sign hangs under the lowest sign stack\'s bezel', () => {
   // 400 chunks of stacks: the lowest bezel (a tall poster at the stack's lowest start) came up about once in 400 lowest stacks
   Object.values(SIGN_FILES).flat().forEach(load);
-  const style = { signs: ['#ff3b3b'], ...SIGN_FILES }, m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3();
+  const style = { signs: ['#ff3b3b'], ...SIGN_FILES, buildings: STREET[1][1].buildings }, m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3();
   let bezel = Infinity, blade = -Infinity;
   for (let seed = 1; seed <= 400; seed++) for (const n of signs(gfx, { z0: 0, length: 120 }, style, rng(seed), { z: 50 }).children) {
     const isBezel = !n.material.map, isBlade = SIGN_FILES.blades.includes(pathOf(n.material.map));
@@ -118,4 +128,24 @@ test('every blade sign hangs under the lowest sign stack\'s bezel', () => {
     }
   }
   assert.ok(blade > 0 && blade < bezel, `the highest blade's top ${blade.toFixed(3)} m, the lowest bezel's bottom ${bezel.toFixed(3)} m`);
+});
+
+test('a sign stack stays under the cornice of the shortest facade its theme builds', () => {
+  // the shortest facade: measured on the theme's own buildings (a facade wall's top at the facade line); the cornice under it
+  // juts out past the panels, so a stack's top bezel stays below it
+  Object.values(SIGN_FILES).flat().forEach(load);
+  const m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3(), v = new T.Vector3();
+  for (const theme of STREET) {
+    let facade = Infinity, top = -Infinity;
+    for (let seed = 1; seed <= 60; seed++) {
+      chunk(theme, seed).traverse((n) => {
+        if (!n.userData.building) return;
+        const pos = n.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i); if (Math.abs(Math.abs(v.x) - FACADE_X) < 1e-3 && v.y > SHOP_H + 1e-3) facade = Math.min(facade, v.y); }
+      });
+      const bezels = signs(gfx, { z0: 0, length: 120 }, { signs: ['#ff3b3b'], ...SIGN_FILES, buildings: theme[1].buildings }, rng(seed), { z: 50 }).children.at(-1);
+      for (let i = 0; i < bezels.count; i++) { bezels.getMatrixAt(i, m); m.decompose(p, q, s); top = Math.max(top, p.y + s.y / 2); }
+    }
+    assert.ok(top <= facade - CORNICE.h + 1e-6, `${theme[0].id}: the highest bezel's top ${top.toFixed(2)} m, the shortest facade ${facade.toFixed(2)} m under its ${CORNICE.h} m cornice`);
+  }
 });

@@ -99,7 +99,7 @@ test('the HiFi taxi fits the shipped taxi footprint, sits on the road, and every
   const { default: hifiTaxi } = await import('../packs/hifi/obstacles/taxi.js');
   const a = hifiTaxi.createView(gfx).object, b = hifiTaxi.createView(gfx).object;
   a.updateMatrixWorld(true);
-  const box = new T.Box3().setFromObject(a.children[0]), size = box.getSize(new T.Vector3()); // the model, without the light plates
+  const box = new T.Box3().setFromObject(a.children[0]), size = box.getSize(new T.Vector3()); // the model
   const { w, d } = shipped.obstacle.taxi.box;
   assert.ok(size.x <= w + 1e-6 && size.z <= d + 1e-6, `footprint ${size.x.toFixed(2)} x ${size.z.toFixed(2)} m`);
   assert.ok(Math.abs(size.x - w) < 1e-6 || Math.abs(size.z - d) < 1e-6, 'fills the footprint along one side');
@@ -116,6 +116,14 @@ test('the HiFi taxi lights its own red tail lamps instead of laying boxes over t
   assert.deepEqual([[220, 40, 40], [245, 200, 30], [250, 250, 250], [180, 120, 40]].map((c) => isLamp(...c)), [true, false, false, false]);
   const red = (n) => n.isMesh && n.material.emissive && n.material.emissive.r > 0.9 && n.material.emissive.g < 0.5;
   assert.ok(!hifiTaxi.createView(gfx).object.children.some(red), 'no red plates over the lamps');
+});
+
+test('the HiFi taxi\'s roof does not flare in the sun: a soft clearcoat and no lit plate in its sign (Caedon, board 18)', async () => {
+  const { default: hifiTaxi } = await import('../packs/hifi/obstacles/taxi.js');
+  const o = hifiTaxi.createView(gfx).object;
+  assert.equal(o.children.length, 1, 'the model alone: the teaser\'s roof sign is unlit, and a plate is a box laid over a light');
+  let p; o.traverse((n) => { if (n.isMesh && n.material.isMeshPhysicalMaterial) p = n.material; });
+  assert.ok(p.clearcoat <= 0.5 && p.clearcoatRoughness >= 0.45, `clearcoat ${p.clearcoat}, roughness ${p.clearcoatRoughness}: a full, sharp clearcoat on the white sign caught the sun as a halo`);
 });
 
 test('gloss copies every standard field of a generated material, then adds the gloss', async () => {
