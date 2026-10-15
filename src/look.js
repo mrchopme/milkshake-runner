@@ -171,8 +171,8 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       for (const l of csm.lights) { l.color.copy(sun.color); l.intensity = sun.intensity; }
       hemi.intensity = s.ambient;
       dome.material.uniforms.top.value.set(s.skyTop);
-      // the fog, the dome's horizon and the rings' feet in one pale: where the fog cut drops a fully fogged fragment, the ring's
-      // foot or the dome (between and above the towers) shows the very colour it had faded to, so nothing bands
+      // the fog, the dome's horizon and the rings' feet in one pale: where the fog cut drops a fully fogged fragment at the
+      // horizon, the ring's foot or the dome between its towers shows the very colour it had faded to, so nothing bands
       dome.material.uniforms.bottom.value.copy(scene.fog.color);
       Object.assign(bloom, s.bloom);
       tint.value.copy(scene.fog.color);
