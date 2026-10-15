@@ -5,7 +5,7 @@ import { material } from './materials.js';
 import { facadeMaterial, shopMaterial, TILE, SHOP_H } from './facade.js';
 import { FACADE_X } from './street.js';
 // ponytail: calibration knobs, metres (board 15)
-export const DEPTH = [8, 14], GAP = 0.5, CORNICE = { h: 0.6, out: 0.35 }, SETBACK = { above: 0.6, inset: 2 }, ROOF = { maxH: 40, tower: 0.35 };
+export const DEPTH = [8, 14], GAP = 0.5, CORNICE = { h: 0.6, out: 0.35 }, SETBACK = { from: 40, above: 0.6, inset: 2 }, ROOF = { maxH: 40, tower: 0.35 };
 const merge = (T, geos) => { const g = mergeGeometries(geos.map((x) => (x.index ? x.toNonIndexed() : x)), false); geos.forEach((x) => x.dispose()); return g; };
 
 // Shells along both sides, merged into one mesh per material, so a chunk is a handful of draw calls.
@@ -21,7 +21,7 @@ export function buildings(gfx, { z0, length }, style, r, cross) {
     const h = minH + r() * (maxH - minH), f = Math.floor(r() * 5), s = Math.floor(r() * 4), color = new T.Color(colors[Math.floor(r() * colors.length)]);
     if (depth < 3) { z = end; continue; }
     const d = depth - GAP, zc = z + depth / 2, x = side * FACADE_X, face = -side; // the facade looks at the road
-    const setAt = h > 40 ? h * SETBACK.above : h;
+    const setAt = h > SETBACK.from ? h * SETBACK.above : h;
     const facade = (geo, x0) => geo.translate(x0, 0, zc);
     // storefront band, then the facade tile up to the setback, then the upper facade set back
     put(shopMaterial(gfx, style, s), facade(wall(T, d, SHOP_H, face, d, SHOP_H).translate(0, SHOP_H / 2, 0), x));

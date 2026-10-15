@@ -2,31 +2,19 @@ import { instanced } from './shapes.js';
 import { material } from './materials.js';
 import { cityFiles } from './facade.js';
 import { FACADE_X } from './street.js';
-// LED and poster stacks on the facades and blade signs over the storefronts (board 01), instanced: one draw call per image a
-// chunk draws from. A missing LED face leaves its panels flat colour, a missing poster's panel turns LED and a missing blade
-// sign is left out; each image's material is keyed by its loaded texture, so it still shows on the next chunk once it lands.
-const LED = { glow: 2.4, rate: 0.8 }; // ponytail: brightness past the bloom threshold, blinks per second
-// ponytail: calibration knobs — posters and blade images a chunk draws from (one LED face; each image is a draw call), the share
-// of stack panels that are posters, the posters' and blades' own glow (as the billboard's), and the blade signs (metres: width,
-// centre height, at least this far apart and at most twice it, off the wall)
-const PICK = 2, POSTER = 0.5, GLOW = 0.6;
-export const BLADE = { w: 1.1, y: 3.65, every: 10, wall: 0.1 }; // y: its bottom 2.83 m up clears a newsstand's top (2.78), its top 4.47 the lowest stack's bezel (at least 6.2 − 1.1 × 3 / 2 = 4.55)
-export const ASPECT = { led: 1024 / 439, poster: 1024 / 573, blade: 688 / 1024 }; // the generated images'; a panel keeps its image's aspect inside its drawn size
-export const SIGN_FILES = { leds: cityFiles('signs', 'led', 3), posters: cityFiles('signs', 'poster', 12), blades: cityFiles('signs', 'blade', 6) }; // the posters are the billboard's paths, so the cache loads each once
+import { CORNICE, SETBACK } from './buildings.js';
+// Colour-block and poster stacks on the facades and blade signs over the storefronts (board 01), instanced: one draw call per
+// image a chunk draws from. A missing poster's panel turns a colour block and a missing blade sign is left out; each image's
+// material is keyed by its loaded texture, so it still shows on the next chunk once it lands.
+// ponytail: calibration knobs — the colour blocks' brightness: lit-looking, under every look's bloom threshold, steady (the
+// teaser's big flat colour panels; Caedon, 2026-10-14, board 18: was an LED face at 2.4, blinking); posters and blade images a
+// chunk draws from (each image is a draw call), the share of stack panels that are posters, the posters' and blades' own glow
+// (as the billboard's), and the blade signs (metres: width, centre height, at least this far apart and at most twice it, off the wall)
+const LED = 1.05, PICK = 2, POSTER = 0.2, GLOW = 0.6;
+export const BLADE = { w: 1.1, y: 3.65, every: 10, wall: 0.1 }; // y: its bottom 2.83 m up clears a newsstand's top (2.78), its top 4.47 the lowest stack's bezel (at least 6.86 − 1.1 × 4.2 / 2 = 4.55)
+export const ASPECT = { poster: 1024 / 573, blade: 688 / 1024 }; // the generated images'; a poster keeps its image's aspect inside its drawn size
+export const SIGN_FILES = { posters: cityFiles('signs', 'poster', 12), blades: cityFiles('signs', 'blade', 6) }; // the posters are the billboard's paths, so the cache loads each once
 const loaded = (gfx, path) => { try { return path ? gfx.texture(path) : null; } catch { return null; } };
-
-export function ledMaterial(gfx, path) {
-  const T = gfx.three, map = loaded(gfx, path);
-  return material(map ? `led/${path}` : 'led', () => {
-    const m = new T.MeshBasicMaterial({ color: new T.Color(LED.glow, LED.glow, LED.glow), map }); // a face's own bright texels bloom, its dark ones stay dark
-    m.onBeforeCompile = (s) => { // each panel blinks on its own beat; the glow is the panel's own face, never a plate over it
-      s.uniforms.uTime = gfx.time;
-      s.vertexShader = 'varying float vBeat;\n' + s.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vBeat = fract( float( gl_InstanceID ) * 0.618 );');
-      s.fragmentShader = 'uniform float uTime;\nvarying float vBeat;\n' + s.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>\n  diffuseColor.rgb *= 0.65 + 0.35 * step( 0.5, fract( uTime * ${LED.rate.toFixed(2)} + vBeat ) );`);
-    };
-    return m;
-  }, map);
-}
 // A poster or blade sign lit by its own texels (its emissive map), so it stays bright in shade; null while its image is missing.
 function imageMaterial(gfx, path) {
   const map = loaded(gfx, path);
@@ -36,15 +24,23 @@ export function signs(gfx, { z0, length }, style, r, cross) {
   const T = gfx.three, g = gfx.group(), sets = new Map(), bezels = [], colors = []; // material -> instance matrices
   const put = (mat, m) => { if (!sets.has(mat)) sets.set(mat, []); sets.get(mat).push(m); };
   const one = (list = []) => list[Math.floor(r() * list.length)], turn = (a) => new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), a);
-  const led = ledMaterial(gfx, one(style.leds)), posters = Array.from({ length: PICK }, () => imageMaterial(gfx, one(style.posters))), blades = Array.from({ length: PICK }, () => imageMaterial(gfx, one(style.blades)));
+  const led = material('led', () => new T.MeshBasicMaterial({ color: new T.Color(LED, LED, LED) })); // its palette colour per panel
+  const posters = Array.from({ length: PICK }, () => imageMaterial(gfx, one(style.posters))), blades = Array.from({ length: PICK }, () => imageMaterial(gfx, one(style.blades)));
+  // a stack's top bezel stays under the cornice of the shortest facade the theme builds: its lowest block, or a tall block's
+  // setback (buildings.js); the cornice juts out past the panels
+  const roof = Math.min(style.buildings.minH, SETBACK.from * SETBACK.above) - CORNICE.h;
+  // board 18: bigger panels (4–6 by 3–4.2 m) 4.2 m apart up the wall, more stacks, fewer posters. The first panel's centre at
+  // 6.86 m keeps its bezel (1.1 × the panel) at 4.55 m or more, over the blade signs; one lift a stack keeps its panels apart.
   // seam: a panel spans z .. z + w (w <= 6) and its bezel 4% more each side, so the stack starts no later than 6.24 m from the end
-  for (const side of [-1, 1]) for (let z = z0 + 4; z + 6.24 <= z0 + length; z += 9 + r() * 14) {
+  for (const side of [-1, 1]) for (let z = z0 + 4; z + 6.24 <= z0 + length; z += 7 + r() * 9) {
     if (cross && z + 6.24 > cross.z && z < cross.z + 12) continue;
-    const stack = 1 + Math.floor(r() * 3), x = side * (FACADE_X - 0.08), w = 3 + r() * 3; // just off the facade, the bezel behind
+    const stack = 1 + Math.floor(r() * 3), x = side * (FACADE_X - 0.08), w = 4 + r() * 2, lift = r(); // just off the facade, the bezel behind
     for (let k = 0; k < stack; k++) {
-      const y = 6.2 + k * 3.4 + r(), h = 2.2 + r() * 0.8, color = new T.Color(style.signs[Math.floor(r() * style.signs.length)]);
-      const mat = (r() < POSTER && posters[Math.floor(r() * PICK)]) || led, a = mat === led ? ASPECT.led : ASPECT.poster, pw = Math.min(w, h * a);
-      const m = new T.Matrix4().compose(new T.Vector3(x, y, z + w / 2), turn(-side * Math.PI / 2), new T.Vector3(pw, pw / a, 1));
+      const y = 6.86 + k * 4.2 + lift, h = 3 + r() * 1.2, color = new T.Color(style.signs[Math.floor(r() * style.signs.length)]);
+      const mat = (r() < POSTER && posters[Math.floor(r() * PICK)]) || led, pw = Math.min(w, h * ASPECT.poster);
+      const [sw, sh] = mat === led ? [w, h] : [pw, pw / ASPECT.poster]; // a block its drawn size, a poster its image's aspect
+      if (y + 1.1 * sh / 2 > roof) break;
+      const m = new T.Matrix4().compose(new T.Vector3(x, y, z + w / 2), turn(-side * Math.PI / 2), new T.Vector3(sw, sh, 1));
       put(mat, m); bezels.push(m.clone().multiply(new T.Matrix4().makeScale(1.08, 1.1, 1)).setPosition(x + side * 0.03, y, z + w / 2));
       if (mat === led) colors.push(color);
     }
@@ -56,7 +52,7 @@ export function signs(gfx, { z0, length }, style, r, cross) {
   }
   for (const [mat, list] of sets) {
     const mesh = instanced(T, new T.PlaneGeometry(1, 1), mat, list);
-    if (mat === led && !led.map) colors.forEach((c, i) => mesh.setColorAt(i, c));
+    if (mat === led) colors.forEach((c, i) => mesh.setColorAt(i, c));
     g.add(mesh);
   }
   g.add(instanced(T, new T.PlaneGeometry(1, 1), material('bezel', () => new T.MeshStandardMaterial({ color: '#1b1d2a', roughness: 0.35 })), bezels));
