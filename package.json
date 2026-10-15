@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "lab": "node scripts/level-lab.js"
   },
   "dependencies": {
     "three": "^0.186.1"
