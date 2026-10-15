@@ -75,7 +75,7 @@ Expected: the two new tests FAIL (a 3-lane row with steam exists; the placed ste
 - [ ] **Step 5: Run the whole suite**
 
 Run: `npm test`
-Expected: all pass (102 tests). `the Newark obstacles read as their moves` still passes: the stray is a jump obstacle.
+Expected: all pass (101 tests: the generator test is new, the validator assertion joins an existing test). `the Newark obstacles read as their moves` still passes: the stray is a jump obstacle.
 
 - [ ] **Step 6: Update CONTRIBUTING's `placements` row** (`CONTRIBUTING.md:62`): after "a row may not block all three lanes with nothing to jump or slide" add "(a timing obstacle such as steam does not count: it is luck, not a move)".
 
@@ -100,7 +100,7 @@ git commit -m "fix: a timing obstacle never counts as a full row's escape; gener
   - `export const NOTICE = 0.45, ENDLESS_M = 3000;`
   - `export async function loadRegistry()` → the registry built from `content/` (path resolved from `import.meta.url`).
   - `export function street(level, registry, { seed, from } = {})` → `{ rules, length, obstacles, pickups, props, rows }`. `length` is `level.length_m ?? ENDLESS_M`; `from` defaults to `rules.speed.start` and is passed to `generate` as `state.speedFrom` (as `src/world.js:32` does). Each obstacle gets `def`. `rows` groups obstacles by exact `z`, sorted, each `{ z, obs, halfD, kind }` with `halfD = max(def.box.d / 2)` and `kind` one of `'dodge1' | 'dodge2' | 'wall-jump' | 'wall-slide' | 'wall-jump+slide' | 'wall-luck'` (`wall-luck`: three lanes and no jump or slide escape; impossible after Task 1, kept as a guard).
-  - `export function simulate(level, registry, { seed, notice = NOTICE, from } = {})` → `{ survived, death, time, z, actions: { left, right, jump, slide }, idle: { seconds, from_m, to_m }, windows }`. `death` is `null` or `{ id, avoid, kind, z, speed, window }`. `windows` is the list of effective windows in seconds between consecutive rows: `((row.z − row.halfD − 0.4) − (prev.z + prev.halfD + 0.4)) / speedAt(level, row.z, rules, from)`. `idle` is the longest stretch between two rows that needed an action (a lane change or a jump or slide), with its metre range.
+  - `export function simulate(level, registry, { seed, notice = NOTICE, from } = {})` → `{ survived, death, time, z, actions: { left, right, jump, slide }, idle: { seconds, from_m, to_m }, windows }`. The player box comes from `registry.character[level.character?.id] ?? registry.character.milkshake`. `death` is `null` or `{ id, avoid, kind, z, speed, window }`. `windows` is the list of effective windows in seconds between consecutive rows: `((row.z − row.halfD − 0.4) − (prev.z + prev.halfD + 0.4)) / speedAt(level, row.z, rules, from)`. `idle` is the longest stretch between two rows that needed an action (a lane change or a jump or slide), with its metre range.
 
 - [ ] **Step 1: Write the failing tests** in `test/level-lab.test.js`:
 
@@ -137,7 +137,7 @@ test('a run is deterministic and reports actions, windows and the longest idle s
   assert.ok(a.idle.seconds > 0 && a.idle.to_m > a.idle.from_m);
 });
 
-test('placed rows off the grid and a placed mover are played like generated ones', () => {
+test('placed rows off the grid and a placed mover are played like generated ones', async () => {
   const pack = { ...registry, obstacle: { ...registry.obstacle, 'demo/boulder': (await import('./fixtures/content/obstacles/demo/boulder.js')).default } };
   const s = street(fixture, pack, { seed: fixture.seed });
   assert.ok(s.rows.some((r) => r.z === 210 && r.obs.length === 2 && r.kind === 'dodge2'));
@@ -145,7 +145,7 @@ test('placed rows off the grid and a placed mover are played like generated ones
 });
 ```
 
-(The last test needs the fixture pack's boulder; `demo/forest` and `demo/robot` are not needed because `street` reads only `registry.obstacle` and `simulate` uses `registry.character.milkshake` for the player box. If the import inside a test body is awkward, build the pack once at the top with `discover` on `test/fixtures/content/`, the way `test/fixtures.test.js:16` does.)
+(The last test needs the fixture pack's boulder; `demo/forest` and `demo/robot` are not needed because `street` reads only `registry.obstacle` and `simulate` sizes the player box from `registry.character[level.character?.id] ?? registry.character.milkshake`. If the import inside a test body is awkward, build the pack once at the top with `discover` on `test/fixtures/content/`, the way `test/fixtures.test.js:16` does.)
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -208,7 +208,7 @@ Gates: `G-survival` (`survival ≥ GATES.survival`), `G-luck` (`luckDeaths === 0
 
 Bands (warn only; finite-only ones are skipped for endless): `B-speed` (`rules.speed.end / rules.speed.start ≥ BANDS.speedRatio`; for endless `rules.speed.ramp > 0`), `B-density` (`density.end − density.start ≥ BANDS.densityRise`, read from the level's base density), `B-actions` (`actionsPerMin` inside the range), `B-idle` (`idle.seconds ≤ BANDS.idleMax`), `B-finish` (`finish` inside the range), `B-jugs` (`jugs.per_100m` inside the range and `jugs.powerups.length ≥ 1`), `B-staging` (at least `floor(length_m / BANDS.stagingEvery_m)` sections carrying any of `curve`, `camera`, `theme`, `props`, `placements`; endless passes with a level-wide `curve`), `B-theme-lines` (every section with a `theme` starts on a multiple of 120, as `test/validate.test.js:151` requires of shipped levels).
 
-- [ ] **Step 1: Write the failing tests** (append to `test/level-lab.test.js`; import `playtest`, `scorecard`, `finishTime`, `GATES`):
+- [ ] **Step 1: Write the failing tests** (append to `test/level-lab.test.js`; import `playtest`, `scorecard`, `finishTime`, `GATES` from the lab and `resolveRules` from `../src/rules.js`):
 
 ```js
 test('finish time is the integral of the speed curve', () => {
@@ -319,7 +319,7 @@ test('check runs the validator on a file by its name', () => {
   assert.deepEqual(loadLevelFile(file).allIds.sort(), ['01-broadway', '02-garden', 'endless', 'last-train-newark']);
 });
 
-test('the CLI checks, refuses to play an invalid file, and plays a valid one', () => {
+test('the CLI checks, refuses to play an invalid file, and plays a valid one', async () => {
   const { spawnSync } = await import('node:child_process');
   const lab = new URL('../scripts/level-lab.js', import.meta.url).pathname;
   const run = (...args) => spawnSync(process.execPath, [lab, ...args], { encoding: 'utf8' });
