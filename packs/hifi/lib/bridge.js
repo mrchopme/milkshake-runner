@@ -10,7 +10,7 @@ import { facadeMaterial, TILE, cityFiles } from './facade.js';
 // no sidewalks or blocks on the deck. The water 2.5 m under the deck (Caedon, 2026-10-15: "the bridge water is too low"; was 6);
 // whatever stands in it reaches `below` under the surface, so no seam of the bend shows a sliver of sky under it.
 export const WATER = { y: -2.5, below: 1.5, color: '#2f86ad', tile: 10, scroll: 0.03 };
-const DECK = { w: 10, road: '#6b675a', paint: '#f2f2f2' };
+const DECK = { w: 10, road: '#6b675a', paint: '#f2f2f2' }, PIER = { every: 30, w: 7, d: 3, top: -0.9 }; // one wide pier, its top 0.1 m up inside the deck's 1 m slab
 const TOWER = { every: 240, at: 60, top: 32, w: 1.6, x: 6.2, beam: 1.2 }, CABLE = { segs: 8, thick: 0.25, deckX: 4.8, deckY: 1.2, clear: 0.5 };
 const LOW = { x: 30.5, spread: 20, w: 8, minH: 2, maxH: 8 };
 const STONE = { dry: 0.7, wet: 0.5, band: 0.6, row: 0.25 }; // the theme's darkest building colour × dry; × wet below `band` above the water
@@ -69,6 +69,12 @@ export function bridgeChunk(gfx, args, style) {
   const dashes = [];
   for (let z = z0; z + DASH.len <= z0 + length; z += DASH.every) for (const x of [lanes.width / 2, -lanes.width / 2]) dashes.push(new T.Matrix4().makeTranslation(x, 0.011, z + DASH.len / 2));
   g.add(instanced(T, new T.BoxGeometry(DASH.w, 0.02, DASH.len), std('paint', DECK.paint, 0.6), dashes));
+  // stone piers under the deck into the water (Task 31a), 15 m in from each seam, so the 30 m spacing runs on across chunks
+  const pier = stone(gfx, WATERFRONT.buildings.colors, PIER.w, PIER.top, PIER.d), piers = [];
+  for (let z = z0 + PIER.every / 2; z + PIER.d / 2 <= z0 + length; z += PIER.every) piers.push(new T.Matrix4().makeTranslation(0, 0, z));
+  const pierMesh = instanced(T, pier.geometry, pier.material, piers);
+  pierMesh.userData.pier = true;
+  g.add(pierMesh);
   // the water, its uvs in world metres so the ripples run on across chunks
   const water = new T.PlaneGeometry(400, length, 8, Math.ceil(length / 4)).rotateX(-Math.PI / 2).translate(0, WATER.y, zc);
   const p = water.attributes.position, uv = water.attributes.uv;

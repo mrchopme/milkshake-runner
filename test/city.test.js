@@ -277,6 +277,16 @@ test('a street chunk stands on land: a stone quay under the whole chunk, from ju
   }
 });
 
+test('stone piers carry the bridge deck every 30 m, seam to seam, from its underside down into the water', () => {
+  for (const z0 of [1080, 1200]) {
+    const g = bridgeChunk(z0), deck = bounds(g, (n) => n.userData.road), piers = bounds(g, (n) => n.userData.pier), zs = [], m = new THREE.Matrix4();
+    assert.ok(piers.max.y >= deck.min.y && piers.max.y < 0 && piers.min.y < WATER.y, `chunk ${z0}: piers from ${piers.min.y} to ${piers.max.y}, the deck's underside at ${deck.min.y}`); // under the road, so out of the play space
+    assert.ok(piers.min.x >= deck.min.x && piers.max.x <= deck.max.x, `chunk ${z0}: piers ${piers.min.x}..${piers.max.x} stick out of the deck`);
+    g.traverse((n) => { if (n.userData.pier) for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); zs.push(m.elements[14]); } });
+    assert.deepEqual(zs, [15, 45, 75, 105].map((z) => z0 + z), 'every 30 m, 15 m in from each seam, so the spacing runs on across chunks');
+  }
+});
+
 test('the road is one warm grey from the avenues onto the bridge, its lane lines solid but across the crosswalk (Caedon, board 18)', async () => {
   const roads = new Set();
   for (const id of ['downtown', 'midtown', 'uptown', 'bridge']) {
