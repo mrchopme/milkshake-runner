@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { lookState, cascadeHook, ringWrap, lookFog } from '../src/look.js';
+import { lookState, cascadeHook, ringWrap, ringArcs, ringArc, lookFog } from '../src/look.js';
 import { checkLook, checkModule } from '../src/registry.js';
 import { createWorld } from '../src/world.js';
 import { resolveRules } from '../src/rules.js';
@@ -132,5 +132,49 @@ test('each skyline ring turns a quarter of one image, so an image\'s middle face
       nearest = Math.min(nearest, Math.abs(Math.atan2(v.x, v.z))); // radians off the avenue's end (+z)
     }
     assert.ok(Math.abs(nearest - wrap.turn) < 1e-6, `${repeats} repeat(s): the nearest mirror axis ${nearest.toFixed(4)} rad off the avenue, a quarter image is ${wrap.turn.toFixed(4)}`);
+  }
+});
+
+test('the near ring may wear a list of one to eight images; the far ring may not, and a list holds only image paths', () => {
+  const p = (n) => `hifi/city/sky/test-${n}.webp`, many = (n) => Array.from({ length: n }, (_, i) => p(i + 2));
+  for (const ok of [[p(1), many(4)], [many(2)], [p(1), many(1)], [p(1), many(8)]]) assert.deepEqual(checkLook({ skyline: ok }), [], JSON.stringify(ok));
+  for (const bad of [[p(1), []], [p(1), many(9)], [many(1), p(2)], [many(1), many(1)], [p(1), [p(2), 'sky.jpg']], [p(1), [p(2), 'hifi/sky.glb']], [p(1), [[p(2)]]], [p(1), p(2), many(1)]]) {
+    assert.match(checkLook({ skyline: bad }).join(), /look.skyline must be one or two image paths/, JSON.stringify(bad));
+  }
+  assert.deepEqual(lookState({ sky: '#000000', look: { skyline: [p(1), many(2)] } }).skyline, [p(1), many(2)], 'the far image, then the near ring\'s list');
+  assert.deepEqual(lookState({ sky: '#000000', look: { skyline: [many(2)] } }).skyline, [many(2)], 'a list alone is the near ring');
+});
+
+test('a near ring wearing a list lays its images in order, each once, the sequence repeated a whole number of times, the first image centred on the avenue', () => {
+  const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}`);
+  const strip = [2048, 690]; // the main session's near strips: 2048 by about 690 px, one size per theme
+  const { height, arcs } = ringArcs(330, [strip, strip, strip, strip], 80);
+  assert.deepEqual(arcs.map((a) => a.image), [0, 1, 2, 3, 0, 1, 2, 3], 'four strips at 80 m cover about half the ring, so the sequence goes round twice');
+  near(height, ringWrap(330, (4 * 2048) / 690, 1, 80).height, 'the one height that closes the ring, rounded as one image\'s repeats are');
+  near(arcs.reduce((sum, a) => sum + a.length, 0), 2 * Math.PI, 'the arcs close the ring once');
+  arcs.forEach((a, k) => {
+    near((a.length * 330) / height, 2048 / 690, `arc ${k} keeps its image's aspect`);
+    if (k) near(a.start + a.length, arcs[k - 1].start, `arc ${k} starts where arc ${k - 1} ends, to its right from inside`);
+  });
+  near(arcs[0].start + arcs[0].length / 2, 0, 'the first image\'s middle faces the avenue');
+  assert.equal(ringArcs(330, Array(8).fill(strip), 80).arcs.length, 8, 'eight strips go round once');
+  const mixed = ringArcs(330, [[2048, 690], [1024, 690], [2048, 1380]], 80);
+  mixed.arcs.forEach((a, k) => near((a.length * 330) / mixed.height, [2048 / 690, 1024 / 690, 2048 / 1380][k % 3], `mixed arc ${k} keeps its own aspect at the ring's one height`));
+  near(mixed.arcs.reduce((sum, a) => sum + a.length, 0), 2 * Math.PI, 'and they still close the ring');
+});
+
+test('each arc reads left to right from inside the ring, unmirrored, as its image does', () => {
+  const { arcs } = ringArcs(330, Array(4).fill([2048, 690]), 80);
+  for (const a of [arcs[0], arcs[5]]) {
+    const arc = new THREE.Mesh(ringArc(330, a.length)); // built and placed as apply() does
+    arc.rotation.y = a.start; arc.updateMatrixWorld();
+    const p = arc.geometry.attributes.position, uv = arc.geometry.attributes.uv, v = new THREE.Vector3();
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).applyMatrix4(arc.matrixWorld);
+      const angle = Math.atan2(v.x, v.z), left = a.start + a.length; // toward +x is the view's left facing the avenue (+z)
+      const fromLeft = ((((left - angle) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI; // atan2 wraps at ±π; an arc is shorter than π
+      assert.ok(Math.abs(uv.getX(i) - fromLeft / a.length) < 1e-6, `u ${uv.getX(i).toFixed(4)} at ${angle.toFixed(4)} rad: 0 at the arc's left edge, 1 at its right`);
+      assert.ok(Math.abs(Math.hypot(v.x, v.z) - 330) < 1e-3 && Math.abs(v.y - uv.getY(i)) < 1e-6, 'on the ring (float32 positions), from its foot (v 0) to a unit top (v 1) that apply() scales');
+    }
   }
 });

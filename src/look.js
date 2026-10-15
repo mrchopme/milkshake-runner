@@ -70,6 +70,28 @@ export function ringWrap(radius, width, height, target) {
   return { repeats, height: (lap / repeats) * aspect, turn: Math.PI / (2 * repeats) };
 }
 
+// How a list of skyline images goes round its ring: in order, each once and unmirrored (its own edges meet its neighbours), the
+// sequence repeated the whole number of times ringWrap would give one image as wide as all of them, at the one height that
+// closes the ring. `sizes` are the images' [width, height] in px. Each arc is { image, start, length }: three's cylinder angle
+// (0 at the avenue's end, +z, growing toward +x, the view's left), laid left to right from inside with the first image's
+// middle at 0. Pure, so it is tested in Node.
+export function ringArcs(radius, sizes, target) {
+  const aspects = sizes.map(([w, h]) => w / h), { repeats, height } = ringWrap(radius, aspects.reduce((a, b) => a + b), 1, target);
+  const arcs = [];
+  let left = (height * aspects[0]) / radius / 2; // the first image's left edge
+  for (let r = 0; r < repeats; r++) aspects.forEach((a, image) => { const length = (height * a) / radius; arcs.push({ image, start: left - length, length }); left -= length; });
+  return { height, arcs };
+}
+
+// One image's arc of the ring, from angle 0 to `length`, a unit tall from its foot: three's cylinder runs u toward +x, right to
+// left from inside, so u is flipped to read the image the right way round.
+export function ringArc(radius, length) {
+  const geo = new THREE.CylinderGeometry(radius, radius, 1, Math.ceil((96 * length) / (2 * Math.PI)), 1, true, 0, length).translate(0, 0.5, 0);
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) uv.setX(i, 1 - uv.getX(i));
+  return geo;
+}
+
 const SKY_VERT = /* glsl */`
   varying vec3 vDir;
   void main() {
@@ -107,22 +129,28 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   // the far plane; unbent, unfogged, no shadows. A missing image hides its ring. ponytail: calibration knobs.
   // Its foot fades to the fog's colour over the lowest `fade` of the ring (the spec's "tinted to the level sky at its base"),
   // so it meets the fogged street and buildings without a band; apply() re-tints it on every theme switch. Each ring stands
-  // its look's skylineHeight (SKYLINE_HEIGHT above).
+  // its look's skylineHeight (SKYLINE_HEIGHT above). Each ring is a group: one whole cylinder for a single image, or, for a
+  // list (the near ring only, checkLook), one arc mesh per image per lap of the sequence (ringArcs), each wearing its own
+  // preloaded texture: no composed texture to build or hold, at a draw call an arc (eight for four strips twice round).
+  // ponytail: merge each image's arcs into one geometry if those draw calls ever show.
   const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08 };
   const tint = { value: new THREE.Color() };
-  const rings = RING.radius.map((r, i) => {
-    const geo = new THREE.CylinderGeometry(r, r, 1, 96, 1, true).translate(0, 0.5, 0);
-    const mat = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
+  const ringMaterial = (map = null) => {
+    const mat = new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
     mat.onBeforeCompile = (sh) => { // uv.y runs 0 at the ring's foot to 1 at its top
       sh.uniforms.tint = tint;
       sh.vertexShader = sh.vertexShader.replace('void main() {', 'varying float vRingY;\nvoid main() {\n  vRingY = uv.y;');
       sh.fragmentShader = sh.fragmentShader.replace('void main() {', `uniform vec3 tint;\nvarying float vRingY;\nvoid main() {`)
         .replace('#include <map_fragment>', `#include <map_fragment>\n  diffuseColor.rgb = mix( tint, diffuseColor.rgb, smoothstep( 0.0, ${RING.fade.toFixed(3)}, vRingY ) );`);
     };
-    const m = new THREE.Mesh(geo, mat);
-    m.renderOrder = -0.9 + i * 0.1; m.frustumCulled = false; m.visible = false; m.userData.yaw = RING.yaw;
-    scene.add(m);
-    return m;
+    return mat;
+  };
+  const rings = RING.radius.map((r, i) => {
+    const ring = new THREE.Group(), full = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 96, 1, true).translate(0, 0.5, 0), ringMaterial());
+    full.renderOrder = -0.9 + i * 0.1; full.frustumCulled = false;
+    ring.add(full); ring.visible = false; ring.userData = { full, yaw: RING.yaw };
+    scene.add(ring);
+    return ring;
   });
 
   // ponytail: calibration knobs — two shadow cascades out to 220 m (the Task 14 probe: they reach the far canyon, where one
@@ -163,7 +191,10 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       for (const l of csm.lights) l.visible = !!s; // toggled with the shadow map, so the light state changes and materials recompile once
       scene.environment = s ? env : null;
       dome.visible = !!s;
-      for (const r of rings) { r.visible = false; r.material.map = null; } // shown below when the look names a loaded image; unbound, so a later release() of the old image leaves nothing disposed bound
+      for (const r of rings) { // shown below when the look names loaded images; unbound, so a later release() of an old image leaves nothing disposed bound
+        r.visible = false; r.userData.full.material.map = null;
+        for (const arc of r.children.slice(1)) { r.remove(arc); arc.geometry.dispose(); arc.material.dispose(); } // an image's arcs share one geometry and material: disposing twice is harmless
+      }
       if (!s) return;
       scene.environmentIntensity = s.env;
       sun.color.set(s.sun.color);
@@ -178,15 +209,30 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       tint.value.copy(scene.fog.color);
       if (s.sun.dir) sunDir.set(...s.sun.dir).normalize();
       rings.forEach((ring, i) => {
-        const list = s.skyline, path = list.length === 2 ? list[i] : i === 1 ? list[0] : undefined; // two images: far, near; one: the near ring
-        let map = null;
-        try { if (path) map = texture(path); } catch { /* not loaded: no ring */ }
-        ring.visible = !!map;
-        if (!map) return;
-        // ponytail: wrap and repeat are set on the shared preloaded texture; fine while only the ring uses skyline images
-        const wrap = ringWrap(RING.radius[i], map.image.width, map.image.height, s.skylineHeight[i]);
+        const list = s.skyline, entry = list.length === 2 ? list[i] : i === 1 ? list[0] : undefined; // two entries: far, near; one: the near ring
+        let maps = null;
+        try { if (entry) maps = [].concat(entry).map((p) => texture(p)); } catch { /* not loaded: no ring */ }
+        ring.visible = !!maps;
+        if (!maps) return;
+        const { full } = ring.userData, r = RING.radius[i];
+        full.visible = !Array.isArray(entry);
+        if (Array.isArray(entry)) { // a list: each image once, unmirrored, round in order, the first one's middle at the avenue's end
+          const { height, arcs } = ringArcs(r, maps.map((m) => [m.image.width, m.image.height]), s.skylineHeight[i]);
+          const parts = maps.map((map, k) => [ringArc(r, arcs[k].length), ringMaterial(map)]); // the first lap holds each image once, in order
+          for (const a of arcs) {
+            const arc = new THREE.Mesh(...parts[a.image]);
+            arc.rotation.y = a.start; arc.renderOrder = full.renderOrder; arc.frustumCulled = false;
+            ring.add(arc);
+          }
+          ring.scale.y = height;
+          ring.userData.yaw = RING.yaw;
+          return;
+        }
+        // ponytail: wrap and repeat are set on the shared preloaded texture; fine while only the ring uses skyline images, and
+        // while no image is both a single ring's and in a list (a list's arcs leave each texture's own clamp and repeat of 1)
+        const map = maps[0], wrap = ringWrap(r, map.image.width, map.image.height, s.skylineHeight[i]);
         map.wrapS = THREE.RepeatWrapping; map.repeat.x = wrap.repeats; // the strips come mirrored, so they loop seamlessly
-        ring.material.map = map; ring.material.needsUpdate = true;
+        full.material.map = map; full.material.needsUpdate = true;
         ring.scale.y = wrap.height;
         ring.userData.yaw = RING.yaw + wrap.turn; // an image's middle, not its mirror seam, at the avenue's end
       });
