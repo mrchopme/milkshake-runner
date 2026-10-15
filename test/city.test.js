@@ -13,7 +13,7 @@ import { DRIVE } from '../packs/hifi/lib/traffic.js';
 import { adopt } from '../src/assets.js';
 import bridge from '../packs/hifi/themes/bridge.js';
 import shippedBridge from '../content/themes/bridge.js';
-import { waterMaterial } from '../packs/hifi/lib/bridge.js';
+import { waterMaterial, WATER } from '../packs/hifi/lib/bridge.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 const chunk = (seed, z0 = 0, length = 120) => downtown.createChunk.call({ ...shipped, ...downtown }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shipped, ...downtown } });
@@ -263,6 +263,18 @@ test('the bridge water lies 2.5 m under the deck, and the tower pair stands in i
   assert.ok(water.min.y === -2.5 && water.max.y === -2.5, `the water at ${water.min.y}`);
   assert.equal(towers.length, 2);
   for (const b of towers) assert.ok(b.min.y < water.min.y && Math.abs(b.max.y - 32) < 1e-6, `a tower from ${b.min.y} to ${b.max.y}`);
+});
+
+test('a street chunk stands on land: a stone quay under the whole chunk, from just under the street down into the water', async () => {
+  for (const id of ['downtown', 'midtown', 'uptown']) for (const seed of [1, 2, 3]) for (const [z0, length] of [[0, 120], [240, 80]]) {
+    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
+    const g = hifi.createChunk.call(theme, gfx, { z0, length, lanes, rng: rng(seed), theme }), at = `${id}, seed ${seed}, chunk ${z0}`;
+    const land = bounds(g, (n) => n.userData.land), rest = bounds(g, (n) => !n.userData.land);
+    assert.ok(Math.abs(land.min.z - z0) < 1e-6 && Math.abs(land.max.z - (z0 + length)) < 1e-6, `${at}: the land runs ${land.min.z}..${land.max.z}`);
+    assert.ok(land.min.y < WATER.y, `${at}: its foot at ${land.min.y}, above the water`);
+    assert.ok(land.max.y < rest.min.y && land.max.y < 0, `${at}: its top at ${land.max.y}, the street's lowest part at ${rest.min.y}`); // so nothing of it enters the play space either
+    assert.ok(land.min.x <= rest.min.x && land.max.x >= rest.max.x, `${at}: the land spans x ${land.min.x}..${land.max.x}, the chunk builds ${rest.min.x}..${rest.max.x}`);
+  }
 });
 
 test('the road is one warm grey from the avenues onto the bridge, its lane lines solid but across the crosswalk (Caedon, board 18)', async () => {

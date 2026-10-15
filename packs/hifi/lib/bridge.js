@@ -13,7 +13,8 @@ export const WATER = { y: -2.5, below: 1.5, color: '#2f86ad', tile: 10, scroll: 
 const DECK = { w: 10, road: '#6b675a', paint: '#f2f2f2' };
 const TOWER = { every: 240, at: 60, top: 32, w: 1.6, x: 6.2, beam: 1.2 }, CABLE = { segs: 8, thick: 0.25, deckX: 4.8, deckY: 1.2, clear: 0.5 };
 const LOW = { x: 30.5, spread: 20, w: 8, minH: 2, maxH: 8 };
-export const WATERFRONT = { id: 'downtown', lit: 0, facades: cityFiles('facades', 'downtown', 5), buildings: { colors: ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3'] } }; // downtown's tiles and `lit` (they share its material key, so the two must agree)
+const STONE = { dry: 0.7, wet: 0.5, band: 0.6, row: 0.25 }; // the theme's darkest building colour × dry; × wet below `band` above the water
+export const WATERFRONT ={ id: 'downtown', lit: 0, facades: cityFiles('facades', 'downtown', 5), buildings: { colors: ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3'] } }; // downtown's tiles and `lit` (they share its material key, so the two must agree)
 
 // A Node-safe ripple normal map: a few crossing sine waves, tiling, encoded as tangent-space normals.
 function rippleTexture(T, n = 64) {
@@ -43,6 +44,19 @@ export function waterMaterial(gfx) {
     };
     return m;
   });
+}
+
+// Stone standing in the water (Task 31a): the quay under a street chunk, the bridge's piers. A block `w` wide and `d` long from
+// under the water up to `top`, centred on x 0 and z 0, in the darkest of `colors` (a theme's buildings) darkened, darker still in
+// a wet band at the waterline; vertex-coloured on one shared material, so a chunk's stone is one draw call.
+export function stone(gfx, colors, w, top, d) {
+  const T = gfx.three, foot = WATER.y - WATER.below, h = top - foot;
+  const geo = new T.BoxGeometry(w, h, d, 1, Math.ceil(h / STONE.row), Math.max(1, Math.ceil(d / 4))).translate(0, foot + h / 2, 0);
+  const dry = colors.map((c) => new T.Color(c)).sort((a, b) => a.getHSL({}).l - b.getHSL({}).l)[0].multiplyScalar(STONE.dry), wet = dry.clone().multiplyScalar(STONE.wet);
+  const p = geo.attributes.position, c = new Float32Array(p.count * 3);
+  for (let i = 0; i < p.count; i++) (p.getY(i) < WATER.y + STONE.band ? wet : dry).toArray(c, i * 3); // rows every 0.25 m: the band's edge blends over one
+  geo.setAttribute('color', new T.BufferAttribute(c, 3));
+  return new T.Mesh(geo, material('stone', () => new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })));
 }
 
 export function bridgeChunk(gfx, args, style) {
