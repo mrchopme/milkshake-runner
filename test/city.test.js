@@ -7,7 +7,7 @@ import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
 import { street, CROSS, WALK, FACADE_X, DASH } from '../packs/hifi/lib/street.js';
 import { buildings } from '../packs/hifi/lib/buildings.js';
-import { furniture } from '../packs/hifi/lib/furniture.js';
+import { furniture, FOOT, SEAM } from '../packs/hifi/lib/furniture.js';
 import { ROAD_HALF } from '../src/world.js';
 import { DRIVE } from '../packs/hifi/lib/traffic.js';
 import { adopt } from '../src/assets.js';
@@ -156,6 +156,24 @@ test('nothing but the traffic lights within 2 m of the side street, at most one 
     });
     assert.ok(rare.size <= 1, `seed ${seed}: ${rare.size} shelters or subways`);
   }
+});
+
+test('a crossing\'s two traffic lights stand on diagonal corners, one before the side street and one past it across the avenue, facing the road (Caedon, board 19)', () => {
+  const nearSides = new Set(), m = new THREE.Matrix4();
+  for (let seed = 1; seed <= 100; seed++) {
+    const length = seed % 2 ? 120 : 100, g = chunk(seed, 0, length), cz = g.userData.cross.z; // 100 m: the shortest chunk with a crossing, nearest its end
+    let mesh; g.traverse((n) => { if (n.userData.furniture === 'traffic_light') mesh ??= n; }); // the stand-in: one part, so one mesh
+    const lights = [];
+    for (let i = 0; i < mesh.count; i++) { mesh.getMatrixAt(i, m); lights.push({ x: m.elements[12], z: m.elements[14], face: new THREE.Vector3(0, 0, 1).transformDirection(m) }); }
+    assert.equal(lights.length, 2, `seed ${seed}: ${lights.length} signals`);
+    const [near, far] = lights.sort((a, b) => a.z - b.z);
+    assert.ok(near.z < cz && far.z > cz + CROSS.width, `seed ${seed}: signals at z ${near.z} and ${far.z}, the side street ${cz} to ${cz + CROSS.width}`);
+    assert.ok(Math.sign(near.x) === -Math.sign(far.x), `seed ${seed}: both on the ${near.x > 0 ? 'right' : 'left'}`);
+    for (const l of lights) assert.ok(l.face.x * Math.sign(l.x) < -0.99, `seed ${seed}: the signal at x ${l.x} turns from the road`);
+    assert.ok(near.z - FOOT.traffic_light[1] >= SEAM && far.z + FOOT.traffic_light[1] <= length - SEAM, `seed ${seed}: a signal past the chunk's seam`);
+    nearSides.add(Math.sign(near.x));
+  }
+  assert.equal(nearSides.size, 2, 'the near corner falls on either side');
 });
 
 // Furniture in random stretches (Caedon, 2026-10-14, board 18): "WAY too many trees and streetlamps ... trees are too repetitive".

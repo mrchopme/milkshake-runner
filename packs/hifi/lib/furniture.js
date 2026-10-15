@@ -42,7 +42,10 @@ export function furniture(gfx, { z0, length }, style, r, cross) {
   };
   const total = STRETCH.reduce((t, x) => t + x.weight, 0);
   let rareLeft = true;
-  if (cross) for (const s of [-1, 1]) at('traffic_light', s * 5.28, cross.z - 0.5, s); // both corners before the crosswalk, the base on the sidewalk
+  // the signals on diagonal corners (Caedon, board 19, 2026-10-15: a mirrored pair read as weird): one before the side street on a
+  // side drawn at random, the other across the avenue past it, each base on the sidewalk 0.5 m from the paving. A crossing sits
+  // 30 m or more from either end of its chunk (lib/city.js), so the far one never leaves it.
+  if (cross) { const s = r() < 0.5 ? -1 : 1; at('traffic_light', s * 5.28, cross.z - 0.5, s); at('traffic_light', -s * 5.28, cross.z + CROSS.width + 0.5, -s); }
   for (const s of [-1, 1]) for (let a = z0 + SEAM, end = z0 + length - SEAM; a < end;) {
     const b = Math.min(a + SEG[0] + r() * (SEG[1] - SEG[0]), end);
     let w = r() * total;
