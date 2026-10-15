@@ -1,0 +1,1 @@
+export default { kind: 'pickup', id: 'newark/disco_fries', name: 'DISCO FRIES', blurb: 'Gravy and cheese: every jug counts triple for 8 s', color: '#d9a441', duration: 8, effect: { multiplier: 3 }, label: '3×' };

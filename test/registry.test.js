@@ -8,12 +8,13 @@ const CONTENT = fileURLToPath(new URL('../content/', import.meta.url));
 
 test('every shipped content module registers', async () => {
   const reg = buildRegistry(await discover(CONTENT));
-  assert.deepEqual(Object.keys(reg.obstacle).sort(), ['barrier_low', 'delivery_bike', 'hot_dog_cart', 'manhole_steam', 'pigeons', 'scaffold_beam', 'taxi']);
-  assert.deepEqual(Object.keys(reg.pickup).sort(), ['jug', 'magnet', 'shield', 'x2']);
-  assert.deepEqual(Object.keys(reg.prop).sort(), ['billboard', 'overpass', 'railings', 'tunnel']);
-  assert.deepEqual(Object.keys(reg.theme).sort(), ['bridge', 'downtown', 'midtown', 'uptown']);
-  assert.deepEqual(Object.keys(reg.character), ['milkshake']);
-  assert.deepEqual(Object.keys(reg.ending).sort(), ['arena_five', 'finish', 'transition']);
+  const shipped = (kind) => Object.keys(reg[kind]).filter((id) => !id.includes('/')).sort(); // the Newark pack is namespaced, like a community pack
+  assert.deepEqual(shipped('obstacle'), ['barrier_low', 'delivery_bike', 'hot_dog_cart', 'manhole_steam', 'pigeons', 'scaffold_beam', 'taxi']);
+  assert.deepEqual(shipped('pickup'), ['jug', 'magnet', 'shield', 'x2']);
+  assert.deepEqual(shipped('prop'), ['billboard', 'overpass', 'railings', 'tunnel']);
+  assert.deepEqual(shipped('theme'), ['bridge', 'downtown', 'midtown', 'uptown']);
+  assert.deepEqual(shipped('character'), ['milkshake']);
+  assert.deepEqual(shipped('ending'), ['arena_five', 'finish', 'transition']);
 });
 
 const ok = { kind: 'obstacle', id: 'ari/rock', avoid: 'lane', box: { w: 1, h: 1, d: 1 }, createView() {} };
