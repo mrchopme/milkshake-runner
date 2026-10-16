@@ -31,7 +31,6 @@ const DRESS = {
   body: [10, 16], over: 40, inset: [5, 8], shopW: 8.5, // body depth (to 40 m, above), the first setback, the tiers' insets, one shop image per ~8.5 m
 };
 const snap = (h) => SHOP_H + Math.max(2, Math.round((h - SHOP_H) / 3.5)) * 3.5; // roofs and setbacks on the floor grid: cornices never cut a window band
-export const LOWEST = snap(14); // the lowest roof any street theme's table builds; signs.js keeps its stacks under it
 // Setback tiers, monotone in h (no 41 m block's street wall above a 40 m one's): none to 40 m, one at max(40, 0.6h) to 60 m, two above.
 function tiers(h) {
   const out = h <= DRESS.over ? [] : h <= 60 ? [snap(Math.max(DRESS.over, 0.6 * h))] : [snap(Math.max(DRESS.over, 0.45 * h))];

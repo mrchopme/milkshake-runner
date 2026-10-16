@@ -7,7 +7,8 @@ import * as gfx from '../src/gfx.js';
 import { adopt, release } from '../src/assets.js';
 import { freeWith } from '../packs/hifi/lib/paint.js';
 import { facadeMaterial } from '../packs/hifi/lib/facade.js';
-import billboard from '../packs/hifi/props/billboard.js';
+import { signs, SIGN_FILES } from '../packs/hifi/lib/signs.js';
+import { rng } from '../src/generator.js';
 
 // src/main.js releases the old level's files before the next one loads, so a model can come back as new material objects. Every
 // overlay paints through lib/paint.js's painter; the barrier stands in for them all.
@@ -68,9 +69,10 @@ test('a facade tile reloaded after assets.release wears a new material, and the 
   } finally { globalThis.OffscreenCanvas = saved; }
 });
 
-test('a billboard poster reloaded after assets.release wears a new material, and the released one goes with it', () => {
-  const load = () => billboard.assets.map((p) => { const t = new T.Texture(); adopt(p, t); return t; });
-  const poster = () => billboard.createView(gfx, { z: 0, lanes: { roadHalf: 4.5 } }).object.children[2].material;
+test('a sign poster reloaded after assets.release wears a new material, and the released one goes with it', () => {
+  const style = { posters: SIGN_FILES.posters, blades: [], lit: 0 }, blocks = Array.from({ length: 10 }, (_, k) => ({ side: 1, z0: k * 12, z1: k * 12 + 11.5, h: 30, setAt: 30 }));
+  const load = () => SIGN_FILES.posters.map((p) => { const t = new T.Texture(); adopt(p, t); return t; });
+  const poster = () => signs(gfx, { z0: 0, length: 120 }, style, rng(1), null, blocks).children.find((n) => n.material.map).material;
   const first = load(), old = poster();
   assert.ok(first.includes(old.map) && old.emissiveMap === old.map, 'a poster lit by its own texels');
   let freed = 0;

@@ -4,8 +4,8 @@ import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
-import { adopt } from '../src/assets.js';
-import { facadeMaterial, SHOP_H } from '../packs/hifi/lib/facade.js';
+import { adopt, release } from '../src/assets.js';
+import { facadeMaterial } from '../packs/hifi/lib/facade.js';
 import { signs, SIGN_FILES } from '../packs/hifi/lib/signs.js';
 import { FACADE_X } from '../packs/hifi/lib/street.js';
 import { CORNICE } from '../packs/hifi/lib/buildings.js';
@@ -18,7 +18,7 @@ import bridge from '../packs/hifi/themes/bridge.js';
 const T = gfx.three, lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 const files = (dir, name, n) => Array.from({ length: n }, (_, i) => `hifi/city/${dir}/${name}-0${i + 1}.webp`);
 const STREET = await Promise.all(['downtown', 'midtown', 'uptown'].map(async (id) => [(await import(`../packs/hifi/themes/${id}.js`)).default, (await import(`../content/themes/${id}.js`)).default]));
-const chunk = ([hifi, shipped], seed) => { const theme = { ...shipped, ...hifi }; return hifi.createChunk.call(theme, gfx, { z0: 0, length: 120, lanes, rng: rng(seed), theme }); };
+const chunk = ([hifi, shipped], seed, z0 = 0) => { const theme = { ...shipped, ...hifi }; return hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }); };
 const stand = new Map(); // a stand-in texture per file, adopted as if it had loaded
 const load = (p) => { if (!stand.has(p)) stand.set(p, new T.Texture()); adopt(p, stand.get(p)); };
 const pathOf = (map) => [...stand].find(([, t]) => t === map)?.[0];
@@ -93,80 +93,105 @@ test('a facade tile\'s own glass is glossy, its window cells glow from their own
   } finally { globalThis.OffscreenCanvas = saved; }
 });
 
-test('sign stacks are colour blocks and posters, blade signs hang over the storefronts: a block takes its drawn size, a poster or blade its image\'s aspect', () => {
-  // the teaser's big flat colour panels (Caedon, 2026-10-14, board 18): unlit-bright, never blooming or blinking
-  const style = { signs: ['#ff3b3b', '#2f7cff'], ...SIGN_FILES, buildings: STREET[1][1].buildings }, cross = { z: 50 };
-  const build = (seed) => signs(gfx, { z0: 0, length: 120 }, style, rng(seed), cross).children;
-  const block = (n) => n.material.isMeshBasicMaterial;
-  for (let seed = 1; seed <= 5; seed++) {
-    const kids = build(seed);
-    assert.ok(kids.length === 2 && kids.every((n) => !n.material.map), 'nothing loaded: colour blocks in bezels, and no blade signs');
-  }
+// Task 32 (Caedon, board 23, 2026-10-15: "As prototyped, signs: none"; board 18's colour blocks withdrawn, "weird blocks of
+// colour"): nothing above the shop band but a framed poster a side a chunk (60 m apart at least) and a blade per ~100 m, each on a block of
+// the block list, lit by its own texels. RELIEF: the furthest buildings.js's facade relief reaches off the wall (a ledge).
+const RELIEF = 0.18, FRAME = 0.15, signsOf = (g) => g.children.find((n) => n.userData.signs);
+const poses = (n) => Array.from({ length: n.count }, (_, i) => { const m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3(); n.getMatrixAt(i, m); m.decompose(p, q, s); return { p, q, s }; });
+
+test('nothing above the shop band but framed posters on their blocks and the odd blade, at the theme\'s rates, lit by their own texels', () => {
   Object.values(SIGN_FILES).flat().forEach(load);
-  const KIND = { poster: SIGN_FILES.posters, blade: SIGN_FILES.blades }, ASPECT = { poster: 1024 / 573, blade: 688 / 1024 };
-  const seen = new Set(), m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3();
-  for (let seed = 1; seed <= 20; seed++) {
-    const kids = build(seed);
-    assert.ok(kids.length <= 6, `seed ${seed}: ${kids.length} sign meshes`);
-    for (const n of kids) {
-      if (block(n)) {
-        seen.add('block');
-        assert.ok(!n.material.map && n.instanceColor && n.count > 0 && n.material.onBeforeCompile === T.Material.prototype.onBeforeCompile, 'a block wears its palette colour, no image, and does not blink');
-        assert.ok(Math.max(n.material.color.r, n.material.color.g, n.material.color.b) < 1.6, 'a white block stays under every look\'s bloom threshold');
-        for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); m.decompose(p, q, s); assert.ok(s.x >= 4 - 1e-6 && s.x <= 6 + 1e-6 && s.y >= 3 - 1e-6 && s.y <= 4.2 + 1e-6, `a block ${s.x.toFixed(2)} x ${s.y.toFixed(2)} m`); }
-        continue;
-      }
-      const path = pathOf(n.material.map), kind = Object.keys(KIND).find((k) => KIND[k].includes(path));
-      if (!path) { assert.ok(n.material.isMeshStandardMaterial && !n.material.map, 'only the bezels and the blocks wear no image'); continue; }
-      seen.add(kind);
-      for (let i = 0; i < n.count; i++) {
-        n.getMatrixAt(i, m); m.decompose(p, q, s);
-        assert.ok(Math.abs(s.x / s.y / ASPECT[kind] - 1) < 1e-6, `${kind}: ${s.x.toFixed(2)} x ${s.y.toFixed(2)}`); // instance matrices are float32
-        if (kind !== 'blade') continue;
-        assert.ok(p.z >= 0 && p.z <= 120 && (p.z < cross.z || p.z > cross.z + 12), `a blade at z ${p.z.toFixed(2)}: inside its chunk, never in the side street`);
-        assert.ok(Math.abs(p.x) + s.x / 2 <= FACADE_X + 1e-9 && Math.abs(p.x) - s.x / 2 >= 4.5, `a blade at x ${p.x.toFixed(2)}, y ${p.y.toFixed(2)}: over the sidewalk`); // under the lowest stack: the test below
-        assert.ok(new T.Vector3(0, 0, 1).applyQuaternion(q).z < -0.999, 'a blade faces the oncoming camera');
-      }
-    }
-  }
-  assert.deepEqual([...seen].sort(), ['blade', 'block', 'poster']);
   // the kit loads before play too: one mesh a model, as every generated GLB is (its stand-ins, two parts for a tree or a lamp, never play)
   for (const k of Object.keys(KIT)) adopt(KIT[k].path, new T.Group().add(new T.Mesh(new T.BoxGeometry(1, 2, 1).translate(0, 1, 0), new T.MeshStandardMaterial())));
-  for (const theme of STREET) for (const seed of [1, 2, 3]) { let n = 0; chunk(theme, seed).traverse((x) => { if (x.isMesh) n++; }); assert.ok(n <= 45, `${theme[0].id} seed ${seed}: ${n} meshes with every image and model loaded`); }
-});
-
-test('every blade sign hangs under the lowest sign stack\'s bezel', () => {
-  // 400 chunks of stacks: the lowest bezel (a tall poster at the stack's lowest start) came up about once in 400 lowest stacks
-  Object.values(SIGN_FILES).flat().forEach(load);
-  const style = { signs: ['#ff3b3b'], ...SIGN_FILES, buildings: STREET[1][1].buildings }, m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3();
-  let bezel = Infinity, blade = -Infinity;
-  for (let seed = 1; seed <= 400; seed++) for (const n of signs(gfx, { z0: 0, length: 120 }, style, rng(seed), { z: 50 }).children) {
-    const isBezel = !n.material.map, isBlade = SIGN_FILES.blades.includes(pathOf(n.material.map));
-    for (let i = 0; i < n.count; i++) {
-      n.getMatrixAt(i, m); m.decompose(p, q, s);
-      if (isBezel) bezel = Math.min(bezel, p.y - s.y / 2);
-      if (isBlade) blade = Math.max(blade, p.y + s.y / 2);
-    }
-  }
-  assert.ok(blade > 0 && blade < bezel, `the highest blade's top ${blade.toFixed(3)} m, the lowest bezel's bottom ${bezel.toFixed(3)} m`);
-});
-
-test('a sign stack stays under the cornice of the shortest facade its theme builds', () => {
-  // the shortest facade: measured on the theme's own buildings (a facade wall's top at the facade line); the cornice under it
-  // juts out past the panels, so a stack's top bezel stays below it
-  Object.values(SIGN_FILES).flat().forEach(load);
-  const m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3(), v = new T.Vector3();
+  const SEEDS = 40, KIND = { poster: SIGN_FILES.posters, blade: SIGN_FILES.blades }, ASPECT = { poster: 1024 / 573, blade: 688 / 1024 };
   for (const theme of STREET) {
-    let facade = Infinity, top = -Infinity;
-    for (let seed = 1; seed <= 60; seed++) {
-      chunk(theme, seed).traverse((n) => {
-        if (!n.userData.building) return;
-        const pos = n.geometry.attributes.position;
-        for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i); if (Math.abs(Math.abs(v.x) - FACADE_X) < 1e-3 && v.y > SHOP_H + 1e-3) facade = Math.min(facade, v.y); }
-      });
-      const bezels = signs(gfx, { z0: 0, length: 120 }, { signs: ['#ff3b3b'], ...SIGN_FILES, buildings: theme[1].buildings }, rng(seed), { z: 50 }).children.at(-1);
-      for (let i = 0; i < bezels.count; i++) { bezels.getMatrixAt(i, m); m.decompose(p, q, s); top = Math.max(top, p.y + s.y / 2); }
+    const id = theme[0].id, count = { poster: 0, blade: 0 };
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      const g = chunk(theme, seed), { blocks, cross } = g.userData, kids = signsOf(g).children, at = `${id} seed ${seed}`;
+      let meshes = 0; g.traverse((x) => { if (x.isMesh) meshes++; });
+      assert.ok(meshes <= 45, `${at}: ${meshes} meshes`);
+      assert.ok(kids.length <= 5 && kids.every((n) => n.isInstancedMesh && n.material.isMeshStandardMaterial && !n.instanceColor), `${at}: ${kids.length} sign meshes, no colour blocks`);
+      const frames = kids.filter((n) => !n.material.map).flatMap(poses), perSide = { [-1]: [], [1]: [] }, on = { poster: new Set(), blade: new Set() };
+      for (const n of kids.filter((x) => x.material.map)) {
+        const kind = Object.keys(KIND).find((k) => KIND[k].includes(pathOf(n.material.map)));
+        assert.ok(kind, `${at}: a sign wears one of the generated images`);
+        assert.ok(n.material.emissiveMap === n.material.map && n.material.emissiveIntensity === (id === 'uptown' ? 0.6 : 0.2), `${at}: a ${kind} glows from its own texels, 0.2 by day, 0.6 at dusk`);
+        for (const { p, q, s } of poses(n)) {
+          count[kind]++;
+          const side = Math.sign(p.x), half = kind === 'poster' ? s.x / 2 + FRAME : 0, b = blocks.find((k) => k.side === side && p.z - half >= k.z0 - 1e-6 && p.z + half <= k.z1 + 1e-6);
+          assert.ok(Math.abs(s.x / s.y / ASPECT[kind] - 1) < 1e-5, `${at}: a ${kind} ${s.x.toFixed(2)} x ${s.y.toFixed(2)}, its image's aspect`);
+          assert.ok(b, `${at}: a ${kind} at z ${p.z.toFixed(2)} stands on one block, never across a gap`);
+          assert.ok(p.z >= 0 && p.z <= 120 && (!cross || p.z < cross.z || p.z > cross.z + 12), `${at}: a ${kind} at z ${p.z.toFixed(2)}, inside its chunk and out of the side street`);
+          assert.ok(p.y - s.y / 2 >= 4.5, `${at}: a ${kind}'s bottom ${(p.y - s.y / 2).toFixed(2)} m, over the 4.5 m line`);
+          on[kind].add(b);
+          if (kind === 'blade') {
+            assert.ok(p.y - s.y / 2 >= 6 && p.y + s.y / 2 <= 9 && Math.abs(s.x - 1.4) < 1e-5, `${at}: a 1.4 m blade from ${(p.y - s.y / 2).toFixed(2)} to ${(p.y + s.y / 2).toFixed(2)} m`);
+            assert.ok(Math.abs(p.x) - s.x / 2 >= 4.5 && Math.abs(p.x) + s.x / 2 <= FACADE_X, `${at}: a blade at x ${p.x.toFixed(2)}, over the sidewalk`);
+            assert.ok(new T.Vector3(0, 0, 1).applyQuaternion(q).z < -0.999, `${at}: a blade faces the oncoming camera`);
+            continue;
+          }
+          perSide[side].push(p.z);
+          assert.ok(p.y >= 7 && p.y <= 10, `${at}: a poster hung at ${p.y.toFixed(2)} m`);
+          assert.ok(p.y + s.y / 2 + FRAME <= Math.min(b.setAt ?? b.h, b.h) - CORNICE.h + 1e-6, `${at}: a poster's frame under its block's cornice`);
+          assert.ok(new T.Vector3(0, 0, 1).applyQuaternion(q).x * side < -0.999, `${at}: a poster faces the road`);
+          const f = frames.find((x) => Math.abs(x.p.z - p.z) < 1e-4 && Math.abs(x.p.y - p.y) < 1e-4);
+          assert.ok(f && Math.abs(f.s.x - FRAME) < 1e-5 && Math.abs(f.s.y - s.y - 2 * FRAME) < 1e-5 && Math.abs(f.s.z - s.x - 2 * FRAME) < 1e-5, `${at}: a poster in its ${FRAME} m frame`);
+          assert.ok(Math.abs(f.p.x) + FRAME / 2 <= FACADE_X - RELIEF + 1e-6 && Math.abs(p.x) < Math.abs(f.p.x) - FRAME / 2, `${at}: the frame clear of the facade relief, the poster on its face`);
+        }
+      }
+      for (const zs of Object.values(perSide)) zs.sort((a, c) => a - c).forEach((z, i) => assert.ok(!i || z - zs[i - 1] >= 60, `${at}: posters ${(z - zs[i - 1]).toFixed(1)} m apart on a side`));
+      assert.equal(frames.length, Object.values(perSide).flat().length, `${at}: a frame per poster, nothing else`);
+      assert.ok([...on.blade].every((b) => !on.poster.has(b)), `${at}: a blade never on a poster's block`);
     }
-    assert.ok(top <= facade - CORNICE.h + 1e-6, `${theme[0].id}: the highest bezel's top ${top.toFixed(2)} m, the shortest facade ${facade.toFixed(2)} m under its ${CORNICE.h} m cornice`);
+    const per100 = (n) => n / (SEEDS * 120) * 100 / 2; // per side
+    assert.ok(per100(count.poster) <= 100 / 60 && count.poster / SEEDS >= 1, `${id}: ${per100(count.poster).toFixed(2)} posters per side per 100 m, ${(count.poster / SEEDS).toFixed(2)} a chunk`);
+    const blades = count.blade / SEEDS, want = { downtown: [1, 2], midtown: [0, 0], uptown: [0.5, 1.3] }[id]; // at most one a side a chunk; midtown none, uptown about one a chunk
+    assert.ok(blades >= want[0] && blades <= want[1], `${id}: ${blades.toFixed(2)} blades a chunk`);
   }
+});
+
+test('no block list, no image or a short chunk: no stand-in signs', () => {
+  const style = { ...SIGN_FILES, lit: 0, bladeRate: 1 }, block = (side, z0, z1) => ({ side, z0, z1, h: 30, setAt: 30 }), blocks = [];
+  for (let z = 0; z < 120; z += 12) blocks.push(block(-1, z, z + 11.5), block(1, z, z + 11.5));
+  Object.values(SIGN_FILES).flat().forEach(load);
+  for (let seed = 1; seed <= 10; seed++) assert.equal(signs(gfx, { z0: 0, length: 120 }, style, rng(seed), null, []).children.length, 0, 'a theme without buildings draws no signs');
+  release([]); // nothing loaded
+  for (let seed = 1; seed <= 10; seed++) assert.equal(signs(gfx, { z0: 0, length: 120 }, style, rng(seed), null, blocks).children.length, 0, 'an image not loaded yet is left out, never a blank panel');
+  Object.values(SIGN_FILES).flat().forEach(load);
+  let drawn = 0;
+  for (let seed = 1; seed <= 10; seed++) drawn += signs(gfx, { z0: 0, length: 120 }, style, rng(seed), null, blocks).children.length;
+  assert.ok(drawn > 0, 'once loaded, the same blocks wear signs');
+});
+
+// the z of every sign wearing one of `list`'s images over four chunks in a row, a sorted list a side
+const seamRun = (theme, seed, list) => {
+  const perSide = { [-1]: [], [1]: [] };
+  for (let k = 0; k < 4; k++) for (const n of signsOf(chunk(theme, seed * 10 + k, 120 * k)).children) {
+    if (n.material.map && list.includes(pathOf(n.material.map))) for (const { p } of poses(n)) perSide[Math.sign(p.x)].push(p.z);
+  }
+  return Object.values(perSide).map((zs) => zs.sort((a, c) => a - c));
+};
+
+test('posters keep 60 m apart on a side across the seams too, though no chunk knows its neighbours', () => {
+  Object.values(SIGN_FILES).flat().forEach(load);
+  for (const theme of STREET) for (let seed = 1; seed <= 10; seed++) {
+    for (const zs of seamRun(theme, seed, SIGN_FILES.posters)) zs.forEach((z, i) => assert.ok(!i || z - zs[i - 1] >= 60, `${theme[0].id} seed ${seed}: posters ${(z - zs[i - 1]).toFixed(1)} m apart at z ${z.toFixed(1)}`));
+  }
+});
+
+test('blades keep 100 m apart on a side across the seams too (at most one a side per ~100 m)', () => {
+  Object.values(SIGN_FILES).flat().forEach(load);
+  for (const theme of STREET.filter(([h]) => h.id !== 'midtown')) { // the themes that draw blades (midtown's bladeRate is 0)
+    let seen = 0;
+    for (let seed = 1; seed <= 10; seed++) for (const zs of seamRun(theme, seed, SIGN_FILES.blades)) {
+      seen += zs.length;
+      zs.forEach((z, i) => assert.ok(!i || z - zs[i - 1] >= 100 - 1e-6, `${theme[0].id} seed ${seed}: blades ${(z - zs[i - 1]).toFixed(1)} m apart at z ${z.toFixed(1)}`));
+    }
+    assert.ok(seen > 0, `${theme[0].id}: some blades drawn`);
+  }
+});
+
+test('signs draw from their own pickBy(z0) stream, so furniture and traffic land where they did before signs (the rules)', () => {
+  const style = { ...SIGN_FILES, lit: 0, bladeRate: 1 }, blocks = [{ side: 1, z0: 2, z1: 14, h: 30, setAt: 30 }, { side: -1, z0: 60, z1: 74, h: 30, setAt: 30 }];
+  for (let seed = 1; seed <= 10; seed++) { const a = rng(seed), b = rng(seed); signs(gfx, { z0: 0, length: 120 }, style, a, null, blocks); assert.equal(a(), b(), `seed ${seed}: no draw taken`); }
 });

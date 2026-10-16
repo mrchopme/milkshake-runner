@@ -2,59 +2,70 @@ import { instanced } from './shapes.js';
 import { material } from './materials.js';
 import { cityFiles } from './facade.js';
 import { FACADE_X } from './street.js';
-import { CORNICE, LOWEST } from './buildings.js';
-// Colour-block and poster stacks on the facades and blade signs over the storefronts (board 01), instanced: one draw call per
-// image a chunk draws from. A missing poster's panel turns a colour block and a missing blade sign is left out; each image's
-// material is keyed by its loaded texture, so it still shows on the next chunk once it lands.
-// ponytail: calibration knobs — the colour blocks' brightness: lit-looking, under every look's bloom threshold, steady (the
-// teaser's big flat colour panels; Caedon, 2026-10-14, board 18: was an LED face at 2.4, blinking); posters and blade images a
-// chunk draws from (each image is a draw call), the share of stack panels that are posters, the posters' and blades' own glow
-// (as the billboard's), and the blade signs (metres: width, centre height, at least this far apart and at most twice it, off the wall)
-const LED = 1.05, PICK = 2, POSTER = 0.2, GLOW = 0.6;
-export const BLADE = { w: 1.1, y: 3.65, every: 10, wall: 0.1 }; // y: its bottom 2.83 m up clears a newsstand's top (2.78), its top 4.47 the lowest stack's bezel (at least 6.86 − 1.1 × 4.2 / 2 = 4.55)
-export const ASPECT = { poster: 1024 / 573, blade: 688 / 1024 }; // the generated images'; a poster keeps its image's aspect inside its drawn size
-export const SIGN_FILES = { posters: cityFiles('signs', 'poster', 12), blades: cityFiles('signs', 'blade', 6) }; // the posters are the billboard's paths, so the cache loads each once
+import { CORNICE } from './buildings.js';
+import { rng } from '../../../src/generator.js';
+import { pickBy } from './rand.js';
+// The signs over the shop band (Task 32, Caedon's board 23 pick, 2026-10-15: "As prototyped, signs: none"; board 18's colour
+// blocks withdrawn, "weird blocks of colour"): a framed poster a side a chunk (60 m apart at least) and a blade sign now and then, each on one
+// block of the block list (buildings.js's header) and under its cornice, instanced (a draw call per image a chunk draws from).
+// Every image glows from its own texels; one not loaded yet is left out, and its material is keyed by its texture, so it shows on
+// the next chunk once it lands. No block list (a theme without buildings), no signs.
+// ponytail: calibration knobs, metres (board 23's stack, tuned by eye). GLOW: an image's own emissive, by day (style.lit 0) and at
+// dusk (Caedon's board 23: 0.6 by day read as stuck on); PICK: images a chunk draws from. Posters: width (narrower on a short
+// block, never under 2.5), centre height range (the cornice can lower it, never under a 6 m bottom), frame margin and depth, and
+// spacing on a side (centres kept every[0] / 2 off each chunk end, so the spacing holds across a seam with no neighbour known); OFF: the frame's back off the wall, clear of the facade relief (ledges 0.18 m out). Blades: width (the
+// pictograms keep their aspect), centre height (floors 2-3, over the awnings and the fascia), off the wall, the chance of one a
+// side a chunk at style.bladeRate 1 (0.83: 100 m / 120 m, at most one a side per ~100 m), and edge: only a block starting
+// edge..length - edge into the chunk takes one, so two blades on a side keep 100 m apart across a seam with no neighbour known.
+// The rate is per z0, not per seed: the stream is pickBy(z0), so a given chunk position draws the same, whatever the level seed.
+const GLOW = { day: 0.2, dusk: 0.6 }, PICK = 2;
+const POSTER = { w: 4, min: 2.5, y: [8, 9], bottom: 6, frame: 0.15, off: 0.19, every: [60, 80] };
+export const BLADE = { w: 1.4, y: 7.2, wall: 0.1, chance: 0.83, edge: 50 };
+export const ASPECT = { poster: 1024 / 573, blade: 688 / 1024 }; // the generated images'; a poster or blade keeps its image's aspect
+export const SIGN_FILES = { posters: cityFiles('signs', 'poster', 12), blades: cityFiles('signs', 'blade', 6) };
 const loaded = (gfx, path) => { try { return path ? gfx.texture(path) : null; } catch { return null; } };
-// A poster or blade sign lit by its own texels (its emissive map), so it stays bright in shade; null while its image is missing.
-function imageMaterial(gfx, path) {
+function imageMaterial(gfx, path, glow) {
   const map = loaded(gfx, path);
-  return map && material(`sign/${path}`, () => new gfx.three.MeshStandardMaterial({ map, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: GLOW, roughness: 0.7 }), map);
+  return map && material(`sign/${path}/${glow}`, () => new gfx.three.MeshStandardMaterial({ map, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: glow, roughness: 0.7 }), map);
 }
-export function signs(gfx, { z0, length }, style, r, cross) {
-  const T = gfx.three, g = gfx.group(), sets = new Map(), bezels = [], colors = []; // material -> instance matrices
+// a part's positional arguments (city.js); signs use neither the chunk's rng (_r: they keep their own stream) nor _cross
+export function signs(gfx, { z0, length }, style, _r, _cross, blocks = []) {
+  const T = gfx.three, g = gfx.group(), sets = new Map(), frames = [];
+  g.userData.signs = true; // for tests
+  // their own stream from z0 (the rules' pickBy sub-stream): no draw from the chunk's, so furniture and traffic never reshuffle;
+  // the level seed still moves them through the block list
+  const q = rng(pickBy(z0, 2 ** 32));
   const put = (mat, m) => { if (!sets.has(mat)) sets.set(mat, []); sets.get(mat).push(m); };
-  const one = (list = []) => list[Math.floor(r() * list.length)], turn = (a) => new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), a);
-  const led = material('led', () => new T.MeshBasicMaterial({ color: new T.Color(LED, LED, LED) })); // its palette colour per panel
-  const posters = Array.from({ length: PICK }, () => imageMaterial(gfx, one(style.posters))), blades = Array.from({ length: PICK }, () => imageMaterial(gfx, one(style.blades)));
-  // a stack's top bezel stays under the cornice of the shortest facade the theme builds (buildings.js's LOWEST since Task 32's
-  // walk-ups; the block list will carry each block's own); the cornice juts out past the panels
-  const roof = Math.min(style.buildings.minH, LOWEST) - CORNICE.h;
-  // board 18: bigger panels (4–6 by 3–4.2 m) 4.2 m apart up the wall, more stacks, fewer posters. The first panel's centre at
-  // 6.86 m keeps its bezel (1.1 × the panel) at 4.55 m or more, over the blade signs; one lift a stack keeps its panels apart.
-  // seam: a panel spans z .. z + w (w <= 6) and its bezel 4% more each side, so the stack starts no later than 6.24 m from the end
-  for (const side of [-1, 1]) for (let z = z0 + 4; z + 6.24 <= z0 + length; z += 7 + r() * 9) {
-    if (cross && z + 6.24 > cross.z && z < cross.z + 12) continue;
-    const stack = 1 + Math.floor(r() * 3), x = side * (FACADE_X - 0.08), w = 4 + r() * 2, lift = r(); // just off the facade, the bezel behind
-    for (let k = 0; k < stack; k++) {
-      const y = 6.86 + k * 4.2 + lift, h = 3 + r() * 1.2, color = new T.Color(style.signs[Math.floor(r() * style.signs.length)]);
-      const mat = (r() < POSTER && posters[Math.floor(r() * PICK)]) || led, pw = Math.min(w, h * ASPECT.poster);
-      const [sw, sh] = mat === led ? [w, h] : [pw, pw / ASPECT.poster]; // a block its drawn size, a poster its image's aspect
-      if (y + 1.1 * sh / 2 > roof) break;
-      const m = new T.Matrix4().compose(new T.Vector3(x, y, z + w / 2), turn(-side * Math.PI / 2), new T.Vector3(sw, sh, 1));
-      put(mat, m); bezels.push(m.clone().multiply(new T.Matrix4().makeScale(1.08, 1.1, 1)).setPosition(x + side * 0.03, y, z + w / 2));
-      if (mat === led) colors.push(color);
+  const one = (list = []) => list[Math.floor(q() * list.length)], turn = (a) => new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), a);
+  const glow = (style.lit ?? 0) > 0 ? GLOW.dusk : GLOW.day;
+  const posters = Array.from({ length: PICK }, () => imageMaterial(gfx, one(style.posters), glow)), blades = Array.from({ length: PICK }, () => imageMaterial(gfx, one(style.blades), glow));
+  const mine = blocks.filter((b) => b.z0 >= z0 && b.z1 <= z0 + length); // buildings never cross the seam; this keeps it so
+  const ceil = (b) => Math.min(b.setAt ?? b.h, b.h) - CORNICE.h; // under the block's own cornice
+  const used = new Set(), P = POSTER, m = P.frame;
+  // posters: at most one per 60-80 m a side, centred on a block wide enough to hold it and its frame, never across a gap
+  const edge = P.every[0] / 2;
+  for (const side of [-1, 1]) {
+    let next = z0 + edge;
+    for (const b of mine.filter((x) => x.side === side)) { // low z to high (the list's order)
+      const zc = (b.z0 + b.z1) / 2, w = Math.min(P.w, b.z1 - b.z0 - 1.5), h = w / ASPECT.poster;
+      const y = Math.min(P.y[0] + q() * (P.y[1] - P.y[0]), ceil(b) - h / 2 - m);
+      const mat = posters[Math.floor(q() * PICK)];
+      if (zc < next || zc > z0 + length - edge || w < P.min || y - h / 2 < P.bottom || !mat) continue;
+      const back = FACADE_X - P.off;
+      put(mat, new T.Matrix4().compose(new T.Vector3(side * (back - m - 0.01), y, zc), turn(-side * Math.PI / 2), new T.Vector3(w, h, 1)));
+      frames.push(new T.Matrix4().compose(new T.Vector3(side * (back - m / 2), y, zc), new T.Quaternion(), new T.Vector3(m, h + 2 * m, w + 2 * m)));
+      used.add(b); next = zc + P.every[0] + q() * (P.every[1] - P.every[0]);
     }
   }
-  // blade signs: out from the wall over the sidewalk, under the lowest stack, facing the oncoming camera; never across the side street
-  for (const side of [-1, 1]) for (let z = z0 + 1 + r() * BLADE.every; z <= z0 + length - 1; z += BLADE.every * (1 + r())) {
-    const mat = blades[Math.floor(r() * PICK)];
-    if (mat && !(cross && z > cross.z - 1 && z < cross.z + 13)) put(mat, new T.Matrix4().compose(new T.Vector3(side * (FACADE_X - BLADE.wall - BLADE.w / 2), BLADE.y, z), turn(Math.PI), new T.Vector3(BLADE.w, BLADE.w / ASPECT.blade, 1)));
+  // blades: at most one a side a chunk, at the theme's rate (midtown none), out from the wall at a block's near end, on a block
+  // with no poster, starting BLADE.edge or more inside either chunk end, facing the oncoming camera
+  for (const side of [-1, 1]) {
+    const pick = q(), list = mine.filter((b) => b.side === side && b.z1 - b.z0 > 4 && !used.has(b) && b.z0 >= z0 + BLADE.edge && b.z0 <= z0 + length - BLADE.edge), b = list[Math.floor(q() * list.length)], mat = blades[Math.floor(q() * PICK)];
+    const bh = BLADE.w / ASPECT.blade;
+    if (!b || !mat || pick >= BLADE.chance * (style.bladeRate ?? 0) || BLADE.y + bh / 2 > ceil(b)) continue;
+    put(mat, new T.Matrix4().compose(new T.Vector3(side * (FACADE_X - BLADE.wall - BLADE.w / 2), BLADE.y, b.z0 + 1), turn(Math.PI), new T.Vector3(BLADE.w, bh, 1)));
   }
-  for (const [mat, list] of sets) {
-    const mesh = instanced(T, new T.PlaneGeometry(1, 1), mat, list);
-    if (mat === led) colors.forEach((c, i) => mesh.setColorAt(i, c));
-    g.add(mesh);
-  }
-  g.add(instanced(T, new T.PlaneGeometry(1, 1), material('bezel', () => new T.MeshStandardMaterial({ color: '#1b1d2a', roughness: 0.35 })), bezels));
+  for (const [mat, list] of sets) g.add(instanced(T, new T.PlaneGeometry(1, 1), mat, list));
+  if (frames.length) g.add(instanced(T, new T.BoxGeometry(1, 1, 1), material('sign/frame', () => new T.MeshStandardMaterial({ color: '#23242c', roughness: 0.55 })), frames));
   return g;
 }
