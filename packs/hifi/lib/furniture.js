@@ -21,9 +21,10 @@ import { CROSS, FACADE_X, WALK } from './street.js';
 // The benches, bins, newsstands, the rare shelter or subway and the hydrants keep board 18's stretches and rates in what is left.
 // Everything the rhythm adds is hashed from its place (pickBy), so it draws nothing from the chunk's stream.
 // ponytail: calibration knobs. pitch [8, 10] (the prototype's [8, 12] made the lamps 16-24 m apart; the brief's band is 10-20 and
-// Caedon asked for "about every 18 m": at 120 m the odd n are 13 and 15, P 9.23 or 8, 2P 18.5 or 16). trees: kind -> x; 6.0 because the canopy reaches 2.31k m (k up to 0.9), so it
-// ends at 3.92, clear of the outer lane's edge at 3.75. A second tree model slots in as a KIT entry plus a row here, its FOOT
-// (the trunk, inside the pit's soil) and its REAL in the kit test; TINT's `from` is tree.glb's measured green, so key it by kind then. dusk: the lamps' glow in a `lit` theme (KIT.lamp's 1.2 by day).
+// Caedon asked for "about every 18 m": at 120 m the odd n are 13 and 15, P 9.23 or 8, 2P 18.5 or 16). trees: kind -> x; 6.0 because
+// the canopy reaches 2.31k m (k up to 0.9), so it ends at 3.92, clear of the outer lane's edge at 3.75. A second tree model slots in
+// as a KIT entry plus a row here, its FOOT (the trunk, inside the pit's soil) and its REAL in the kit test; TINT's `from` is
+// tree.glb's measured green, so key it by kind then. dusk: the lamps' glow in a `lit` theme (KIT.lamp's 1.2 by day).
 export const RHYTHM = { pitch: [8, 10], trees: { tree: 6.0 }, lamp: 5.33, scale: [0.75, 0.9], jitter: 0.06, dusk: 2 };
 // the flush pit under every tree: `size` m square, a stone rim `rim` m wide round dark soil, their tops 1-1.5 cm over the sidewalk's
 export const PITS = { size: 1.5, rim: 0.1, stone: '#9a968f', soil: '#3a2e25' };
