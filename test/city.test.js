@@ -454,7 +454,7 @@ test('a loaded car model drives along the cross street whatever its own frame, a
 });
 
 test('the HiFi bridge stays inside its chunk and keeps a road', () => {
-  for (const seed of [1, 2, 3]) for (const z0 of [1080, 1200]) { // 1200 % 240 === 0: the chunk with a tower pair and its cables
+  for (const seed of [1, 2, 3]) for (const z0 of [1080, 1200]) { // Task 32: every chunk has its portal at z0 + 45 (was a tower pair every 240 m)
     const g = bridgeChunk(z0, seed);
     const [lo, hi] = zSpan(g);
     assert.ok(lo >= z0 - 1e-6 && hi <= z0 + 120 + 1e-6, `${lo}..${hi}`);
@@ -466,13 +466,12 @@ test('the HiFi bridge stays inside its chunk and keeps a road', () => {
 
 // Smooth transitions to and from the bridge (Task 31a, Caedon, 2026-10-15): "the bridge water is too low and when you're moving
 // from that to the buildings you see floating buildings with nothing underneath it".
-test('the bridge water lies 2.5 m under the deck, out to the horizon either side, and the tower pair stands in it with its tops still 32 m up', () => {
-  const g = bridgeChunk(1200), water = bounds(g, (n) => n.material === waterMaterial(gfx)), towers = [];
-  g.traverse((n) => { if (n.isMesh && !n.isInstancedMesh) { const b = bounds(n); if (b.max.y - b.min.y > 20) towers.push(b); } });
+test('the bridge water lies 2.5 m under the deck, out to the horizon either side, and the portal stands in it, 45 m up', () => {
+  const g = bridgeChunk(1200), water = bounds(g, (n) => n.material === waterMaterial(gfx)), portal = bounds(g, (n) => n.userData.portal);
   assert.ok(water.min.y === -2.5 && water.max.y === -2.5, `the water at ${water.min.y}`);
   assert.ok(water.min.x <= -300 && water.max.x >= 300, `the water spans x ${water.min.x}..${water.max.x}: it stops short of the fog's far end (the main session's Task 31a fix round 1)`);
-  assert.equal(towers.length, 2);
-  for (const b of towers) assert.ok(b.min.y < water.min.y && Math.abs(b.max.y - 32) < 1e-6, `a tower from ${b.min.y} to ${b.max.y}`);
+  // re-pinned (Task 32): Caedon's board 25 pick replaces Task 31's 32 m tower pair every 240 m with one 45 m portal every 120 m
+  assert.ok(portal.min.y < water.min.y && Math.abs(portal.max.y - 45) < 1e-6, `the portal from ${portal.min.y} to ${portal.max.y}`);
 });
 
 test('a street chunk stands on land: a stone quay under the whole chunk, from just under the street down into the water', async () => {
@@ -492,7 +491,9 @@ test('stone piers carry the bridge deck every 30 m, seam to seam, from its under
   for (const z0 of [1080, 1200]) {
     const g = bridgeChunk(z0), deck = bounds(g, (n) => n.userData.road), piers = bounds(g, (n) => n.userData.pier), zs = [], m = new THREE.Matrix4();
     assert.ok(piers.max.y >= deck.min.y && piers.max.y < 0 && piers.min.y < WATER.y, `chunk ${z0}: piers from ${piers.min.y} to ${piers.max.y}, the deck's underside at ${deck.min.y}`); // under the road, so out of the play space
-    assert.ok(piers.min.x >= deck.min.x && piers.max.x <= deck.max.x, `chunk ${z0}: piers ${piers.min.x}..${piers.max.x} stick out of the deck`);
+    // re-pinned (Task 32): board 25's portal stands on the pier under it, sized to its legs, so that one pier is wider than the deck
+    const legs = bounds(g, (n) => n.userData.portal);
+    assert.ok(piers.min.x <= deck.min.x && piers.max.x >= deck.max.x && piers.min.x >= legs.min.x - 1e-6 && piers.max.x <= legs.max.x + 1e-6, `chunk ${z0}: piers ${piers.min.x}..${piers.max.x}, the deck ${deck.min.x}..${deck.max.x}, the legs ${legs.min.x}..${legs.max.x}`);
     g.traverse((n) => { if (n.userData.pier) for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); zs.push(m.elements[14]); } });
     assert.deepEqual(zs, [15, 45, 75, 105].map((z) => z0 + z), 'every 30 m, 15 m in from each seam, so the spacing runs on across chunks');
   }

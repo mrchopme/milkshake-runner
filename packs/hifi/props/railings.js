@@ -21,9 +21,10 @@ export default {
   },
 };
 
-// fit: the model's units to metres, centred, its base at y = 0, the section PITCH long and HEIGHT tall (its thickness scaled with the height).
-function build(T, model) {
-  const b = new T.Box3().setFromObject(model), size = b.getSize(new T.Vector3()), c = b.getCenter(new T.Vector3()), s = HEIGHT / size.y;
-  const fit = new T.Matrix4().makeScale(s, s, PITCH / size.z).multiply(new T.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z));
+// fit: the model's units to metres, centred, its base at y = 0, the section `pitch` long and `height` tall (its thickness scaled with
+// the height). The HiFi bridge's walkway railings (lib/bridge.js) reuse it.
+export function build(T, model, pitch = PITCH, height = HEIGHT) {
+  const b = new T.Box3().setFromObject(model), size = b.getSize(new T.Vector3()), c = b.getCenter(new T.Vector3()), s = height / size.y;
+  const fit = new T.Matrix4().makeScale(s, s, pitch / size.z).multiply(new T.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z));
   return { fit };
 }
