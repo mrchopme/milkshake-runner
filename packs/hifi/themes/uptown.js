@@ -11,6 +11,11 @@ const SKYLINE = [[1, 2, 3, 4].map((n) => `hifi/city/sky/uptown-near-${n}.webp`)]
 export default {
   kind: 'theme', id: 'uptown',
   assets: [...STYLE.facades, ...STYLE.shops, ...Object.values(SIGN_FILES).flat(), ...SKYLINE.flat(), ...KIT_FILES],
-  look: { skyline: SKYLINE, skylineHeight: [100, 70], exposure: 0.9, sun: { color: '#f3d4ff', intensity: 1.6 }, ambient: 0.8, env: 0.8, skyTop: '#6d4fa8', bloom: { strength: 0.55, threshold: 1.6, radius: 0.5 } },
+  // The rig (Caedon, board 22, 2026-10-15): no sun to speak of (a faint violet key, high, for soft contact shadows), a violet
+  // fill, a violet sky to pink-magenta and no disc, deep plum haze deepening low down, the skyline dimmed lavender with its lit
+  // windows kept; bloom low so they halo. ponytail: calibration knobs, tuned by eye.
+  look: { skyline: SKYLINE, skylineHeight: [100, 70], exposure: 0.75, sun: { color: '#b9a3ff', intensity: 0.45, dir: [0, -0.87, -0.5] }, ambient: 3.2, env: 0.45, hemi: { sky: '#9a7fd4', ground: '#4a3044' },
+    skyTop: '#8f68c6', skyBottom: '#d892d6', fog: { color: '#6a4e74', near: 120, pale: 0, shade: '#4f3a5e', y: [0, 35] }, skylineHaze: { mul: '#9a86a0', mix: [0.3, 0.05], flatten: 0, foot: 0 },
+    bloom: { strength: 0.55, threshold: 0.95, radius: 0.5 } },
   createChunk(gfx, args) { return cityChunk(gfx, args, { ...STYLE, buildings: args.theme.buildings }); },
 };
