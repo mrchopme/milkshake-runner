@@ -17,7 +17,7 @@ import bridge from '../packs/hifi/themes/bridge.js';
 const T = gfx.three, lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 const files = (dir, name, n) => Array.from({ length: n }, (_, i) => `hifi/city/${dir}/${name}-0${i + 1}.webp`);
 const STREET = await Promise.all(['downtown', 'midtown', 'uptown'].map(async (id) => [(await import(`../packs/hifi/themes/${id}.js`)).default, (await import(`../content/themes/${id}.js`)).default]));
-const chunk = ([hifi, shipped], seed) => { const theme = { ...shipped, ...hifi }; return hifi.createChunk.call(theme, gfx, { z0: 0, length: 120, lanes, rng: rng(seed), theme }); };
+const chunk = ([hifi, shipped], seed, z0 = 0) => { const theme = { ...shipped, ...hifi }; return hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }); };
 const stand = new Map(); // a stand-in texture per file, adopted as if it had loaded
 const load = (p) => { if (!stand.has(p)) stand.set(p, new T.Texture()); adopt(p, stand.get(p)); };
 const pathOf = (map) => [...stand].find(([, t]) => t === map)?.[0];
@@ -160,7 +160,18 @@ test('no block list, no image or a short chunk: no stand-in signs', () => {
   assert.ok(drawn > 0, 'once loaded, the same blocks wear signs');
 });
 
-test('signs take one draw from the chunk stream, so furniture and traffic land where the boards had them', () => {
+test('posters keep 60 m apart on a side across the seams too, though no chunk knows its neighbours', () => {
+  Object.values(SIGN_FILES).flat().forEach(load);
+  for (const theme of STREET) for (let seed = 1; seed <= 10; seed++) {
+    const perSide = { [-1]: [], [1]: [] };
+    for (let k = 0; k < 4; k++) for (const n of signsOf(chunk(theme, seed * 10 + k, 120 * k)).children) {
+      if (n.material.map && SIGN_FILES.posters.includes(pathOf(n.material.map))) for (const { p } of poses(n)) perSide[Math.sign(p.x)].push(p.z);
+    }
+    for (const zs of Object.values(perSide)) zs.sort((a, c) => a - c).forEach((z, i) => assert.ok(!i || z - zs[i - 1] >= 60, `${theme[0].id} seed ${seed}: posters ${(z - zs[i - 1]).toFixed(1)} m apart at z ${z.toFixed(1)}`));
+  }
+});
+
+test('signs draw from their own pickBy(z0) stream, so furniture and traffic land where they did before signs (the rules)', () => {
   const style = { ...SIGN_FILES, lit: 0, bladeRate: 1 }, blocks = [{ side: 1, z0: 2, z1: 14, h: 30, setAt: 30 }, { side: -1, z0: 60, z1: 74, h: 30, setAt: 30 }];
-  for (let seed = 1; seed <= 10; seed++) { const a = rng(seed), b = rng(seed); signs(gfx, { z0: 0, length: 120 }, style, a, null, blocks); b(); assert.equal(a(), b(), `seed ${seed}`); }
+  for (let seed = 1; seed <= 10; seed++) { const a = rng(seed), b = rng(seed); signs(gfx, { z0: 0, length: 120 }, style, a, null, blocks); assert.equal(a(), b(), `seed ${seed}: no draw taken`); }
 });
