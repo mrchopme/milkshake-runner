@@ -153,11 +153,11 @@ test('nothing new stands over the road below the portal beams', () => {
 test('the water, retuned: a steel blue, faint reflections, finer ripples, facets, and a fog fade from 40 m without the height fog\'s shade', () => {
   const g = chunk(1200), w = find(g, 'water')[0], m = waterMaterial(gfx);
   assert.equal(w.material, m);
-  assert.equal(m.color.getHexString(), new THREE.Color('#3a92cf').getHexString());
+  assert.equal(m.color.getHexString(), new THREE.Color('#2f6fb0').getHexString());
   assert.ok(m.roughness <= 0.15 && m.userData.reflect === 0.2, 'glossy, so look.js gives it the env at userData.reflect');
   assert.equal(w.geometry.parameters.widthSegments, 60);
   const p = w.geometry.attributes.position, uv = w.geometry.attributes.uv;
-  for (let i = 0; i < p.count; i += 97) assert.ok(near(uv.getX(i), p.getX(i) / 3, 1e-3) && near(uv.getY(i), -p.getZ(i) / 3, 1e-3), 'a 3 m tile in world metres');
+  for (let i = 0; i < p.count; i += 97) assert.ok(near(uv.getX(i), p.getX(i) / WATER.tile, 1e-3) && near(uv.getY(i), -p.getZ(i) / WATER.tile, 1e-3), `a ${WATER.tile} m tile in world metres`);
   const s = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader }; // the material may be bent by now (gfx.bend above)
   m.onBeforeCompile(s);
   assert.ok(s.fragmentShader.includes('#define fogNear 40.0\n#define uFogShade fogColor\n#include <fog_fragment>'), 'the water fogs from 40 m, in the fog colour at any height');

@@ -14,7 +14,7 @@ import { facadeMaterial, TILE, cityFiles } from './facade.js';
 // meets water, not a pale band. Retuned (board 25): a steel blue (aim: the frames' #4679b2-#628db7 with #aee1f7 glints), env 0.2
 // (look.js honours userData.reflect while roughness <= 0.15, so 0.15 is the most satin it can be), a 3 m ripple tile, 60 facets
 // across, and its own fog from `fogNear` m in the fog's colour (the bridge look's height-fog shade would darken it below the deck).
-export const WATER = { y: -2.5, below: 1.5, half: 300, color: '#3a92cf', rough: 0.15, reflect: 0.2, tile: 3, segs: 60, fogNear: 40, scroll: 0.03 };
+export const WATER = { y: -2.5, below: 1.5, half: 300, color: '#2f6fb0', rough: 0.15, reflect: 0.2, tile: 7, segs: 60, fogNear: 40, scroll: 0.03 };
 const DECK = { w: 16, road: '#5a596e', walk: '#a9a8b6', walkW: 3, walkH: 0.25, edge: 0.3, paint: '#f2f2f2' }; // edge lines at ±(roadHalf + edge)
 const PIER = { every: 30, d: 3, top: -0.9 }; // as wide as the deck (the portal's as its legs), its top 0.1 m up inside the deck's 1 m slab
 // ponytail: railings.glb sections stretched to `pitch`, standing on the walkway `inset` in from the deck edge, in one satin steel-blue
