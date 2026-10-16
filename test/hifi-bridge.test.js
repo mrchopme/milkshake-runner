@@ -153,7 +153,7 @@ test('nothing new stands over the road below the portal beams', () => {
 test('the water, retuned: a steel blue, faint reflections, finer ripples, facets, and a fog fade from 40 m without the height fog\'s shade', () => {
   const g = chunk(1200), w = find(g, 'water')[0], m = waterMaterial(gfx);
   assert.equal(w.material, m);
-  assert.equal(m.color.getHexString(), new THREE.Color('#2f6fb0').getHexString());
+  assert.equal(m.color.getHexString(), new THREE.Color('#2f6fb0').getHexString(), 'deeper than C6\'s #3a92cf, which read pale in the merged build (the main session\'s re-shoot; Caedon, board 25: "water retuned in the clean build")');
   assert.ok(m.roughness <= 0.15 && m.userData.reflect === 0.2, 'glossy, so look.js gives it the env at userData.reflect');
   assert.equal(w.geometry.parameters.widthSegments, 60);
   const p = w.geometry.attributes.position, uv = w.geometry.attributes.uv;

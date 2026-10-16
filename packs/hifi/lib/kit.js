@@ -18,7 +18,7 @@ export const GUARD = { top: 1.95, free: 1.6, out: 0.8, trunk: 0.45 };
 // ponytail: calibration knobs, metres at KIT's 6 m (Task 32 C7, Caedon's T3; measured on the decoded tree2.glb): the new tree stands on
 // its own pit, a 3 m square slab 0.12 m deep, its trunk r 0.31 at the slab and 0.27 under the canopy. Every triangle below 0.2 m goes
 // (the slab, the trunk's cap); the trunk's foot drops to the ground within r 0.32, so it stands in the kit's pit as the first tree does.
-export const SLAB = { top: 0.2, free: 0.2, out: 0, trunk: 0.32 };
+const SLAB = { top: 0.2, free: 0.2, out: 0, trunk: 0.32 };
 // ponytail: calibration knob (Task 32 C7): tree2's leaves (mean #4f8228, measured over its map's leaf texels) times LIFT come to tree.glb's
 // mean (#76a244), so TINT (lib/furniture.js), calibrated on tree.glb's rendered green, lands both trees on the frames' (keying TINT's
 // `from` by model instead multiplied tree2's blue 6x, the trunk going mauve). Its bark and nothing else stay as generated.

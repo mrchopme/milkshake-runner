@@ -36,7 +36,7 @@ export const PLANTER = { x: 9.8, dz: 1.2, chance: 0.5 };
 // lifted a step by the main session after board 24), then +/- `value` in value and up to `olive` toward olive, hashed from the place
 export const TINT = { downtown: ['#6ca126', '#4f8a3a'], midtown: ['#61901d', '#7a8a3a'], uptown: ['#5b831e', '#5f6a2a'], value: 0.08, olive: 0.08 };
 // uptown's light pools: one additive radial quad under each lamp's head, `r` m out, centred `in` m toward the road from the pole
-export const POOL = { r: 2.2, in: 1.0, color: '#c9927d' };
+const POOL = { r: 2.2, in: 1.0, color: '#c9927d' };
 // board 18's stretches for the rest, SEG m long, each drawing one kind by weight, and a hydrant on top by chance. The bare weight
 // holds the old tree and lamp stretches' 0.34, so the extras' rates are board 18's; the stream is not (the old tree and lamp draws
 // are gone), so the later parts (traffic) and the board 18 and stack stills reshuffle.
@@ -108,7 +108,7 @@ export function furniture(gfx, { z0, length }, style, r, cross, blocks) {
     if (kind in RHYTHM.trees) tint(T, m, mats, style);
     g.add(m);
   }
-  if (pits.length) { const m = instanced(T, pitGeometry(T), material('kit/pit', () => new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })), pits); m.userData.pit = true; g.add(m); }
+  if (pits.length) { const m = instanced(T, pitGeometry(T), material('kit/pit', () => new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 })), pits); m.userData.pit = true; g.add(m); noShadow(m); }
   if (style?.lit > 0 && pools.length) { const m = instanced(T, poolGeometry(T), poolMaterial(T), pools); m.userData.pool = true; g.add(m); }
   return g;
 }
@@ -134,6 +134,10 @@ function tint(T, mesh, mats, style) {
 }
 // The shapes every chunk shares, built once and flagged shared (a few boxes and two quads: never freed).
 const shared = (g) => { g.userData.shared = true; return g; };
+// ponytail: the 1.5 cm pit casts no shadow (it drew into both cascades for nothing visible). gfx.bend marks every opaque mesh a
+// caster after the parts are built, and this part's group sits inside the chunk's, so no 'added' of its own fires after the bend
+// (the cable's re-set in bridge.js works only on the chunk's group): the flag is pinned instead.
+const noShadow = (m) => Object.defineProperty(m, 'castShadow', { get: () => false, set() {} });
 let pitShape = null, poolShape = null, poolMap = null;
 // a rim of four stone strips round a dark soil square, vertex-coloured
 function pitGeometry(T) {

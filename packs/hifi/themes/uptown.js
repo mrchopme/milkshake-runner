@@ -5,7 +5,11 @@ import { furniture } from '../lib/furniture.js';
 import { traffic } from '../lib/traffic.js';
 import { KIT_FILES } from '../lib/kit.js';
 import { cityFiles } from '../lib/facade.js';
-// HiFi look for uptown (endless, a purple dusk). ponytail: calibration knobs; `bladeRate` the blade signs' rate (lib/signs.js; board 23: downtown 1, midtown none, uptown about one a chunk); `lit` marks dusk (signs read it; the windows glow from `glow`); `ground` the cool grey road per scene over asphalt (Caedon, 2026-10-15, replacing board 18's warm grey) and the walk, each the mean colour it renders at over its tile, its roughness, the paving's flag size in metres (board 24; hexes tuned by eye in the Task 32 stack).
+// HiFi look for uptown (endless, a purple dusk). ponytail: calibration knobs; `bladeRate` the blade signs' rate (lib/signs.js;
+// board 23: downtown 1, midtown none, uptown about one a chunk); `lit` marks dusk (the signs and the lamps read it, the light
+// pools need it; the windows glow from `glow`); `ground` the cool grey road per scene over asphalt (Caedon, 2026-10-15, replacing
+// board 18's warm grey) and the walk, each the mean colour it renders at over its tile, its roughness, the paving's flag size in
+// metres (board 24; hexes tuned by eye in the Task 32 stack).
 // The walls (Task 32, Caedon's board 23 pick, "as prototyped"; buildings.js reads them). ponytail: calibration knobs. heights: a random
 // walk of 0/3.5/7 m steps in 14-28 m on the floor grid, 10% outliers 31.5-35 m, never the same tile twice in a row; saturation down
 // (the main session's tint); 70% of window cells lit amber at 1.2 from their own panes, never uptown-02's (its fire escape reads as

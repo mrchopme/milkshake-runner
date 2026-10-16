@@ -198,14 +198,17 @@ test('each street theme\'s heights follow its table: walk-ups and towers in runs
   }
 });
 
-test('the walls draw their layout from their own sub-streams: the shared stream leaves buildings where it always did', () => {
-  // signs, furniture and traffic read the shared stream after buildings: a theme's walls tables must never move them
+test('the walls seed their sub-streams from one draw of the chunk stream: the same seed, the same blocks', () => {
+  // a theme's walls tables never move the shared stream: whatever the style, buildings takes exactly one draw from it
   const plain = { id: 't32-plain', buildings: shipped.buildings, facades: [] }, walls = { ...plain, id: 't32-walls', heights: HEIGHTS_RUNS, bodies: ['#808080'], trim: '#ffffff' };
-  for (let seed = 1; seed <= 10; seed++) {
-    const a = rng(seed), b = rng(seed);
-    buildings(gfx, { z0: 0, length: 120 }, plain, a, { z: 50 });
-    buildings(gfx, { z0: 0, length: 120 }, walls, b, { z: 50 });
-    assert.equal(a(), b(), `seed ${seed}`);
+  for (let seed = 1; seed <= 10; seed++) for (const style of [plain, walls]) {
+    const a = rng(seed), b = rng(seed), ref = rng(seed), one = [], two = [];
+    buildings(gfx, { z0: 0, length: 120 }, style, a, { z: 50 }, one);
+    buildings(gfx, { z0: 0, length: 120 }, style, b, { z: 50 }, two);
+    assert.ok(one.length > 0, `${style.id} seed ${seed}: blocks built`);
+    assert.deepEqual(one, two, `${style.id} seed ${seed}: the same seed builds the same blocks`);
+    ref();
+    assert.equal(a(), ref(), `${style.id} seed ${seed}: one draw, not the pre-Task-32 replay (it kept nothing still once C3 and C5 moved signs and furniture off the stream)`);
   }
 });
 
@@ -500,6 +503,10 @@ test('a flush pit stands under every tree, one instanced mesh a chunk; trees com
   const b = pit.geometry.boundingBox, top = b.max.y + pit.instanceMatrix.array[13];
   assert.ok(Math.abs(b.max.x - b.min.x - PITS.size) < 1e-6 && Math.abs(b.max.z - b.min.z - PITS.size) < 1e-6 && top > KERB && top < KERB + 0.02, `a ${(b.max.x - b.min.x).toFixed(2)} m pit, its top at ${top.toFixed(3)}`);
   assert.ok(pit.geometry.attributes.color && pit.material.vertexColors, 'stone rim and soil in its own colours');
+  const g = make(2); gfx.bend(g); new THREE.Group().add(g); // what world.js does: gfx.bend marks every opaque mesh a caster, then adds it
+  let checked = 0;
+  g.traverse((n) => { if (n.userData.pit) { checked++; assert.ok(!n.castShadow && n.receiveShadow, 'the 1.5 cm pit casts no shadow (nothing to see in either cascade) and still receives one'); } });
+  assert.equal(checked, 1);
 });
 
 test('planter pairs stand at shop doors from the block list, on about half the lots', async () => {

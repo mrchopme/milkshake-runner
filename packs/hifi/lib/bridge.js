@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { chunkRng } from './rand.js';
 import { box, wall, instanced, metreUV } from './shapes.js';
 import { material } from './materials.js';
-import { DASH, EDGE, PAVE, pavingTexture, asphaltTexture } from './street.js';
+import { DASH, EDGE, PAVE, pavingTexture, asphaltTexture, tintedMaterial } from './street.js';
 import { facadeMaterial, TILE, cityFiles } from './facade.js';
 // ponytail: calibration knobs, metres (Caedon's board 25 pick "Ship, water retuned in the clean build", 2026-10-15, reversing
 // board 15's "no sidewalks" and Task 31's 32 m towers every 240 m): a 16 m deck, a 10 m road (the three lanes and 0.5 m either side)
@@ -12,7 +12,7 @@ import { facadeMaterial, TILE, cityFiles } from './facade.js';
 // bridge water is too low"; was 6); whatever stands in it reaches `below` under the surface, so no seam of the bend shows a sliver
 // of sky under it. It runs `half` out either side, past where the view's edges meet the fog's far end (about 210 m), so the horizon
 // meets water, not a pale band. Retuned (board 25): a steel blue (aim: the frames' #4679b2-#628db7 with #aee1f7 glints), env 0.2
-// (look.js honours userData.reflect while roughness <= 0.15, so 0.15 is the most satin it can be), a 3 m ripple tile, 60 facets
+// (look.js honours userData.reflect while roughness <= 0.15, so 0.15 is the most satin it can be), a 7 m ripple tile, 60 facets
 // across, and its own fog from `fogNear` m in the fog's colour (the bridge look's height-fog shade would darken it below the deck).
 export const WATER = { y: -2.5, below: 1.5, half: 300, color: '#2f6fb0', rough: 0.15, reflect: 0.2, tile: 7, segs: 60, fogNear: 40, scroll: 0.03 };
 const DECK = { w: 16, road: '#5a596e', walk: '#a9a8b6', walkW: 3, walkH: 0.25, edge: 0.3, paint: '#f2f2f2' }; // edge lines at ±(roadHalf + edge)
@@ -31,7 +31,7 @@ const PORTAL = { every: 120, at: 45, top: 45, w: 3.2, d: 2.8, x: 9.7, beam: 1.8,
 const CABLE = { r: 0.35, radial: 24, x: 8.0, low: 2.2, saddle: 1, step: 2, collar: { r: 0.5, len: 1.2 }, hanger: { r: 0.06, every: 5 } };
 const LOW = { x: 30.5, spread: 20, w: 8, minH: 2, maxH: 8 };
 const STONE = { dry: 0.7, wet: 0.5, band: 0.6, row: 0.25 }; // the theme's darkest building colour × dry; × wet below `band` above the water
-export const WATERFRONT = { id: 'downtown', lit: 0, facades: cityFiles('facades', 'downtown', 5), buildings: { colors: ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3'] } }; // downtown's tiles and `lit` (they share its material key, so the two must agree)
+export const WATERFRONT = { id: 'downtown', facades: cityFiles('facades', 'downtown', 5), buildings: { colors: ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3'] } }; // downtown's tiles, untinted and unlit
 
 // A Node-safe ripple normal map: a few crossing sine waves, tiling, encoded as tangent-space normals.
 function rippleTexture(T, n = 64) {
@@ -88,7 +88,7 @@ export function stone(gfx, colors, w, top, d) {
 export function bridgeChunk(gfx, args, style) {
   const T = gfx.three, { z0, length, lanes } = args, r = chunkRng(args.rng), g = gfx.group(), zc = z0 + length / 2, end = z0 + length;
   const half = DECK.w / 2, roadHalf = half - DECK.walkW, P = PORTAL, C = CABLE;
-  const tinted = (key, hex, rough, map) => material(`${style.id}/${key}`, () => new T.MeshStandardMaterial({ color: new T.Color(hex).multiplyScalar(1 / map.userData.mean), roughness: rough, map }));
+  const tinted = (...a) => tintedMaterial(T, style, ...a);
   // the deck on the asphalt grain, and the walkways on it: a 0.25 m kerb face toward the road, the paving's UVs as street.js's
   // (u metres out from the kerb, v metres along z on the 12 m period), one mesh for both
   const deck = metreUV(box(T, DECK.w, 1, length, tinted('deck', DECK.road, 0.85, asphaltTexture(T)), 0, -0.5, zc));

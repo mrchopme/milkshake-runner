@@ -9,7 +9,8 @@ import { material } from './materials.js';
 // +/-3.5 % in tone, noise +/-2 % on a 0.75 m lattice, the facade foot 0.5 m at -6 %; asphalt +/-4 % every 4 m; edge lines 0.15 m,
 // 0.5 m in from each kerb; the kerb top one value up, its road face shaded
 export const PAVE = { w: 512, h: 1024, len: 12, kerb: 0.3, joint: 0.035, jointTone: 0.88, flagTone: 0.035, noise: 0.02, foot: 0.5, footTone: 0.94, base: 0.93 };
-export const ASPHALT = { n: 256, tile: 4, grain: 0.04 }, EDGE = { w: 0.15, in: 0.5 }, KERB_TONE = { top: 1.12, face: 0.8 };
+const ASPHALT = { n: 256, tile: 4, grain: 0.04 };
+export const EDGE = { w: 0.15, in: 0.5 }, KERB_TONE = { top: 1.12, face: 0.8 };
 const hash = (a, b, c = 0) => { let h = (a * 374761393 + b * 668265263 + c * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 // value noise on a lattice wrapping every `nu` x `nv` cells, smoothstepped
 const vnoise = (u, v, nu, nv, seed) => {
@@ -54,6 +55,9 @@ export function asphaltTexture(T) {
   return asphalt ??= grey(T, A.n, A.n, (i, j) => (1 - A.grain) * (1 + A.grain * (2 * (0.5 * hash(i, j, 11) + 0.3 * vnoise(i / 4, j / 4, A.n / 4, A.n / 4, 13) + 0.2 * vnoise(i / c, j / c, 16, 16, 17)) - 1)),
     [1 / A.tile, 1 / A.tile], T.RepeatWrapping);
 }
+// A material on one of the grey tiles above, coloured so the surface renders at `hex` on average (the tile's linear mean); the
+// street's and the bridge deck's.
+export const tintedMaterial = (T, style, key, hex, rough, map, extra) => material(`${style.id}/${key}`, () => new T.MeshStandardMaterial({ color: new T.Color(hex).multiplyScalar(1 / map.userData.mean), roughness: rough, map, ...extra }));
 // ponytail: calibration knobs, metres (board 15); the lane lines solid, each dash meeting the next (Caedon, 2026-10-14, board 18:
 // the teaser's road; was 0.12 wide, 3 long every 6)
 export const KERB = 0.18, WALK = 6, DASH = { w: 0.16, len: 6, every: 6 };
@@ -63,7 +67,7 @@ export const CROSS = { width: 12, stripe: 0.6, reach: FACADE_X + 10 }; // reach:
 export function street(gfx, { z0, length, lanes }, style, cross) {
   const T = gfx.three, g = gfx.group(), half = lanes.roadHalf, zc = z0 + length / 2, G = style.ground;
   const std = (key, color, rough) => material(`${style.id}/${key}`, () => new T.MeshStandardMaterial({ color, roughness: rough }));
-  const tinted = (key, hex, rough, map, extra) => material(`${style.id}/${key}`, () => new T.MeshStandardMaterial({ color: new T.Color(hex).multiplyScalar(1 / map.userData.mean), roughness: rough, map, ...extra }));
+  const tinted = (...a) => tintedMaterial(T, style, ...a);
   const road = metreUV(box(T, half * 2, 0.1, length, tinted('road', G.road, G.roadRough, asphaltTexture(T)), 0, -0.05, zc));
   road.userData.road = true;
   g.add(road);
