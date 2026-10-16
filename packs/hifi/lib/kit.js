@@ -15,13 +15,23 @@ const charcoal = (px, i) => { const [r, g, b] = [px[i], px[i + 1], px[i + 2]], l
 // to r 0.8 between 0.8 and 1.5 m. A triangle wholly below `top` that is wholly below `free` or wholly beyond `out` from the trunk's axis goes
 // (the guard, its soil, the flare); the trunk's kept vertices below `free` drop to the ground, pulled in to `trunk`, so it stands in its pit.
 export const GUARD = { top: 1.95, free: 1.6, out: 0.8, trunk: 0.45 };
+// ponytail: calibration knobs, metres at KIT's 6 m (Task 32 C7, Caedon's T3; measured on the decoded tree2.glb): the new tree stands on
+// its own pit, a 3 m square slab 0.12 m deep, its trunk r 0.31 at the slab and 0.27 under the canopy. Every triangle below 0.2 m goes
+// (the slab, the trunk's cap); the trunk's foot drops to the ground within r 0.32, so it stands in the kit's pit as the first tree does.
+export const SLAB = { top: 0.2, free: 0.2, out: 0, trunk: 0.32 };
+// ponytail: calibration knob (Task 32 C7): tree2's leaves (mean #4f8228, measured over its map's leaf texels) times LIFT come to tree.glb's
+// mean (#76a244), so TINT (lib/furniture.js), calibrated on tree.glb's rendered green, lands both trees on the frames' (keying TINT's
+// `from` by model instead multiplied tree2's blue 6x, the trunk going mauve). Its bark and nothing else stay as generated.
+const LIFT = [1.49, 1.25, 1.7];
+const lift = (px, i) => { if (leaf(px[i], px[i + 1], px[i + 2])) px.set([px[i] * LIFT[0], px[i + 1] * LIFT[1], px[i + 2] * LIFT[2]], i); }; // clamped at 255
 // matte (style gap 12): the leaves' roughness `rough[0]` from their own texels, the rest `rough[1]`, the specular and the env reflection down
+// (tree2's leaf texels measured: `leaf` takes 99% of its greens and none of its bark or stone, so it keeps the thresholds)
 const MATTE = { leaf, rough: [0.9, 0.75], specular: 0.4, env: 0.2 };
 // Furniture and side-street vehicles. path: the generated model; h: its height in metres (board 15); yaw: turns its front
 // (+x on every generated model; the lamp's arm reaches -z) to +z, the way the piece faces; glow: the texel test of its lights;
 // repaint: texels recoloured before the glow (see recolour); texels: each texel of the whole map redrawn by it, before the glow;
-// bright: its glow strength, GLOW unless set; cut: the guard cut (cutGuard); matte: the matte dress (MATTE). Until the model loads,
-// a code placeholder stands in.
+// bright: its glow strength, GLOW unless set; cut: the base cut away (cutGuard: the first tree's guard, the second's slab); matte:
+// the matte dress (MATTE). Until the model loads, a code placeholder stands in.
 // ponytail: calibration knobs.
 const FRONT = -Math.PI / 2;
 export const KIT = {
@@ -37,6 +47,9 @@ export const KIT = {
   bin_box: { path: 'hifi/furniture/bin_box.glb', h: 1.0, yaw: FRONT, glow: null },
   planter: { path: 'hifi/furniture/planter.glb', h: 1.0, yaw: FRONT, glow: null },
   tree: { path: 'hifi/furniture/tree.glb', h: 6.0, yaw: FRONT, glow: null, cut: GUARD, matte: MATTE }, // board 15's: on the 6 m sidewalk its 4 m canopy clears the facades and the blade signs
+  // tree.glb's 6 m, so the two models stand alike in the rhythm (4.5-5.4 m at its scale); a third of it clear trunk, as prompted.
+  // Its file optimised at --texture-size 1024 like tree.glb's (at 2048 its nearly flat normal map alone cost 22.4 MB of GPU)
+  tree2: { path: 'hifi/furniture/tree2.glb', h: 6.0, yaw: FRONT, glow: null, cut: SLAB, texels: lift, matte: MATTE },
   newsstand: { path: 'hifi/furniture/newsstand.glb', h: 2.6, yaw: FRONT, glow: null },
   bus_shelter: { path: 'hifi/furniture/bus_shelter.glb', h: 2.7, yaw: FRONT, glow: null },
   subway: { path: 'hifi/furniture/subway.glb', h: 2.4, yaw: FRONT, glow: globe }, // board 15's: 3 m deep, it fits mid-sidewalk on the 6 m sidewalk
@@ -65,6 +78,7 @@ const STAND = {
   van: [{ w: 2, h: 2.2, d: 4.8, color: '#d9d9de' }],
   taxi: [{ w: 1.9, h: 2.08, d: 4.4, color: '#ffc21f' }],
 };
+STAND.tree2 = STAND.tree;
 export const placeholder = (kind) => (T) => (STAND[kind] ?? [{ w: 0.5, h: KIT[kind].h, d: 0.5, color: '#2f5d4a' }]).map((b) => ({
   geometry: new T.BoxGeometry(b.w, b.h, b.d).translate(0, (b.y ?? 0) + b.h / 2, b.z ?? 0),
   material: material(`kit/${b.color}${b.glow ? '/glow' : ''}`, () => new T.MeshStandardMaterial({ color: b.color, roughness: 0.6, ...(b.glow && { emissive: b.color, emissiveIntensity: 2 }) })),
@@ -117,7 +131,7 @@ function dress(T, mesh, { glow, repaint, texels, bright = GLOW, matte }) {
 // (WebGLRenderer.js:2737), so a per-material dimmer wraps the shader's uniform: whatever the look writes, the shader reads k times it.
 // Named: gfx.bendable keys the program cache by the material's own onBeforeCompile source.
 const dimEnv = (k) => function dimEnv(shader) { let v = shader.uniforms.envMapIntensity.value; shader.uniforms.envMapIntensity = { get value() { return v * k; }, set value(x) { v = x; } }; };
-// A clone of the mesh's geometry without the tree's guard (GUARD), flagged shared and freed with the loaded geometry (the
+// A clone of the mesh's geometry without the tree's guard (GUARD) or slab (SLAB), flagged shared and freed with the loaded geometry (the
 // scaffold_beam.js widen() pattern); the loaded one stays untouched. Vertices no kept triangle uses collapse onto the trunk's foot, so
 // the bounds and the footprint are the trunk's. axis: the uncut footprint's centre (the guard's, within 2 cm of the trunk's); y0 its
 // base, s the fit's scale (model units to metres).

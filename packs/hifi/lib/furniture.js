@@ -21,11 +21,12 @@ import { CROSS, FACADE_X, WALK } from './street.js';
 // The benches, bins, newsstands, the rare shelter or subway and the hydrants keep board 18's stretches and rates in what is left.
 // Everything the rhythm adds is hashed from its place (pickBy), so it draws nothing from the chunk's stream.
 // ponytail: calibration knobs. pitch [8, 10] (the prototype's [8, 12] made the lamps 16-24 m apart; the brief's band is 10-20 and
-// Caedon asked for "about every 18 m": at 120 m the odd n are 13 and 15, P 9.23 or 8, 2P 18.5 or 16). trees: kind -> x; 6.0 because
-// the canopy reaches 2.31k m (k up to 0.9), so it ends at 3.92, clear of the outer lane's edge at 3.75. A second tree model slots in
-// as a KIT entry plus a row here, its FOOT (the trunk, inside the pit's soil) and its REAL in the kit test; TINT's `from` is
-// tree.glb's measured green, so key it by kind then. dusk: the lamps' glow in a `lit` theme (KIT.lamp's 1.2 by day).
-export const RHYTHM = { pitch: [8, 10], trees: { tree: 6.0 }, lamp: 5.33, scale: [0.75, 0.9], jitter: 0.06, dusk: 2 };
+// Caedon asked for "about every 18 m": at 120 m the odd n are 13 and 15, P 9.23 or 8, 2P 18.5 or 16). trees: model -> x, each slot
+// drawing one from its place (Task 32 C7: tree.glb, guard cut, and Caedon's T3, tree2.glb, about half each); 6.0 because a canopy
+// reaches 2.31k m (tree; tree2 2.26k, k up to 0.9), so it ends at 3.92, clear of the outer lane's edge at 3.75. Each model has its
+// FOOT (the trunk, inside the pit's soil) and its stand-in in the kit test; tree2's leaves are lifted to tree.glb's green (kit.js),
+// so TINT serves both. dusk: the lamps' glow in a `lit` theme (KIT.lamp's 1.2 by day).
+export const RHYTHM = { pitch: [8, 10], trees: { tree: 6.0, tree2: 6.0 }, lamp: 5.33, scale: [0.75, 0.9], jitter: 0.06, dusk: 2 };
 // the flush pit under every tree: `size` m square, a stone rim `rim` m wide round dark soil, their tops 1-1.5 cm over the sidewalk's
 export const PITS = { size: 1.5, rim: 0.1, stone: '#9a968f', soil: '#3a2e25' };
 // planter pairs, door z +/- dz, on `chance` of the shop lots. x 9.8, not the brief's 9.9: planter.glb is 0.83 m across, so at 9.9
@@ -49,10 +50,10 @@ export const STRETCH = [
 export const HYDRANT = { chance: 0.25, kind: 'hydrant', x: 4.95 };
 export const CLEAR = 2, SEAM = 2; // m kept clear of the side street; m kept from the chunk's ends
 // ponytail: calibration knobs — each piece's footprint, half its size across the sidewalk and along it (metres, measured on the
-// generated models at KIT's heights; the tree's is its trunk, the guard cut). Every piece keeps GAP m from the footprints already
+// generated models at KIT's heights; a tree's is its trunk, its guard or slab cut). Every piece keeps GAP m from the footprints already
 // on its side, so nothing stands inside anything else: a corner's traffic light goes first, then the rhythm, then a piece tries up
 // to TRIES spots in its stretch before it is left out. A tree spaces by its pit.
-export const FOOT = { lamp: [0.54, 0.55], traffic_light: [0.72, 0.72], hydrant: [0.19, 0.2], bin: [0.2, 0.2], tree: [0.45, 0.45], bench: [0.3, 0.58], newsstand: [0.81, 1.09], bus_shelter: [0.87, 1.42], subway: [1.49, 1.25], planter: [0.35, 0.43] };
+export const FOOT = { lamp: [0.54, 0.55], traffic_light: [0.72, 0.72], hydrant: [0.19, 0.2], bin: [0.2, 0.2], tree: [0.45, 0.45], tree2: [0.32, 0.32], bench: [0.3, 0.58], newsstand: [0.81, 1.09], bus_shelter: [0.87, 1.42], subway: [1.49, 1.25], planter: [0.35, 0.43] };
 const GAP = 0.2, TRIES = 10, PIT = PITS.size / 2;
 const hash = (z, side, salt) => pickBy(z * 7.31 + side * 1000 + salt * 104729, 1e4) / 1e4; // a stable [0, 1) from a place, no stream
 

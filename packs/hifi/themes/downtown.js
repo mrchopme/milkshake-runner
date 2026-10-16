@@ -19,7 +19,9 @@ export default {
   // The rig (Caedon, board 22, 2026-10-15, "Sun B + sky fill + height fog"): the sun on the avenue's axis 28 degrees up, so the
   // right-hand towers stop shading the road; a pale sky-tinted fill (the saturated sky blue tinted the whole street); a light
   // blue haze from 35 m deepening low down, the skyline hazed in the sky's own blue. ponytail: calibration knobs, tuned by eye.
-  look: { skyline: SKYLINE, skylineHeight: [110, 80], exposure: 1.05, sun: { color: '#fff3e0', intensity: 10, dir: [0, -0.47, -0.88] }, ambient: 2.0, env: 0.4, hemi: { sky: '#b4c8e4', ground: '#8c8177' },
+  // ponytail: calibration knob — skylineHeight's near 110 (was 80; Task 32 C7, the redrawn strips, 2048 x 878 with sky over the towers):
+  // two laps of 111 m stand its tower mass at 24 m (the old strips' 35 m), its spires about as tall as before; at 80, three laps of 74 m stood it about half as tall.
+  look: { skyline: SKYLINE, skylineHeight: [110, 110], exposure: 1.05, sun: { color: '#fff3e0', intensity: 10, dir: [0, -0.47, -0.88] }, ambient: 2.0, env: 0.4, hemi: { sky: '#b4c8e4', ground: '#8c8177' },
     skyTop: '#6ccafb', skyBottom: '#9ac3ea', fog: { color: '#8cc4f0', near: 35, pale: 0.1, shade: '#7fb0de', y: [0, 30] }, skylineHaze: { mix: [0.65, 0.5], flatten: 0.5, foot: 0 },
     disc: { size: 1.2, core: 4, halo: 0.35, spread: 6, color: '#edffff' }, bloom: { strength: 0.5, threshold: 2.2, radius: 0.4 } },
   createChunk(gfx, args) { return cityChunk(gfx, args, { ...STYLE, buildings: args.theme.buildings }); },
