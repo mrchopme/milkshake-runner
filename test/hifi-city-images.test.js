@@ -21,14 +21,16 @@ const chunk = ([hifi, shipped], seed) => { const theme = { ...shipped, ...hifi }
 const stand = new Map(); // a stand-in texture per file, adopted as if it had loaded
 const load = (p) => { if (!stand.has(p)) stand.set(p, new T.Texture()); adopt(p, stand.get(p)); };
 const pathOf = (map) => [...stand].find(([, t]) => t === map)?.[0];
+const SHOPS = { downtown: 3, midtown: 4, uptown: 4 }; // downtown's blank cyan 04 retired (Task 32, Caedon's board 23 pick)
 
-test('each street theme lists its five facade tiles, four storefronts, every sign image it draws and its far and near skylines', () => {
+test('each street theme lists its five facade tiles, its storefronts, every sign image it draws and its far and near skylines', () => {
   const SIGNS = fileURLToPath(new URL('../public/hifi/city/signs/', import.meta.url));
   assert.deepEqual(Object.values(SIGN_FILES).flat().sort(), readdirSync(SIGNS).map((f) => `hifi/city/signs/${f}`).sort(), 'every generated sign, and nothing else');
   for (const [hifi] of STREET) {
     assert.ok(!hifi.assets.some((p) => p.startsWith('hifi/city/signs/led-')), `${hifi.id} loads no LED face`);
     assert.deepEqual(hifi.look.skyline, [[1, 2, 3, 4].map((n) => `hifi/city/sky/${hifi.id}-near-${n}.webp`)], `${hifi.id}: the near ring's four images, no far ring`);
-    for (const p of [...files('facades', hifi.id, 5), ...files('shops', hifi.id, 4), ...Object.values(SIGN_FILES).flat(), ...hifi.look.skyline.flat()]) assert.ok(hifi.assets.includes(p), `${hifi.id} lists ${p}`);
+    assert.ok(!hifi.assets.includes(`hifi/city/shops/${hifi.id}-0${SHOPS[hifi.id] + 1}.webp`), `${hifi.id}: no retired storefront`);
+    for (const p of [...files('facades', hifi.id, 5), ...files('shops', hifi.id, SHOPS[hifi.id]), ...Object.values(SIGN_FILES).flat(), ...hifi.look.skyline.flat()]) assert.ok(hifi.assets.includes(p), `${hifi.id} lists ${p}`);
   }
   assert.deepEqual(bridge.look.skyline, files('sky', 'bridge', 2));
   assert.deepEqual(WATERFRONT.facades, files('facades', 'downtown', 5), 'the waterfront wears downtown\'s tiles');
@@ -37,7 +39,7 @@ test('each street theme lists its five facade tiles, four storefronts, every sig
 
 test('the facades and storefronts wear their theme\'s own tiles once loaded, and a missing tile falls back to the placeholder', () => {
   for (const theme of STREET) {
-    const id = theme[0].id, tiles = [...files('facades', id, 5), ...files('shops', id, 4)], missing = tiles[2];
+    const id = theme[0].id, tiles = [...files('facades', id, 5), ...files('shops', id, SHOPS[id])], missing = tiles[2];
     const worn = () => { const mats = new Set(); for (let seed = 1; seed <= 8; seed++) chunk(theme, seed).traverse((n) => { if (n.userData.building && n.material.map) mats.add(n.material); }); return [...mats]; };
     tiles.filter((p) => p !== missing).forEach(load);
     const before = worn().map((m) => m.map);
@@ -46,30 +48,47 @@ test('the facades and storefronts wear their theme\'s own tiles once loaded, and
     load(missing);
     const after = worn();
     assert.deepEqual(after.map((m) => pathOf(m.map)).sort(), [...tiles].sort(), `${id}: every facade and storefront on its own tile, no placeholder`);
-    for (const m of after.filter((x) => pathOf(x.map).includes('/facades/'))) assert.equal(m.emissiveIntensity, id === 'uptown' ? 0.8 : 0, `${id}: windows lit at dusk only`);
+    for (const m of after) assert.equal(m.emissiveIntensity, 0, `${id}: without a canvas (Node) nothing glows; the window cells light from a canvas pass (Task 32)`);
   }
 });
 
-test('a facade tile\'s own glass is glossy, only its warm lit panes glow (and only at dusk), its wall stays matte and dark, and without a canvas the tile is plain', () => {
+// Task 32 (board 23): lit windows are whole 2.5 x 3.5 m window cells, about `share` of them, each glowing only in its own pane
+// texels (Caedon's glow rule), on a 512^2 canvas; a theme's wall tint multiplies the wall texels, never the glass.
+test('a facade tile\'s own glass is glossy, its window cells glow from their own panes at the theme\'s share, its walls tint, and without a canvas the tile is plain', () => {
   const path = 'hifi/test/t24-tile.webp', map = new T.Texture({});
   map.colorSpace = T.SRGBColorSpace;
   adopt(path, map);
-  const tile = (id, lit) => facadeMaterial(gfx, { id, lit, facades: [path], buildings: { colors: ['#888888'] } }, 0);
-  const plain = tile('t24-node', 0.8); // Node has no OffscreenCanvas
-  assert.ok(plain.map === map && !plain.roughnessMap && plain.roughness === 0.6 && plain.emissive.getHex() === 0, 'no mask: a plain matte tile, nothing glows');
-  const saved = globalThis.OffscreenCanvas;
-  globalThis.OffscreenCanvas = class { // sky-blue glass, a warm lit pane, brick, pale stone; each canvas keeps what was drawn on it
-    getContext() { return { drawImage() {}, getImageData: () => ({ data: new Uint8ClampedArray([150, 190, 235, 255, 250, 200, 110, 255, 150, 90, 60, 255, 220, 190, 150, 255]) }), putImageData: (img) => { this.px = [...img.data]; } }; }
+  const glow = { share: 0.35, color: '#ffe7b8', intensity: 0.55 }, tint = { mul: [0.5, 1, 1] };
+  const tile = (id, extra) => facadeMaterial(gfx, { id, facades: [path], buildings: { colors: ['#888888'] }, ...extra }, 0);
+  const plain = tile('t24-node', { glow, facadeTint: tint }); // Node has no OffscreenCanvas
+  assert.ok(plain.map === map && map.anisotropy === 16 && !plain.roughnessMap && plain.roughness === 0.6 && plain.emissive.getHex() === 0 && plain.emissiveIntensity === 0, 'no canvas: the plain tile, matte and dark');
+  const saved = globalThis.OffscreenCanvas, TEXELS = [[150, 190, 235], [250, 200, 110], [150, 90, 60], [220, 190, 150]]; // sky-blue glass, a warm lit pane, brick, pale stone, across each row
+  globalThis.OffscreenCanvas = class { // each canvas keeps its size and what was drawn on it
+    constructor(w, h) { Object.assign(this, { width: w, height: h }); }
+    getContext() { return { drawImage() {}, getImageData: (x, y, w, h) => ({ data: Uint8ClampedArray.from({ length: w * h * 4 }, (_, i) => (i % 4 === 3 ? 255 : TEXELS[(i >> 2) % 4][i % 4])) }), putImageData: (img) => { this.px = img.data; } }; }
   };
   try {
-    const dusk = tile('t24-dusk', 0.8), day = tile('t24-day', 0);
-    assert.equal(dusk.map, map);
-    assert.deepEqual(dusk.emissiveMap.image.px, [0, 0, 0, 255, 250, 200, 110, 255, 0, 0, 0, 255, 0, 0, 0, 255], 'only the lit pane glows, in its own colour');
-    assert.deepEqual(dusk.roughnessMap.image.px, [31, 31, 31, 255, 31, 31, 31, 255, 153, 153, 153, 255, 153, 153, 153, 255], 'glass (blue or lit) 0.12, brick and stone 0.6');
+    const dusk = tile('t24-dusk', { glow }), day = tile('t24-day', {}), skip = tile('t24-skip', { glow: { ...glow, skip: [0] } }), warm = tile('t24-tint', { facadeTint: tint });
+    const px = dusk.emissiveMap.image.px, n = dusk.emissiveMap.image.width, cell = n / 8; // the tile 4 x 4 on the canvas, 2 x 2 cells a tile
+    assert.equal(n, 512, 'a 512^2 glow canvas');
+    let lit = 0;
+    for (let cy = 0; cy < 8; cy++) for (let cx = 0; cx < 8; cx++) {
+      let on = 0;
+      for (let y = cy * cell; y < (cy + 1) * cell; y++) for (let x = cx * cell; x < (cx + 1) * cell; x++) {
+        const i = (y * n + x) * 4, kind = (y * n + x) % 4, u = (x % cell) / cell, v = (y % cell) / cell;
+        if (px[i]) { on++; assert.ok(kind < 2 && u > 0.12 && u < 0.88 && v > 0.05 && v < 0.88, `a ${['glass', 'lit', 'brick', 'stone'][kind]} texel at ${u.toFixed(2)}, ${v.toFixed(2)} of its cell glows`); }
+      }
+      lit += on > 0;
+    }
+    assert.ok(Math.abs(lit / 64 - glow.share) < 0.15, `${lit} of 64 window cells lit, the theme's share ${glow.share}`);
+    assert.ok(dusk.emissive.getHexString() === 'ffe7b8' && dusk.emissiveIntensity === 0.55, 'lit in the theme\'s colour at its level');
+    assert.ok(dusk.emissiveMap.repeat.x === 0.25 && dusk.emissiveMap.wrapS === T.RepeatWrapping, 'the cells repeat every 4 x 4 tiles, not every tile');
+    assert.deepEqual([...dusk.roughnessMap.image.px.slice(0, 16)], [31, 31, 31, 255, 31, 31, 31, 255, 153, 153, 153, 255, 153, 153, 153, 255], 'glass (blue or lit) 0.12, brick and stone 0.6');
     assert.ok(dusk.roughness === 1 && dusk.roughnessMap.colorSpace === T.NoColorSpace, 'the roughness map is data, read as it is');
-    assert.ok(dusk.emissive.getHex() === 0xffffff && dusk.emissiveIntensity === 0.8, 'lit at the theme\'s level');
-    assert.ok(day.emissiveMap === null && day.emissive.getHex() === 0 && day.roughnessMap, 'a daytime theme builds no glow mask, only the gloss');
-    assert.ok([dusk.emissiveMap, dusk.roughnessMap].every((t) => t.wrapS === T.RepeatWrapping && t.wrapT === T.RepeatWrapping), 'the masks repeat with the tile');
+    assert.ok(day.emissiveMap === null && day.emissive.getHex() === 0 && day.emissiveIntensity === 0 && day.roughnessMap, 'a theme without glow builds no glow mask, only the gloss');
+    assert.ok(skip.emissiveMap === null && skip.emissiveIntensity === 0, 'a skipped tile never glows (uptown-02\'s fire escape)');
+    assert.ok(warm.map !== map && warm.map.anisotropy === 16, 'the tint draws its own copy of the tile');
+    assert.deepEqual([...warm.map.image.px.slice(0, 16)], [150, 190, 235, 255, 250, 200, 110, 255, 75, 90, 60, 255, 110, 190, 150, 255], 'the walls tinted, the glass and the lit pane untouched');
   } finally { globalThis.OffscreenCanvas = saved; }
 });
 

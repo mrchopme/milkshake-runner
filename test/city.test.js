@@ -6,7 +6,9 @@ import { rng } from '../src/generator.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
 import { street, CROSS, WALK, FACADE_X, DASH } from '../packs/hifi/lib/street.js';
-import { buildings } from '../packs/hifi/lib/buildings.js';
+import { buildings, CORNICE, GAP } from '../packs/hifi/lib/buildings.js';
+import { cityChunk } from '../packs/hifi/lib/city.js';
+import { SHOP_H, tintFor, tinted } from '../packs/hifi/lib/facade.js';
 import { furniture, FOOT, SEAM } from '../packs/hifi/lib/furniture.js';
 import { ROAD_HALF } from '../src/world.js';
 import { DRIVE } from '../packs/hifi/lib/traffic.js';
@@ -55,16 +57,162 @@ test('a city chunk stays inside its draw-call budget', () => {
   for (const seed of [1, 2, 3]) { let meshes = 0; chunk(seed).traverse((n) => { if (n.isMesh) meshes++; }); assert.ok(meshes <= 45, `seed ${seed}: ${meshes} meshes`); }
 });
 
-test('buildings stand on the facade line, never on the sidewalk or the road', () => {
-  // Every vertex, not the bounding box: one merged mesh holds both sides of the street, so its box spans the road.
-  const g = chunk(5), v = new THREE.Vector3(); let n = 0;
-  g.updateMatrixWorld(true);
-  g.traverse((m) => {
-    if (!m.userData.building) return;
-    const p = m.geometry.attributes.position;
-    for (let i = 0; i < p.count; i++, n++) { v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld); assert.ok(Math.abs(v.x) >= FACADE_X - 0.4 - 1e-6, `vertex at x ${v.x}`); } // cornices may overhang the sidewalk by 0.35 m, high up
-  });
+// Facades with depth (Task 32, Caedon's board 23 pick "as prototyped"): the 0.4 m cap became bands. Above 4.5 m the cornices
+// (0.85 m) and the relief; 3.0-4.5 m the awnings (shop planes, 1.5 m out) over the fascia (0.4 m); below 3.0 m nothing past 0.4 m.
+test('buildings stand on the facade line: up to 0.9 m out above 4.5 m, only awnings up to 1.6 m at 3.0-4.5 m, 0.4 m below, never past x 4.5', () => {
+  const v = new THREE.Vector3(); let n = 0, awning = -Infinity, lip = Infinity, cornice = -Infinity;
+  for (const seed of [5, 6, 7]) {
+    const g = chunk(seed);
+    g.updateMatrixWorld(true);
+    g.traverse((m) => {
+      if (!m.userData.building) return;
+      const p = m.geometry.attributes.position, body = m.material.vertexColors; // the body (and its trim) is the one vertex-coloured mesh
+      for (let i = 0; i < p.count; i++, n++) {
+        v.fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld);
+        const out = FACADE_X - Math.abs(v.x), at = `seed ${seed}: a vertex ${out.toFixed(2)} m out at y ${v.y.toFixed(2)}`;
+        assert.ok(Math.abs(v.x) >= 4.5 - 1e-6, at);
+        if (v.y > 4.5 + 1e-6) { assert.ok(out <= 0.9 + 1e-6, at); cornice = Math.max(cornice, out); } else if (v.y >= 3 - 1e-6) assert.ok(out <= (body ? 0.4 : 1.6) + 1e-6, at); else assert.ok(out <= 0.4 + 1e-6, at);
+        if (!body && out > 0.45) { awning = Math.max(awning, out); lip = Math.min(lip, v.y); }
+      }
+    });
+  }
   assert.ok(n > 0, 'buildings were built');
+  assert.ok(Math.abs(awning - 1.5) < 1e-6 && Math.abs(lip - 3.1) < 0.01, `awnings ${awning} m out, their lip at ${lip} m`);
+  assert.ok(Math.abs(cornice - CORNICE.out) < 1e-6, `cornices ${cornice} m out`);
+});
+
+// The −z faces the camera sees (Task 32, board 23): every block's end, not only the first and the cross street's, since the
+// stepped heights show any end above a shorter neighbour; the storefront band and the block's own tile in each tier.
+test('every block\'s -z end wears a storefront and facade from the ground to its roof, never bare body colour', () => {
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (const seed of [1, 2, 3]) for (const [z0, length] of [[0, 120], [240, 80]]) {
+    const g = chunk(seed, z0, length), blocks = g.userData.blocks, faces = [];
+    g.traverse((m) => {
+      if (!m.userData.building || m.material.vertexColors) return;
+      const p = m.geometry.attributes.position;
+      for (let i = 0; i < p.count; i += 3) {
+        a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+        const nz = new THREE.Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a)).normalize().z;
+        if (nz < -0.99) faces.push({ z: a.z, x: a.x, y: [Math.min(a.y, b.y, c.y), Math.max(a.y, b.y, c.y)] });
+      }
+    });
+    assert.ok(blocks.length >= 8, `seed ${seed}: ${blocks.length} blocks`);
+    for (const k of blocks) {
+      const ys = faces.filter((f) => Math.abs(f.z - (k.z0 - 0.02)) < 1e-4 && Math.sign(f.x) === k.side).map((f) => f.y).sort((p, q) => p[0] - q[0]);
+      let top = 0; for (const [lo, hi] of ys) if (lo <= top + 1e-4) top = Math.max(top, hi);
+      assert.ok(top >= k.h - 1e-4, `seed ${seed}, chunk ${z0}: the block at z ${k.z0.toFixed(2)} on side ${k.side} is finished to ${top.toFixed(2)} of ${k.h} m`);
+    }
+    assert.ok(blocks.filter((k) => k.side === -1)[0].z0 - CORNICE.ret >= z0 - 1e-6, 'the first block leaves room for its cornice return');
+  }
+});
+
+// The block list (Task 32): buildings publish what they built, so signs and furniture anchor on real blocks. A contract: C3 and
+// C5 read it; its shape is documented in buildings.js's header.
+test('the block list holds every built block in build order, in its documented shape, and reaches a later part', () => {
+  let seen;
+  const spy = (gfx_, args, style, r, cross, blocks) => { seen = blocks.map((x) => ({ ...x })); return gfx_.group(); };
+  const theme = { ...shipped, ...downtown }, style = { id: 'downtown', road: '#555', walk: '#888', paint: '#fff', buildings: shipped.buildings, parts: [buildings, spy] };
+  const g = cityChunk(gfx, { z0: 0, length: 120, lanes, rng: rng(3), theme }, style), blocks = g.userData.blocks;
+  assert.deepEqual(seen, blocks, 'the later part gets the same list');
+  for (const [i, b] of blocks.entries()) {
+    assert.deepEqual(Object.keys(b).sort(), ['awning', 'h', 'lot', 'setAt', 'shop', 'side', 'tile', 'z0', 'z1']);
+    assert.ok(b.lot === i && b.z1 > b.z0 && b.setAt <= b.h && Number.isInteger(b.shop) && Number.isInteger(b.tile) && typeof b.awning === 'boolean', JSON.stringify(b));
+    if (i && blocks[i - 1].side === b.side) assert.ok(b.z0 >= blocks[i - 1].z1 + GAP - 1e-6, 'low z to high, a gap between');
+    else if (i) assert.ok(blocks[i - 1].side === -1 && b.side === 1, 'the -x side, then the +x side');
+  }
+  // count: each block's recessed storefront (and its end wall's edge) is one run of shop-material wall along z, a gap between runs
+  const runs = { '-1': [], 1: [] }, v = new THREE.Vector3();
+  g.traverse((m) => {
+    if (!m.userData.building || m.material.vertexColors) return;
+    const p = m.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); if (Math.abs(Math.abs(v.x) - FACADE_X - 0.45) < 1e-4 && v.y < 3) runs[Math.sign(v.x)].push(v.z); }
+  });
+  for (const side of [-1, 1]) {
+    const zs = [...new Set(runs[side])].sort((p, q) => p - q), count = 1 + zs.slice(1).filter((z, i) => { const dz = z - zs[i]; return (dz > 0.3 && dz < 0.9) || dz > 4.01; }).length; // a block gap or the side street, not a 2.7-4 m segment
+    assert.equal(count, blocks.filter((b) => b.side === side).length, `side ${side}: storefronts against the list`);
+  }
+});
+
+// A block's body (roof, shoulders, returns) wears its tile's own wall colour, tinted as the tile's texels are (Task 32, board 23).
+test('a block\'s body is its facade tile\'s colour, tinted as the tile, and its street wall wears the cornice', () => {
+  const style = { id: 't32-bodies', buildings: shipped.buildings, facades: [], bodies: ['#804020', '#208040', '#402080', '#406080', '#806040'], facadeTint: { mul: [0.5, 1, 1], only: [0, 1] },
+    heights: { kind: 'runs', short: [14, 24], tall: [60, 100], tallShare: 0.5, shortTiles: [0, 2, 3], tallTiles: [1, 4] } };
+  const want = (f) => { const n = parseInt(style.bodies[f].slice(1), 16), rgb = tinted(tintFor(style, f), n >> 16, (n >> 8) & 255, n & 255); return new THREE.Color().setRGB(...rgb.map((x) => x / 255), THREE.SRGBColorSpace); };
+  assert.deepEqual(want(0).getHexString(THREE.SRGBColorSpace), '404020', 'the tint halves the red');
+  for (const seed of [1, 2, 3, 4]) {
+    const blocks = [], g = buildings(gfx, { z0: 0, length: 120 }, style, rng(seed), { z: 50 }, blocks), c = new THREE.Color(), v = new THREE.Vector3();
+    let body; g.traverse((m) => { if (m.userData.building && m.material.vertexColors) body = m.geometry; });
+    const pos = body.attributes.position, col = body.attributes.color;
+    for (const b of blocks) {
+      let back = 0, corn = false;
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        if (Math.sign(v.x) !== b.side || v.z < b.z0 + 0.5 || v.z > b.z1) continue;
+        const out = FACADE_X - Math.abs(v.x);
+        if (out < -9 && v.y < b.setAt - CORNICE.h - 1e-3) { back++; c.fromBufferAttribute(col, i); assert.equal(c.getHexString(), want(b.tile).getHexString(), `seed ${seed}: block ${b.lot} (tile ${b.tile})`); }
+        if (Math.abs(out - CORNICE.out) < 1e-6 && (Math.abs(v.y - b.setAt) < 1e-6 || Math.abs(v.y - b.setAt + CORNICE.h) < 1e-6)) corn = true;
+      }
+      assert.ok(back > 0 && corn, `seed ${seed}: block ${b.lot}: ${back} body vertices at its back, its cornice ${corn}`);
+    }
+  }
+});
+
+// Heights per theme (Task 32, board 23; pack-only: low-fi keeps defaultChunk): the tables in the street themes, on the floor grid.
+const grid = (h) => SHOP_H + Math.round((h - SHOP_H) / 3.5) * 3.5, floors = (h) => Math.abs((h - SHOP_H) / 3.5 - Math.round((h - SHOP_H) / 3.5)) < 1e-9;
+const HEIGHTS_RUNS = { kind: 'runs', short: [14, 24], tall: [60, 140], tallShare: 0.5, shortTiles: [0, 1], tallTiles: [2, 3], depth: [14, 26], back: { share: 0.4, x: [12, 25], w: [12, 20] } };
+const HEIGHTS = { // short, tall, tall share (h > 40 m), shortest and longest frontage (a remainder joins the block before it)
+  downtown: { short: [14, 24], tall: [60, 140], share: 0.5, front: [8, 22] },
+  midtown: { short: [22, 36], tall: [60, 110], share: 0.45, front: [14, 40] },
+  uptown: { short: [14, 28], tall: [31.5, 35], share: 0.1, front: [8, 22] }, // a random walk; its 10% outliers stand in for towers
+};
+test('each street theme\'s heights follow its table: walk-ups and towers in runs, a monotone setback, the floor grid, never the same tile twice', async () => {
+  for (const [id, H] of Object.entries(HEIGHTS)) {
+    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }, all = [];
+    let tall = 0, back = 0;
+    for (let seed = 1; seed <= 80; seed++) {
+      const g = hifi.createChunk.call(theme, gfx, { z0: 0, length: 120, lanes, rng: rng(seed), theme }), blocks = g.userData.blocks, at = `${id}, seed ${seed}`;
+      for (const side of [-1, 1]) {
+        const row = blocks.filter((b) => b.side === side), cls = row.map((b) => b.h > (id === 'uptown' ? 30 : 40));
+        row.slice(1).forEach((b, i) => assert.notEqual(b.tile, row[i].tile, `${at}: the same tile on neighbours`));
+        if (id !== 'uptown') for (let i = 0, k = 0; i < cls.length; i = k) { for (k = i; k < cls.length && cls[k] === cls[i]; k++); assert.ok(k - i >= 2 || k === cls.length, `${at}: a run of ${k - i} at lot ${row[i].lot}`); }
+      }
+      for (const b of blocks) {
+        const front = b.z1 - b.z0 + GAP, t = b.h > (id === 'uptown' ? 30 : 40), [lo, hi] = t ? H.tall : H.short;
+        assert.ok(b.h >= grid(lo) - 1e-9 && b.h <= grid(hi) + 1e-9, `${id}, seed ${seed}: a block ${b.h} m tall`);
+        assert.ok(floors(b.h) && floors(b.setAt), `${id}: roof ${b.h} and street wall ${b.setAt} off the floor grid`);
+        assert.ok(front >= H.front[0] - 1e-6 && front <= H.front[1] + 1e-6, `${id}: a ${front.toFixed(2)} m frontage`);
+        tall += t; all.push(b);
+      }
+      g.traverse((m) => { if (m.userData.building && !m.material.vertexColors) { const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i++) if (Math.abs(p.getX(i)) > FACADE_X + 17 && p.getY(i) > 59) { back++; break; } } });
+    }
+    assert.ok(Math.abs(tall / all.length - H.share) < 0.08, `${id}: ${(100 * tall / all.length).toFixed(0)}% tall, the table ${100 * H.share}%`);
+    assert.ok(id === 'downtown' ? back > 20 : back === 0, `${id}: ${back} chunks with a back-row tower`);
+    all.sort((p, q) => p.h - q.h);
+    all.slice(1).forEach((b, i) => assert.ok(b.setAt >= all[i].setAt - 1e-9, `${id}: a ${b.h} m block's street wall ${b.setAt} under a ${all[i].h} m one's ${all[i].setAt}`));
+    for (const b of all) assert.ok(b.h <= 40 ? b.setAt === b.h : b.setAt < b.h && b.setAt >= 39, `${id}: a ${b.h} m block sets back at ${b.setAt}`);
+    const fronts = all.map((b) => b.z1 - b.z0 + GAP).sort((p, q) => p - q), mid = fronts[fronts.length >> 1];
+    if (id === 'midtown') assert.ok(mid >= 14 && mid <= 26, `midtown's median frontage ${mid.toFixed(1)} m`);
+  }
+});
+
+test('the walls draw their layout from their own sub-streams: the shared stream leaves buildings where it always did', () => {
+  // signs, furniture and traffic read the shared stream after buildings: a theme's walls tables must never move them
+  const plain = { id: 't32-plain', buildings: shipped.buildings, facades: [] }, walls = { ...plain, id: 't32-walls', heights: HEIGHTS_RUNS, bodies: ['#808080'], trim: '#ffffff' };
+  for (let seed = 1; seed <= 10; seed++) {
+    const a = rng(seed), b = rng(seed);
+    buildings(gfx, { z0: 0, length: 120 }, plain, a, { z: 50 });
+    buildings(gfx, { z0: 0, length: 120 }, walls, b, { z: 50 });
+    assert.equal(a(), b(), `seed ${seed}`);
+  }
+});
+
+test('a block squeezed under 7.5 m of frontage never stands as a full-height slab', () => {
+  const style = { id: 't32-slab', buildings: shipped.buildings, facades: [], heights: { kind: 'runs', short: [14, 24], tall: [60, 140], tallShare: 1, shortTiles: [0], tallTiles: [1] } };
+  for (let seed = 1; seed <= 20; seed++) {
+    const blocks = [];
+    buildings(gfx, { z0: 0, length: 7 }, style, rng(seed), null, blocks);
+    assert.ok(blocks.length === 2 && blocks.every((b) => b.h <= grid(24) + 1e-9), `seed ${seed}: ${JSON.stringify(blocks)}`);
+  }
 });
 
 test('a missing facade tile falls back to the placeholder tile', () => {
