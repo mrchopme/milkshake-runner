@@ -5,7 +5,7 @@ import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
-import { street, CROSS, WALK, FACADE_X, DASH } from '../packs/hifi/lib/street.js';
+import { street, CROSS, WALK, FACADE_X, DASH, KERB, PAVE, EDGE, KERB_TONE, pavingTexture, asphaltTexture } from '../packs/hifi/lib/street.js';
 import { buildings, CORNICE, GAP } from '../packs/hifi/lib/buildings.js';
 import { cityChunk } from '../packs/hifi/lib/city.js';
 import { SHOP_H, tintFor, tinted } from '../packs/hifi/lib/facade.js';
@@ -18,6 +18,9 @@ import shippedBridge from '../content/themes/bridge.js';
 import { waterMaterial, WATER } from '../packs/hifi/lib/bridge.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
+// the shipped ground, pinned (Task 32: Caedon's picks of 2026-10-15, the stack's tuned hexes)
+const GROUND = { downtown: { road: '#5c5d74', roadRough: 0.85, walk: '#9a96a3', walkRough: 0.9 }, midtown: { road: '#5f5c69', roadRough: 0.6, walk: '#b8a49c', walkRough: 0.55 }, uptown: { road: '#594a6e', roadRough: 0.5, walk: '#a896a2', walkRough: 0.55 } };
+const flat = { id: 'test', ground: { road: '#000', roadRough: 0.85, walk: '#888', walkRough: 0.9 }, paint: '#fff' }; // a street style with its ground
 const chunk = (seed, z0 = 0, length = 120) => downtown.createChunk.call({ ...shipped, ...downtown }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shipped, ...downtown } });
 const bridgeChunk = (z0, seed = 1, length = 120) => bridge.createChunk.call({ ...shippedBridge, ...bridge }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shippedBridge, ...bridge } });
 const bounds = (g, keep = () => true) => { // world box of the meshes `keep` picks, instances included (empty when none)
@@ -111,7 +114,7 @@ test('every block\'s -z end wears a storefront and facade from the ground to its
 test('the block list holds every built block in build order, in its documented shape, and reaches a later part', () => {
   let seen;
   const spy = (gfx_, args, style, r, cross, blocks) => { seen = blocks.map((x) => ({ ...x })); return gfx_.group(); };
-  const theme = { ...shipped, ...downtown }, style = { id: 'downtown', road: '#555', walk: '#888', paint: '#fff', buildings: shipped.buildings, parts: [buildings, spy] };
+  const theme = { ...shipped, ...downtown }, style = { id: 'downtown', ground: { ...GROUND.downtown, flag: 1.5 }, paint: '#fff', buildings: shipped.buildings, parts: [buildings, spy] };
   const g = cityChunk(gfx, { z0: 0, length: 120, lanes, rng: rng(3), theme }, style), blocks = g.userData.blocks;
   assert.deepEqual(seen, blocks, 'the later part gets the same list');
   for (const [i, b] of blocks.entries()) {
@@ -222,21 +225,22 @@ test('a missing facade tile falls back to the placeholder tile', () => {
 });
 
 test('the sidewalks stop at the cross street', () => {
-  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, { id: 'test', road: '#000', walk: '#888', paint: '#fff' }, cross);
-  let walks = 0;
+  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, flat, cross);
+  let walks = 0, kerbs = 0;
   g.updateMatrixWorld(true);
   g.traverse((n) => {
-    if (!n.userData.walk) return;
-    walks++;
+    if (!n.userData.walk && !n.userData.kerb) return;
+    if (n.userData.walk) walks++; else kerbs++;
     n.geometry.computeBoundingBox();
     const b = n.geometry.boundingBox.clone().applyMatrix4(n.matrixWorld);
     assert.ok(b.max.z <= cross.z + 1e-6 || b.min.z >= cross.z + CROSS.width - 1e-6, `sidewalk ${b.min.z}..${b.max.z}`);
   });
   assert.equal(walks, 4, 'two sidewalk pieces a side');
+  assert.equal(kerbs, 4, 'each with its own kerb piece (Task 32: the kerb is its own box, Caedon board 24)');
 });
 
 test('the cross street has ground under it from the road out to the back of the blocks', () => {
-  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, { id: 'test', road: '#000', walk: '#888', paint: '#fff' }, cross);
+  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, flat, cross);
   g.updateMatrixWorld(true);
   const covered = (x, z) => { let hit = false; g.traverse((n) => { if (!n.isMesh || n.isInstancedMesh) return; n.geometry.computeBoundingBox(); const b = n.geometry.boundingBox.clone().applyMatrix4(n.matrixWorld); if (x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z && b.max.y <= 0.2) hit = true; }); return hit; };
   for (const x of [-20, -14, -7, 0, 7, 14, 20]) for (const z of [cross.z + 0.5, cross.z + 6, cross.z + CROSS.width - 0.5]) assert.ok(covered(x, z), `no ground at x ${x}, z ${z}`);
@@ -244,17 +248,74 @@ test('the cross street has ground under it from the road out to the back of the 
 
 test('the facade line is the road\'s edge plus the sidewalk, and the sidewalk runs from the kerb up to it', () => {
   assert.equal(FACADE_X, ROAD_HALF + WALK);
-  const g = street(gfx, { z0: 0, length: 120, lanes: { ...lanes, roadHalf: ROAD_HALF } }, { id: 'test', road: '#000', walk: '#888', paint: '#fff' }, null);
-  let walks = 0;
+  const g = street(gfx, { z0: 0, length: 120, lanes: { ...lanes, roadHalf: ROAD_HALF } }, flat, null), pieces = [];
   g.updateMatrixWorld(true);
   g.traverse((n) => {
-    if (!n.userData.walk) return;
-    walks++;
+    if (!n.userData.walk && !n.userData.kerb) return;
     n.geometry.computeBoundingBox();
     const b = n.geometry.boundingBox.clone().applyMatrix4(n.matrixWorld), [near, far] = [Math.abs(b.min.x), Math.abs(b.max.x)].sort((p, q) => p - q);
-    assert.ok(Math.abs(near - ROAD_HALF) < 1e-6 && Math.abs(far - FACADE_X) < 1e-6, `sidewalk ${near}..${far}`);
+    pieces.push([n.userData.kerb ? 'kerb' : 'walk', near, far, b.max.y - b.min.y]);
   });
-  assert.equal(walks, 2);
+  const close = (a, b) => Math.abs(a - b) < 1e-6, kerbs = pieces.filter((p) => p[0] === 'kerb'), walks = pieces.filter((p) => p[0] === 'walk');
+  assert.equal(walks.length, 2); assert.equal(kerbs.length, 2, 'a 0.3 m kerb box per sidewalk piece (Task 32, Caedon board 24)');
+  for (const [, near, far, h] of kerbs) assert.ok(close(near, ROAD_HALF) && close(far, ROAD_HALF + PAVE.kerb) && close(h, KERB), `kerb ${near}..${far}, ${h} tall`);
+  for (const [, near, far] of walks) assert.ok(close(near, ROAD_HALF + PAVE.kerb) && close(far, FACADE_X), `sidewalk ${near}..${far}`);
+});
+
+test('the kerb is one value lighter than the paving, its road face shaded', () => {
+  const g = street(gfx, { z0: 0, length: 120, lanes }, flat, null); let kerb, walk;
+  g.traverse((n) => { if (n.userData.kerb) kerb = n; if (n.userData.walk) walk = n; });
+  assert.ok(Math.abs(kerb.material.color.r / walk.material.color.r - KERB_TONE.top) < 1e-6, 'the kerb top one value up');
+  assert.equal(kerb.material.map, walk.material.map, 'the kerb wears the paving\'s kerb band');
+  const n = kerb.geometry.attributes.normal, c = kerb.geometry.attributes.color, side = Math.sign(kerb.position.x);
+  for (let i = 0; i < n.count; i++) assert.ok(Math.abs(c.getX(i) - (n.getX(i) * side < -0.5 ? KERB_TONE.face / KERB_TONE.top : 1)) < 1e-6, `vertex ${i}`);
+});
+
+test('the paving UVs are metres: u out from the kerb, v on a 12 m period unbroken across a chunk seam', () => {
+  const tops = (z0) => { const out = []; street(gfx, { z0, length: 120, lanes }, flat, null).traverse((n) => {
+    if (!n.userData.walk && !n.userData.kerb) return;
+    const p = n.geometry.attributes.position, nor = n.geometry.attributes.normal, uv = n.geometry.attributes.uv;
+    for (let i = 0; i < p.count; i++) if (nor.getY(i) > 0.5) out.push({ x: p.getX(i) + n.position.x, z: p.getZ(i) + n.position.z, u: uv.getX(i), v: uv.getY(i) });
+  }); return out; };
+  const a = tops(120), b = tops(240), mod = (x) => ((x % PAVE.len) + PAVE.len) % PAVE.len;
+  for (const t of [...a, ...b]) assert.ok(Math.abs(t.u - (Math.abs(t.x) - lanes.roadHalf)) < 1e-6, `u ${t.u} at x ${t.x}`);
+  assert.ok(Math.abs(Math.min(...a.map((t) => t.u))) < 1e-6 && Math.abs(Math.max(...a.map((t) => t.u)) - WALK) < 1e-6, 'u runs 0..6 from the kerb');
+  const end = a.filter((t) => Math.abs(t.z - 240) < 1e-6), start = b.filter((t) => Math.abs(t.z - 240) < 1e-6);
+  assert.ok(end.length && start.length);
+  for (const t of [...end, ...start]) assert.ok(Math.abs(mod(t.v + 1e-9) - mod(end[0].v + 1e-9)) < 1e-6, `v ${t.v} at the seam`);
+  for (const t of a) assert.ok(Math.abs(mod(t.v - t.z + 1e-9)) < 1e-6 || Math.abs(mod(t.v - t.z + 1e-9) - PAVE.len) < 1e-6, `v ${t.v} at z ${t.z}`);
+});
+
+test('the paving and the asphalt are built once, shared, and the theme hex is divided by their mean', async () => {
+  const maps = (g, key) => { const out = new Set(); g.traverse((n) => { if (n.userData[key]) out.add(n.material.map); }); return [...out]; };
+  const [p1] = maps(street(gfx, { z0: 0, length: 120, lanes }, flat, null), 'walk'), [p2] = maps(street(gfx, { z0: 120, length: 120, lanes }, { ...flat, id: 'test2' }, null), 'walk');
+  assert.ok(p1.isDataTexture && p1 === p2 && p1.userData.shared, 'one paving per flag size, on every chunk');
+  assert.equal(pavingTexture(THREE, { ground: { flag: 1.5 } }), p1);
+  assert.notEqual(pavingTexture(THREE, { ground: { flag: 1.2 } }), p1, 'uptown\'s smaller flags get their own');
+  assert.equal(asphaltTexture(THREE), asphaltTexture(THREE)); assert.ok(asphaltTexture(THREE).userData.shared);
+  assert.equal(p1.image.width, PAVE.w); assert.equal(p1.image.height, PAVE.h);
+  for (const [t, mean] of [[p1, 0.830], [pavingTexture(THREE, { ground: { flag: 1.2 } }), 0.833], [asphaltTexture(THREE), 0.911]]) assert.ok(Math.abs(t.userData.mean - mean) < 0.005, `mean ${t.userData.mean}`);
+  for (const id of ['downtown', 'midtown', 'uptown']) {
+    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
+    let walk; hifi.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: rng(1), theme }).traverse((n) => { if (n.userData.walk) walk = n; });
+    const want = new THREE.Color(GROUND[id].walk).multiplyScalar(1 / walk.material.map.userData.mean);
+    assert.equal(walk.material.color.getHexString(), want.getHexString(), `${id}: the walk renders at its hex on average`);
+    assert.equal(walk.material.roughness, GROUND[id].walkRough);
+  }
+});
+
+test('solid white edge lines 0.5 m in from each kerb, the chunk\'s length but across the crosswalk; the zebra centred', () => {
+  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, flat, cross);
+  let lines, zebra; g.traverse((n) => { if (n.isInstancedMesh && n.geometry.parameters.width === DASH.w) lines = n; if (n.isInstancedMesh && n.geometry.parameters.width === CROSS.stripe) zebra = n; });
+  const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(), edges = [];
+  for (let i = 0; i < lines.count; i++) { lines.getMatrixAt(i, m); m.decompose(p, q, s); if (Math.abs(Math.abs(p.x) - (lanes.roadHalf - EDGE.in)) < 1e-6) edges.push([p.x, p.z - s.z * DASH.len / 2, p.z + s.z * DASH.len / 2, s.x * DASH.w]); }
+  for (const x of [1, -1]) {
+    const mine = edges.filter((e) => Math.sign(e[0]) === x).sort((a, b) => a[1] - b[1]);
+    assert.deepEqual(mine.map((e) => [e[1], e[2]].map((v) => +v.toFixed(3))), [[0, cross.z], [cross.z + CROSS.width, 120]], `side ${x}`);
+    for (const e of mine) assert.ok(Math.abs(e[3] - EDGE.w) < 1e-5, `${e[3]} wide`);
+  }
+  const xs = []; for (let i = 0; i < zebra.count; i++) { zebra.getMatrixAt(i, m); p.setFromMatrixPosition(m); xs.push(p.x); }
+  assert.ok(Math.abs(Math.min(...xs) + Math.max(...xs)) < 1e-6, `zebra ${Math.min(...xs)}..${Math.max(...xs)}`);
 });
 
 test('a facade tile that loads after a chunk was built still shows on the next chunk', () => {
@@ -455,14 +516,15 @@ test('every waterfront block stands in the water, its body reaching under the su
   }
 });
 
-test('the road is one warm grey from the avenues onto the bridge, its lane lines solid but across the crosswalk (Caedon, board 18)', async () => {
-  const roads = new Set();
-  for (const id of ['downtown', 'midtown', 'uptown', 'bridge']) {
-    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
-    hifi.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: rng(1), theme }).traverse((n) => { if (n.userData.road) roads.add(n.material.color.getHexString()); });
+test('the road is a cool grey per scene over asphalt grain, its lane lines solid but across the crosswalk (Caedon, board 18; 2026-10-15)', async () => {
+  for (const id of ['downtown', 'midtown', 'uptown']) {
+    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }, roads = new Set();
+    hifi.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: rng(1), theme }).traverse((n) => { if (n.userData.road) roads.add(n.material); });
+    const want = new THREE.Color(GROUND[id].road).multiplyScalar(1 / asphaltTexture(THREE).userData.mean).getHexString();
+    // Caedon 2026-10-15, "Cool grey per scene" like the style frames, replacing board 18's warm #6b675a
+    assert.deepEqual([...roads].map((r) => [r.color.getHexString(), r.map, r.roughness]), [[want, asphaltTexture(THREE), GROUND[id].roadRough]], id);
   }
-  assert.deepEqual([...roads], ['6b675a'], 'the teaser\'s road, measured');
-  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, { id: 'test', road: '#000', walk: '#888', paint: '#fff' }, cross);
+  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, flat, cross);
   let lines; g.traverse((n) => { if (n.isInstancedMesh && n.geometry.parameters.width === DASH.w) lines = n; });
   const spans = [], m = new THREE.Matrix4(), p = new THREE.Vector3();
   for (let i = 0; i < lines.count; i++) { lines.getMatrixAt(i, m); p.setFromMatrixPosition(m); if (p.x > 0) spans.push([p.z - DASH.len / 2, p.z + DASH.len / 2]); }
