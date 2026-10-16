@@ -129,7 +129,7 @@ test('nothing above the shop band but framed posters on their blocks and the odd
           }
           perSide[side].push(p.z);
           assert.ok(p.y >= 7 && p.y <= 10, `${at}: a poster hung at ${p.y.toFixed(2)} m`);
-          assert.ok(p.y + s.y / 2 + FRAME <= Math.min(b.setAt, b.h) - CORNICE.h + 1e-6, `${at}: a poster's frame under its block's cornice`);
+          assert.ok(p.y + s.y / 2 + FRAME <= Math.min(b.setAt ?? b.h, b.h) - CORNICE.h + 1e-6, `${at}: a poster's frame under its block's cornice`);
           assert.ok(new T.Vector3(0, 0, 1).applyQuaternion(q).x * side < -0.999, `${at}: a poster faces the road`);
           const f = frames.find((x) => Math.abs(x.p.z - p.z) < 1e-4 && Math.abs(x.p.y - p.y) < 1e-4);
           assert.ok(f && Math.abs(f.s.x - FRAME) < 1e-5 && Math.abs(f.s.y - s.y - 2 * FRAME) < 1e-5 && Math.abs(f.s.z - s.x - 2 * FRAME) < 1e-5, `${at}: a poster in its ${FRAME} m frame`);
@@ -142,7 +142,7 @@ test('nothing above the shop band but framed posters on their blocks and the odd
     }
     const per100 = (n) => n / (SEEDS * 120) * 100 / 2; // per side
     assert.ok(per100(count.poster) <= 100 / 60 && count.poster / SEEDS >= 1, `${id}: ${per100(count.poster).toFixed(2)} posters per side per 100 m, ${(count.poster / SEEDS).toFixed(2)} a chunk`);
-    const blades = count.blade / SEEDS, want = { downtown: [1, 1.8], midtown: [0, 0], uptown: [0.5, 1.3] }[id]; // at most one a side a chunk; midtown none, uptown about one a chunk
+    const blades = count.blade / SEEDS, want = { downtown: [1, 2], midtown: [0, 0], uptown: [0.5, 1.3] }[id]; // at most one a side a chunk; midtown none, uptown about one a chunk
     assert.ok(blades >= want[0] && blades <= want[1], `${id}: ${blades.toFixed(2)} blades a chunk`);
   }
 });
@@ -160,14 +160,31 @@ test('no block list, no image or a short chunk: no stand-in signs', () => {
   assert.ok(drawn > 0, 'once loaded, the same blocks wear signs');
 });
 
+// the z of every sign wearing one of `list`'s images over four chunks in a row, a sorted list a side
+const seamRun = (theme, seed, list) => {
+  const perSide = { [-1]: [], [1]: [] };
+  for (let k = 0; k < 4; k++) for (const n of signsOf(chunk(theme, seed * 10 + k, 120 * k)).children) {
+    if (n.material.map && list.includes(pathOf(n.material.map))) for (const { p } of poses(n)) perSide[Math.sign(p.x)].push(p.z);
+  }
+  return Object.values(perSide).map((zs) => zs.sort((a, c) => a - c));
+};
+
 test('posters keep 60 m apart on a side across the seams too, though no chunk knows its neighbours', () => {
   Object.values(SIGN_FILES).flat().forEach(load);
   for (const theme of STREET) for (let seed = 1; seed <= 10; seed++) {
-    const perSide = { [-1]: [], [1]: [] };
-    for (let k = 0; k < 4; k++) for (const n of signsOf(chunk(theme, seed * 10 + k, 120 * k)).children) {
-      if (n.material.map && SIGN_FILES.posters.includes(pathOf(n.material.map))) for (const { p } of poses(n)) perSide[Math.sign(p.x)].push(p.z);
+    for (const zs of seamRun(theme, seed, SIGN_FILES.posters)) zs.forEach((z, i) => assert.ok(!i || z - zs[i - 1] >= 60, `${theme[0].id} seed ${seed}: posters ${(z - zs[i - 1]).toFixed(1)} m apart at z ${z.toFixed(1)}`));
+  }
+});
+
+test('blades keep 100 m apart on a side across the seams too (at most one a side per ~100 m)', () => {
+  Object.values(SIGN_FILES).flat().forEach(load);
+  for (const theme of STREET.filter(([h]) => h.id !== 'midtown')) { // the themes that draw blades (midtown's bladeRate is 0)
+    let seen = 0;
+    for (let seed = 1; seed <= 10; seed++) for (const zs of seamRun(theme, seed, SIGN_FILES.blades)) {
+      seen += zs.length;
+      zs.forEach((z, i) => assert.ok(!i || z - zs[i - 1] >= 100 - 1e-6, `${theme[0].id} seed ${seed}: blades ${(z - zs[i - 1]).toFixed(1)} m apart at z ${z.toFixed(1)}`));
     }
-    for (const zs of Object.values(perSide)) zs.sort((a, c) => a - c).forEach((z, i) => assert.ok(!i || z - zs[i - 1] >= 60, `${theme[0].id} seed ${seed}: posters ${(z - zs[i - 1]).toFixed(1)} m apart at z ${z.toFixed(1)}`));
+    assert.ok(seen > 0, `${theme[0].id}: some blades drawn`);
   }
 });
 

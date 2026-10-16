@@ -15,10 +15,12 @@ import { pickBy } from './rand.js';
 // block, never under 2.5), centre height range (the cornice can lower it, never under a 6 m bottom), frame margin and depth, and
 // spacing on a side (centres kept every[0] / 2 off each chunk end, so the spacing holds across a seam with no neighbour known); OFF: the frame's back off the wall, clear of the facade relief (ledges 0.18 m out). Blades: width (the
 // pictograms keep their aspect), centre height (floors 2-3, over the awnings and the fascia), off the wall, the chance of one a
-// side a chunk at style.bladeRate 1 (0.83: 100 m / 120 m, at most one a side per ~100 m).
+// side a chunk at style.bladeRate 1 (0.83: 100 m / 120 m, at most one a side per ~100 m), and edge: only a block starting
+// edge..length - edge into the chunk takes one, so two blades on a side keep 100 m apart across a seam with no neighbour known.
+// The rate is per z0, not per seed: the stream is pickBy(z0), so a given chunk position draws the same, whatever the level seed.
 const GLOW = { day: 0.2, dusk: 0.6 }, PICK = 2;
 const POSTER = { w: 4, min: 2.5, y: [8, 9], bottom: 6, frame: 0.15, off: 0.19, every: [60, 80] };
-export const BLADE = { w: 1.4, y: 7.2, wall: 0.1, chance: 0.83 };
+export const BLADE = { w: 1.4, y: 7.2, wall: 0.1, chance: 0.83, edge: 50 };
 export const ASPECT = { poster: 1024 / 573, blade: 688 / 1024 }; // the generated images'; a poster or blade keeps its image's aspect
 export const SIGN_FILES = { posters: cityFiles('signs', 'poster', 12), blades: cityFiles('signs', 'blade', 6) };
 const loaded = (gfx, path) => { try { return path ? gfx.texture(path) : null; } catch { return null; } };
@@ -26,6 +28,7 @@ function imageMaterial(gfx, path, glow) {
   const map = loaded(gfx, path);
   return map && material(`sign/${path}/${glow}`, () => new gfx.three.MeshStandardMaterial({ map, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: glow, roughness: 0.7 }), map);
 }
+// a part's positional arguments (city.js); signs use neither the chunk's rng (_r: they keep their own stream) nor _cross
 export function signs(gfx, { z0, length }, style, _r, _cross, blocks = []) {
   const T = gfx.three, g = gfx.group(), sets = new Map(), frames = [];
   g.userData.signs = true; // for tests
@@ -55,9 +58,9 @@ export function signs(gfx, { z0, length }, style, _r, _cross, blocks = []) {
     }
   }
   // blades: at most one a side a chunk, at the theme's rate (midtown none), out from the wall at a block's near end, on a block
-  // with no poster, facing the oncoming camera
+  // with no poster, starting BLADE.edge or more inside either chunk end, facing the oncoming camera
   for (const side of [-1, 1]) {
-    const pick = q(), list = mine.filter((b) => b.side === side && b.z1 - b.z0 > 4 && !used.has(b)), b = list[Math.floor(q() * list.length)], mat = blades[Math.floor(q() * PICK)];
+    const pick = q(), list = mine.filter((b) => b.side === side && b.z1 - b.z0 > 4 && !used.has(b) && b.z0 >= z0 + BLADE.edge && b.z0 <= z0 + length - BLADE.edge), b = list[Math.floor(q() * list.length)], mat = blades[Math.floor(q() * PICK)];
     const bh = BLADE.w / ASPECT.blade;
     if (!b || !mat || pick >= BLADE.chance * (style.bladeRate ?? 0) || BLADE.y + bh / 2 > ceil(b)) continue;
     put(mat, new T.Matrix4().compose(new T.Vector3(side * (FACADE_X - BLADE.wall - BLADE.w / 2), BLADE.y, b.z0 + 1), turn(Math.PI), new T.Vector3(BLADE.w, bh, 1)));
