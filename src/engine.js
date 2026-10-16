@@ -7,8 +7,8 @@ const CAMERA_EASE = 0.2;         // seconds; overrides are 92% of the way in hal
 const STREAKS = 14, STREAK_FROM = 16, STREAK_FULL = 30; // streaks fade in between these speeds (m/s)
 const SUN = 2.2, HEMI = 1.2;     // the low-fi light; a HiFi look sets its own, and setSky puts these back first
 // Sun from above, behind the camera and a little to the right, so faces toward the camera are lit and side faces take
-// the one shade tone the style sheet shows. It sits far back along that line and aims ahead of the run, so a HiFi shadow
-// box covers the street ahead and the tallest buildings; the direction, and so the low-fi shading, is unchanged.
+// the one shade tone the style sheet shows. It sits far back along that line, aimed ahead of the run; only its direction
+// shades. HiFi shadows are the look's cascades (src/look.js), aimed along sunDir.
 const SUN_DIR = new THREE.Vector3(6, -16, 12).normalize(), SUN_BACK = 120, SUN_AHEAD = 25;
 
 // Where the chase camera sits for a run. Pure, so it is testable: `cam` is a section's override, `speed` widens the view.
@@ -56,6 +56,7 @@ export function createEngine(canvas) {
 
   const live = { ...CAMERA, speed: 0 }; // the eased camera values
   let portrait = false;
+  const sunDir = SUN_DIR.clone(); // the light's direction: a look may turn it, setSky puts the low-fi one back first
   let look = null; // the HiFi look (src/look.js), set by useLook; null keeps the low-fi renderer path
   const render = () => (look?.active ? look.render() : renderer.render(scene, camera));
   // Fits the canvas to the window, or to an explicit size (scripts/hifi-shot.js renders stills at 2160x3840).
@@ -72,9 +73,10 @@ export function createEngine(canvas) {
   resize();
 
   return {
-    scene, camera, renderer, sun, hemi, render, resize,
+    scene, camera, renderer, sun, hemi, sunDir, render, resize,
     useLook(l) { look = l; resize(); },
     setSky(theme) {
+      sunDir.copy(SUN_DIR);
       const sky = new THREE.Color(theme.sky);
       scene.background = sky;
       const far = 260 - theme.fog * 160;
@@ -91,7 +93,7 @@ export function createEngine(canvas) {
       const fov = c.fov + (portrait ? 15 : 0);
       if (Math.abs(fov - camera.fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
       sun.target.position.set(run.x, 0, run.z + SUN_AHEAD);
-      sun.position.copy(sun.target.position).addScaledVector(SUN_DIR, -SUN_BACK);
+      sun.position.copy(sun.target.position).addScaledVector(sunDir, -SUN_BACK);
       streakMat.opacity = streakOpacity(speed, dt);
       if (streakMat.opacity > 0) for (const s of streaks.children) { s.position.z += speed * dt * 2; if (s.position.z > -2) s.position.z = -18 - Math.random() * 4; }
     },

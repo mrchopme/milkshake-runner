@@ -166,7 +166,7 @@ test('swipes and keys map to actions', () => {
 
 import { before } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { generate, normalizeLevel, densityAt, rng, passable, curveSegments, FINISH_STRAIGHT_M, cameraAt, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
+import { generate, normalizeLevel, densityAt, rng, passable, curveSegments, turnedBy, FINISH_STRAIGHT_M, cameraAt, ROW_GAP, START_CLEAR, END_CLEAR, JUG_CLEARANCE } from '../src/generator.js';
 import * as gfx from '../src/gfx.js';
 import { buildRegistry } from '../src/registry.js';
 import { discover } from './helpers.js';
@@ -421,6 +421,30 @@ test('curveSegments merges touching stretches with the same bend, so a level-wid
   assert.equal(curveSegments(split, 0, 1500).length, 3, 'a different bend in the middle keeps three stretches');
 });
 
+test('turnedBy is how far the street has turned by z (turn × metres): 0 on the straight, each turn whole after it, continuous, and blind to how stretches merge', () => {
+  assert.equal(turnedBy(normalizeLevel(lvl()), 1000), 0, 'a straight level never turns');
+  const two = normalizeLevel(lvl({ sections: [{ from_m: 150, to_m: 400, curve: { turn: 1 } }, { from_m: 600, to_m: 800, curve: { turn: -0.5, hill: 0.5 } }, { from_m: 900, to_m: 1000, curve: { hill: 1 } }] }));
+  assert.equal(turnedBy(two, 150), 0, 'nothing before the first turn');
+  assert.equal(turnedBy(two, 275), 125, 'half way through it, half of it');
+  assert.equal(turnedBy(two, 1400), 250 * 1 + 200 * -0.5, 'after the last: every turn times its length, summed; a hill turns nothing');
+  const E = normalizeLevel(lvl({ length_m: null, curve: 'random' }));
+  for (const seed of [3, 7, 11]) {
+    const segs = curveSegments(E, 0, 2400, seed);
+    assert.ok(segs.some((s) => s.turn), `seed ${seed} turns somewhere`);
+    assert.equal(turnedBy(E, 2400, seed), segs.reduce((sum, s) => sum + s.turn * (s.to - s.from), 0), `seed ${seed}: the random picks behind, summed`);
+  }
+  for (const [norm, seed, to] of [[two, 0, 1500], [E, 3, 4000], [E, 7, 4000], [E, 11, 4000]]) {
+    let prev = turnedBy(norm, 0, seed);
+    for (let z = 0.5; z <= to; z += 0.5) {
+      const t = turnedBy(norm, z, seed);
+      assert.ok(Math.abs(t - prev) <= 0.5 + 1e-9, `seed ${seed}: ${prev} to ${t} between ${z - 0.5} and ${z} m`); // at most a full turn's half metre
+      prev = t;
+    }
+  }
+  const merged = normalizeLevel(lvl({ curve: { turn: 1 }, sections: [{ from_m: 100, to_m: 200, density: { start: 1, end: 1 } }] }));
+  for (const z of [50, 150, 250, 1450]) assert.equal(turnedBy(merged, z), Math.min(z, 1500 - FINISH_STRAIGHT_M), `${z} m under one merged stretch`);
+});
+
 test('gfx.box subdivides along z so long road pieces bend', () => {
   assert.equal(gfx.box(1, 1, 120, '#ffffff').geometry.parameters.depthSegments, 30);
   assert.equal(gfx.box(1, 1, 3, '#ffffff').geometry.parameters.depthSegments, 1);
@@ -535,4 +559,64 @@ test('a snap keeps the felt speed and switches the streaks off, so the frame a B
   assert.ok(Math.abs(cameraFor({ x: 0, y: 0, z: 0 }, live, live.speed).fov - 67.2) < 1e-9, 'no 7° drop at 24 m/s');
   assert.ok(Math.abs(streakOpacity(24) - (0.6 * 8) / 14) < 1e-9, 'a frame at 24 m/s draws the streaks');
   assert.equal(streakOpacity(24, Infinity), 0, 'a snap is a still: no motion lines');
+});
+
+test('the bend keeps instanced and batched copies where three puts them: batching, then instancing, then the model, then the street', () => {
+  const shader = { uniforms: {}, vertexShader: gfx.three.ShaderLib.standard.vertexShader };
+  gfx.bendable(new gfx.three.MeshStandardMaterial()).onBeforeCompile(shader, null);
+  const v = shader.vertexShader;
+  assert.ok(!v.includes('#include <project_vertex>'), 'three\'s projection is replaced');
+  const at = ['bentWorld = batchingMatrix * bentWorld', 'bentWorld = instanceMatrix * bentWorld', 'bentWorld = modelMatrix * bentWorld', 'bendOffset( bentWorld.z )'].map((s) => v.indexOf(s));
+  assert.ok(at.every((i, k) => i > 0 && (k === 0 || i > at[k - 1])), `in three's order: ${at}`);
+  assert.deepEqual(gfx.three.ShaderChunk.project_vertex.match(/\w+Matrix(?= \*)/g), ['batchingMatrix', 'instanceMatrix', 'modelViewMatrix', 'projectionMatrix'], 'three applies the same matrices in the same order; a three upgrade that changes them fails here');
+});
+
+test('a clone of a bent material is bent too, instead of silently rendering straight', () => {
+  const clone = gfx.bendable(new gfx.three.MeshStandardMaterial()).clone();
+  const shader = { uniforms: {}, vertexShader: 'void main() {\n#include <project_vertex>\n}' };
+  gfx.bendable(clone).onBeforeCompile(shader, null);
+  assert.ok(shader.vertexShader.includes('bendOffset'), 'the clone is patched');
+});
+
+test('HiFi lets the skyline through what the fog has fully hidden, and low-fi compiles three\'s fragment shaders untouched', () => {
+  assert.ok(gfx.fogCut.value === 0 && gfx.hook.cutFog === false, 'the cut starts off, compiled out');
+  const CUT = '#include <fog_fragment>\n#ifdef USE_FOG\n  if ( uFogCut > 0.5 && fogFactor > 0.999 ) discard;';
+  const compile = (T, lib) => {
+    const shader = { uniforms: {}, vertexShader: gfx.three.ShaderLib[lib].vertexShader, fragmentShader: gfx.three.ShaderLib[lib].fragmentShader };
+    gfx.bendable(new T()).onBeforeCompile(shader, null);
+    return shader;
+  };
+  for (const [T, lib] of [[gfx.three.MeshToonMaterial, 'toon'], [gfx.three.SpriteMaterial, 'sprite']]) {
+    const low = compile(T, lib);
+    assert.ok(low.fragmentShader === gfx.three.ShaderLib[lib].fragmentShader && !('uFogCut' in low.uniforms), `${lib}: low-fi has no uFogCut and no discard`);
+    gfx.hook.cutFog = true; // what createLook sets, once, before anything compiles
+    try {
+      const hi = compile(T, lib), f = hi.fragmentShader, decl = f.indexOf('uniform float uFogCut;');
+      assert.equal(hi.uniforms.uFogCut, gfx.fogCut, `${lib}: one shared uniform the look switches per theme`);
+      assert.ok(decl >= 0 && decl < f.indexOf('void main() {') && f.includes(CUT), `${lib}: declared before main; the cut right after three's fog, behind USE_FOG and uFogCut`);
+      // Task 32 height fog (Caedon, board 22): a bent mesh fogs toward uFogShade low down, by its world y before the bend
+      const lit = lib === 'toon', v = hi.vertexShader, MIX = 'mix( uFogShade, fogColor, smoothstep( uFogHeight.x, uFogHeight.y, vFogY ) )';
+      assert.equal(v.includes('varying float vFogY;') && f.includes('varying float vFogY;'), lit, `${lib}: the height varying only where three projects the vertex (a sprite has no project_vertex)`);
+      if (lit) {
+        assert.ok(v.indexOf('vFogY = bentWorld.y - bendOffset( bentWorld.z ).y;') > v.indexOf('bentWorld.xyz += bendOffset'), 'taken after the bend, minus its lift: a hill raises the street and its fog together');
+        assert.ok(f.includes(MIX) && f.indexOf(MIX) < f.indexOf('#include <fog_fragment>') && f.includes('#define fogColor'), 'three\'s fog mixes toward the height fog colour');
+        assert.ok(hi.uniforms.uFogShade === gfx.fogShade && hi.uniforms.uFogHeight === gfx.fogHeight, 'shared uniforms the look sets per theme');
+      } else assert.ok(!f.includes('uFogShade') && !('uFogShade' in hi.uniforms), 'a sprite keeps the plain fog');
+    } finally { gfx.hook.cutFog = false; }
+  }
+});
+
+test('gfx.bendable runs the look\'s beforeBend hook before the bend wraps: the module\'s hook, then the look\'s, then the bend', () => {
+  assert.equal(gfx.hook.beforeBend, null, 'low-fi sets no hook');
+  const order = [], own = () => order.push('own');
+  gfx.hook.beforeBend = (m) => { // as CSM.setupMaterial does: it replaces onBeforeCompile instead of chaining
+    order.push(m.onBeforeCompile === own ? 'hooked before the wrap' : 'hooked after the wrap');
+    m.onBeforeCompile = (shader) => order.push(shader.vertexShader.includes('bendOffset') ? 'look, after the bend' : 'look');
+  };
+  try {
+    const shader = { uniforms: {}, vertexShader: 'void main() {\n#include <project_vertex>\n}' };
+    gfx.bendable(Object.assign(new gfx.three.MeshToonMaterial(), { onBeforeCompile: own })).onBeforeCompile(shader, null);
+    assert.deepEqual(order, ['hooked before the wrap', 'own', 'look']);
+    assert.ok(shader.vertexShader.includes('bendOffset'), 'and the bend is patched in last');
+  } finally { gfx.hook.beforeBend = null; }
 });

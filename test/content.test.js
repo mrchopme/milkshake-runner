@@ -53,6 +53,20 @@ test('dust puffs hold their place on the road when Milkshake changes lane or jum
   assert.ok(Math.abs(now.z - born.z) < 1e-9, 'z is still held');
 });
 
+test('a dust puff from an earlier clock hides instead of flaring when the run restarts under a living view', async () => {
+  const view = await milkshake.createView(gfx);
+  const puffs = view.object.children.find((c) => c.children.length === 6);
+  const run = createRun(resolveRules(), milkshake);
+  for (let i = 0; i < 15; i++) { step(run, 1 / 60, 12); view.update(run); }
+  const live = puffs.children.filter((p) => p.visible);
+  assert.ok(live.length > 0 && run.time > 0.2, 'puffs are in the air a quarter second in');
+  run.time = 0; // a new run reuses the view: its clock starts again, behind every puff's birth
+  view.update(run);
+  const flared = puffs.children.filter((p) => p.visible && p.material.opacity > 0.5);
+  assert.deepEqual(flared.map((p) => p.material.opacity), [], 'no visible puff is brighter than a fresh one');
+  assert.ok(live.every((p) => !p.visible), 'a puff born in the clock\'s future hides, like an expired one');
+});
+
 // Board 14: the silhouette says the move. The boxes must agree with it: a barrier you can jump, a beam you can slide under, a taxi you cannot jump.
 test('the shipped obstacle boxes match their moves', () => {
   const R = resolveRules();
@@ -110,4 +124,16 @@ test('a model that breaks after skinning is thrown away whole, so the fallback c
   view.pose(0.11); // a stride near its peak
   const pivots = view.object.children[1].children[0].children.filter((c) => c.isGroup);
   assert.ok(pivots.length === 4 && pivots.every((p) => p.rotation.x !== 0 && p.rotation.z === 0), 'the shape cow swings its capsule limbs about x');
+});
+
+test('the HiFi pack can reuse Milkshake\'s view with its own model, skin knobs and paint', async () => {
+  const { cowView, SKIN } = await import('../content/characters/milkshake.js');
+  const T = gfx.three, def = { height: 1.9, width: 1, yaw: 0 };
+  const scene = new T.Group(); scene.add(new T.Mesh(new T.BoxGeometry(0.6, 1, 0.4, 2, 8, 2), new T.MeshStandardMaterial()));
+  let dressed = 0;
+  const view = await cowView(gfx, def, { load: async () => scene, skin: { ...SKIN, crotch: -0.4 }, dress: (T2, m) => { dressed++; return new T2.MeshPhysicalMaterial({ map: m.map }); }, blob: false });
+  assert.ok(dressed > 0, 'the caller dresses the model');
+  let skinned = 0, blobs = 0; view.object.traverse((n) => { if (n.isSkinnedMesh) skinned++; if (n.geometry?.type === 'CircleGeometry') blobs++; });
+  assert.equal(skinned, 1, 'skinned with v4\'s code'); assert.equal(blobs, 0, 'no blob shadow when the caller says so');
+  assert.doesNotThrow(() => view.update({ x: 0, y: 0, z: 0, lane: 1, time: 0.3, slideT: 0, over: false, speed: 12, rules: { laneWidth: 2.5 } }));
 });

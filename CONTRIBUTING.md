@@ -71,9 +71,12 @@ Content is a one-file ES module with a default export. Pick a handle (your GitHu
 `content/<kind>s/<handle>/<name>.js` with `id: "<handle>/<name>"`. The registry rejects a wrong path, a duplicate id or missing fields, and tells you exactly what is wrong.
 
 Modules receive `gfx` when they draw: `gfx.box(w, h, d, color, x, y, z)`, `gfx.cyl`, `gfx.sphere`, `gfx.capsule`, `gfx.cone`, `gfx.roundedBox`, `gfx.group(...)`, `gfx.blobShadow(r)`, `gfx.glow(r, color)`, `gfx.sprite`, `gfx.textTexture`, `gfx.palette` (the game's colours) and `gfx.three` if you need Three.js itself. Do not import `three` at the top of your file; tests import your module in Node. The world bends in the distance (a level's `curve`); build long pieces with `gfx.box`, which subdivides along z, because raw geometry longer than about 6 m stays a straight chord. Materials from these helpers bend by themselves, and the engine runs `gfx.bend(object)` over everything `createView` and `createChunk` return, so a material you build from `gfx.three` bends too. Anything you add later, in `update()`, is yours to pass through `gfx.bend`; it keeps a material's own `onBeforeCompile` and runs it before the bend.
-A module may also list `.glb` files from `public/` in `assets` (for example `assets: ['hifi/taxi.glb']`). The game
-loads them before play, and `gfx.asset(path)` returns a copy that shares geometry and materials with every other copy,
-so your view stays synchronous. Do not dispose an asset's geometry or materials yourself; `gfx.dispose` leaves them alone.
+A module may also list files from `public/` in `assets`: `.glb` models (for example `assets: ['hifi/taxi.glb']`) and
+`.webp` or `.png` images. The game loads them before play, so your view stays synchronous: `gfx.asset(path)` returns a
+copy of a model that shares geometry and materials with every other copy, and `gfx.texture(path)` returns an image's
+texture, one every user shares. Do not dispose an asset's geometry, materials or textures yourself; `gfx.dispose` leaves
+them alone. Files the next level does not use are freed between levels, so if you cache something made from an asset,
+key it by the loaded object, not its path.
 
 Complete, working examples live in `test/fixtures/content/` (a boulder, a 3× pickup, an arch prop, a forest theme that replaces the street, a robot character, a banner ending) and `test/fixtures/levels/`. Run `npm run dev` and open `http://localhost:5173/milkshake-runner/?fixtures` to play them.
 
@@ -107,7 +110,9 @@ export default {
   // value: 5,                          // instant pickups add jugs
 };
 ```
-Pickups without `createView` get the standard glowing orb with your glyph or label.
+Pickups without `createView` get the standard glowing orb with your glyph or label. A power-up may also have a worn
+look: `createWorn(gfx)` returns a view (`{ object }`, optional `update(run)` and `dispose()`) that rides on the character
+while the effect lasts and is dropped when it ends.
 
 ### Prop
 
@@ -134,9 +139,29 @@ export default {
 };
 ```
 
-A theme may also carry a `look`, used only in HiFi: `{ exposure, sun: { color, intensity }, ambient, env, skyTop,
-bloom: { strength, threshold, radius } }`, every field optional and range-checked like the rest. `skyTop` is the top of
-the sky gradient; the horizon is the level's sky colour. Low-fi ignores it.
+A theme may also carry a `look`, used only in HiFi: `{ exposure, sun: { color, intensity, dir }, ambient, env, skyTop,
+skyBottom, hemi, fog, skylineHaze, disc, bloom: { strength, threshold, radius }, skyline, skylineHeight }`, every field
+optional and range-checked like the rest. `skyTop` is the top of the sky gradient. `sun.dir` is the way the sunlight
+travels, `[x, y, z]` with y below 0 (z below 0 puts the sun ahead of the runner). `ambient` (0–6) is the fill's strength.
+`skyline` is one or two images from the theme's `assets` wrapped round the horizon (two: the
+far ring's, then the near one's; one: the near ring), and `skylineHeight` their heights `[far, near]` in metres (10–400;
+90 and 80 by default). A single image is tiled with its mirror (`A|mirror(A)`, `scripts/tile-image.py --mirror`). The near
+ring may instead wear a list of 1 to 8 images, `skyline: [far, [near1, near2, …]]` (or `[[near1, …]]` with no far ring):
+they go round in order, each once and unmirrored, so each strip's own edges meet its neighbours; the whole sequence repeats
+as many whole times as fits at the target height, and `near1`'s middle faces the avenue. Both rings turn with the street
+through every turn. Low-fi ignores it. The rest:
+- `skyBottom`: the sky's horizon colour (hex); without it the horizon takes the fog's colour.
+- `hemi: { sky, ground }`: the fill's colours (hex); without it the engine's white over grey.
+- `fog: { color, near, pale, shade, y: [a, b] }`: the fog's colour (else `skyBottom`, else the level's sky), where it starts
+  (0–400 m, 120 by default), how far it pales toward white (0–1, 0.45 by default), and a deeper `shade` low down that gives
+  way to `color` between `a` and `b` metres up (−50–300, a < b; [0, 40] by default).
+- `skylineHaze: { color, mul, mix: [foot, top], flatten, foot }`: the skyline images times `mul`, their brightness pulled
+  `flatten` (0–1) of the way to `color`'s (else the fog's), mixed toward it by `mix` (0–1) from foot to top; below `foot` m
+  (−50–50) about eye level the ring turns solid in the fog's colour, so the street's fog meets it with no band.
+- `disc: { size, core, halo, spread, color }`: the sun drawn in the sky, `size` degrees (0–10) wide at `core` (0–20) times
+  the sun's colour, in a halo `spread` degrees (0.1–90) wide in `color` at `halo` (0–5). No disc, no sun drawn.
+
+A switch between two themes with looks crossfades their light, fog and sky over about a second.
 
 ### Character
 
@@ -175,8 +200,9 @@ export default {
 
 A pack re-skins modules that are already registered, without changing how they play. It lives at
 `packs/<pack>/<kind>s/<id>.js`, mirrors the module's id, and may set only `createView` (obstacle, pickup, prop,
-character), `createChunk` and `look` (theme), and `assets`. Anything else, a box, a speed or an effect, is rejected:
-packs change how things look, not how they play. The game merges the `hifi` pack on devices with a mouse or trackpad;
+character), `createWorn` (pickup), `createChunk` and `look` (theme), and `assets`. Anything else, a box, a speed or an
+effect, is rejected: packs change how things look, not how they play. Helpers a pack's modules share go in
+`packs/<pack>/lib/`, which is never loaded as an overlay; modules import them by relative path. The game merges the `hifi` pack on devices with a mouse or trackpad;
 add `?hifi` or `?lofi` to the address to force either. A broken overlay disables only itself, and the module
 underneath carries on.
 

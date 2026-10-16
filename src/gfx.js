@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PALETTE } from './palette.js';
-export { asset } from './assets.js'; // a preloaded GLB as a synchronous copy (src/assets.js)
+export { asset, texture } from './assets.js'; // a preloaded GLB as a synchronous copy, a preloaded image as a shared texture
 
 // Toon primitives for content modules. Materials are cached and shared; dispose() never touches them.
 export const palette = PALETTE;
@@ -33,8 +33,16 @@ vec3 bendOffset( float z ) {
   return o;
 }
 `;
+// three's own order (project_vertex): a batched copy's matrix, then an instance's, then the mesh's; the street's offset last.
 const BEND = `
-  vec4 bentWorld = modelMatrix * vec4( transformed, 1.0 );
+  vec4 bentWorld = vec4( transformed, 1.0 );
+  #ifdef USE_BATCHING
+    bentWorld = batchingMatrix * bentWorld;
+  #endif
+  #ifdef USE_INSTANCING
+    bentWorld = instanceMatrix * bentWorld;
+  #endif
+  bentWorld = modelMatrix * bentWorld;
   bentWorld.xyz += bendOffset( bentWorld.z );
   vec4 mvPosition = viewMatrix * bentWorld;
   gl_Position = projectionMatrix * mvPosition;
@@ -44,21 +52,53 @@ const BEND_SPRITE = `
   bentWorld.xyz += bendOffset( bentWorld.z );
   vec4 mvPosition = viewMatrix * bentWorld;
 `;
+// The HiFi fog cut: compiled in only when the look sets hook.cutFog; then with fogCut.value 1 (a theme with a look) a bent
+// fragment the fog has fully hidden is dropped, so the skyline ring shows through instead of a fog-coloured block.
+export const fogCut = { value: 0 };
+// The HiFi height fog, compiled in with the cut: a bent mesh's fog colour is mix(fogShade, the fog's, smoothstep(fogHeight.x,
+// fogHeight.y, its world y before the bend)), so the slot between the buildings fogs deeper low down than at the rooftops
+// (Task 32, Caedon, board 22). The look sets both per theme; a shade equal to the fog colour is no height fog. A sprite (no
+// project_vertex) keeps the plain fog. fogHeight.x < fogHeight.y always (checkLook): smoothstep is undefined otherwise.
+export const fogShade = { value: new THREE.Color() };
+export const fogHeight = { value: new THREE.Vector2(0, 1) };
+const HFOG_VERT = '#include <project_vertex>\n  vFogY = bentWorld.y - bendOffset( bentWorld.z ).y;'; // the bend (patched over the include next) lifts a hill's street and its fog together
+const HFOG_FRAG = '#ifdef USE_FOG\n  vec3 hFogColor = mix( uFogShade, fogColor, smoothstep( uFogHeight.x, uFogHeight.y, vFogY ) );\n  #define fogColor hFogColor\n#endif\n#include <fog_fragment>';
+function cutFog(shader) {
+  if (!hook.cutFog) return; // low-fi compiles three's fragment shaders as they are: no uniform, no discard
+  const high = shader.vertexShader.includes('#include <project_vertex>');
+  shader.uniforms.uFogCut = fogCut;
+  if (high) {
+    Object.assign(shader.uniforms, { uFogShade: fogShade, uFogHeight: fogHeight });
+    shader.vertexShader = shader.vertexShader.replace('void main() {', 'varying float vFogY;\nvoid main() {').replace('#include <project_vertex>', HFOG_VERT);
+  }
+  shader.fragmentShader = shader.fragmentShader.replace('void main() {', `uniform float uFogCut;${high ? '\nuniform vec3 uFogShade;\nuniform vec2 uFogHeight;\nvarying float vFogY;' : ''}\nvoid main() {`)
+    .replace('#include <fog_fragment>', `${high ? HFOG_FRAG : '#include <fog_fragment>'}\n#ifdef USE_FOG\n  if ( uFogCut > 0.5 && fogFactor > 0.999 ) discard; // HiFi: what the fog has fully hidden lets the skyline through\n#endif`);
+}
 function patch(shader) {
+  cutFog(shader);
   shader.uniforms.uBendStart = bendStart; shader.uniforms.uSeg = bendSegments;
   shader.vertexShader = shader.vertexShader.replace('void main() {', `${BEND_FN}\nvoid main() {`).replace('#include <project_vertex>', BEND);
 }
 function patchSprite(shader) { // a sprite places its centre from the model-view matrix; bend that centre in world space instead
+  cutFog(shader);
   shader.uniforms.uBendStart = bendStart; shader.uniforms.uSeg = bendSegments;
   shader.vertexShader = shader.vertexShader.replace('void main() {', `${BEND_FN}\nvoid main() {`).replace('vec4 mvPosition = modelViewMatrix[ 3 ];', BEND_SPRITE);
 }
 // Marks a material bendable, once. Materials a module builds itself get this when the engine adds the object (gfx.bend).
-// A hook the module set itself keeps running, first; the bend is patched in after it.
+// A hook the module set itself keeps running, first; then the look's (hook.beforeBend, HiFi only: the cascaded shadows'
+// setupMaterial); the bend is patched in last.
+// The HiFi look sets both fields once, before anything compiles. ?lofi and ?hifi never share a page, so neither needs a
+// program-cache key; low-fi leaves both off.
+export const hook = { beforeBend: null, cutFog: false };
+const patched = new WeakSet(); // by material, not userData: a clone copies userData but not the hook, and must be patched again
 export function bendable(material) {
-  if (!material || material.userData.bent) return material;
+  if (!material || patched.has(material)) return material;
+  patched.add(material);
   material.userData.bent = true;
   const own = material.onBeforeCompile, bend = material.isSpriteMaterial ? patchSprite : patch;
-  material.onBeforeCompile = (shader, renderer) => { own.call(material, shader, renderer); bend(shader); };
+  hook.beforeBend?.(material); // CSM's setupMaterial replaces onBeforeCompile instead of chaining, so it runs before the wrap
+  const look = material.onBeforeCompile === own ? null : material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => { own.call(material, shader, renderer); look?.call(material, shader, renderer); bend(shader); };
   material.customProgramCacheKey = () => own.toString() + bend.name; // three keys its program cache by onBeforeCompile.toString(), which is now the same wrapper for every material
   material.needsUpdate = true;
   return material;
@@ -73,8 +113,15 @@ export function bend(object) {
   });
   return object;
 }
-// The stretches in view, nearest first, as { from, to, turn, hill } (metres, -1..1). No stretches straightens the street.
-export function setBend({ origin = 0, segments = [] } = {}) {
+// The street's heading at the bend start: how far its turns have swung the view, as a yaw about +y (three's rotation.y, so
+// positive is a right turn, as `turn` is): TURN_K radians a metre of a full turn, about the angle the drawn street leaves a
+// 240 m turn at. setBend sets it from `turned` (generator.turnedBy at the bend start); the HiFi skyline turns its rings by it,
+// and nothing low-fi reads it. ponytail: calibration knob, the rate.
+export const heading = { value: 0 };
+// The stretches in view, nearest first, as { from, to, turn, hill } (metres, -1..1), and the turn·m behind the bend start.
+// No stretches straightens the street.
+export function setBend({ origin = 0, segments = [], turned = 0 } = {}) {
+  heading.value = turned * TURN_K;
   bendStart.value = origin + DEAD;
   bendSegments.value.forEach((v, i) => { const s = segments[i]; if (s) v.set(s.from, s.to, 0 - s.turn * TURN_K, s.hill * HILL_K); else v.set(0, 0, 0, 0); }); // 0 - …: a straight road is +0, never -0
 }
@@ -88,6 +135,9 @@ export function bendOffset(z) {
   }
   return { x, y };
 }
+// Seconds of run time for shader animation (LED faces, marquees, blinking signs, traffic): world.update sets it, so pause
+// freezes it and a still (run.time = 0) pins it.
+export const time = { value: 0 };
 
 const mats = new Map();
 export function mat(color, opts = {}) {
@@ -145,12 +195,17 @@ export function orb(def) {
   return g;
 }
 
-// Frees geometry and per-object textures. Shared toon materials from mat() stay alive on purpose, and so does anything
-// flagged userData.shared: a preloaded asset's meshes, which every copy of it uses.
+// Frees geometry, per-object textures and instance buffers. Shared toon materials from mat() stay alive on purpose, and so
+// does anything flagged userData.shared: a preloaded asset's nodes, geometry, materials and textures, which every copy uses.
 export function dispose(object) {
   object.traverse((n) => {
     if (n.userData.shared) return;
-    n.geometry?.dispose();
-    if (n.isSprite || n.isPoints || n.material?.map) { n.material.map?.dispose(); n.material.dispose(); }
+    if (!n.geometry?.userData.shared) n.geometry?.dispose();
+    if (n.isInstancedMesh || n.isBatchedMesh) n.dispose(); // the instance matrices and colours (and a batched mesh's textures)
+    for (const m of [].concat(n.material ?? [])) {
+      if (m.userData.shared || !(n.isSprite || n.isPoints || m.map)) continue;
+      if (!m.map?.userData.shared) m.map?.dispose();
+      m.dispose();
+    }
   });
 }

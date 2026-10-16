@@ -94,6 +94,11 @@ export function curveSegments(norm, fromZ, toZ, seed = 0) {
   return out;
 }
 
+// How far the street has turned by z: each stretch's turn times its metres before z (turn·m, positive to the right as `turn`
+// is). A sum over metres, so splitting or merging stretches never changes it: continuous in z, whatever window merged them.
+// ponytail: walks every stretch from 0, so "random" re-picks z / 240 m of them a call (40 at 10 km); keep a running sum if that shows.
+export const turnedBy = (norm, z, seed = 0) => curveSegments(norm, 0, z, seed).reduce((sum, s) => sum + s.turn * (Math.min(z, s.to) - s.from), 0);
+
 function pick(weights, r) {
   const entries = Object.entries(weights);
   let x = r() * entries.reduce((s, [, w]) => s + w, 0);

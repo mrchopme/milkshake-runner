@@ -1,6 +1,9 @@
 import { createRun, act, step, speedAt, playerBox, obstacleBox, overlaps, hit, inReach, collect, resolveRules } from './rules.js';
 import { createWorld } from './world.js';
 import { bindInput } from './input.js';
+import * as gfx from './gfx.js';
+import * as assets from './assets.js';
+import { wornLooks } from './worn.js';
 
 // Runs one level to its end. A content hook that throws ends the run with outcome 'error' instead of freezing.
 export function playLevel({ engine, level, registry, hud, character, carryJugs = 0, carrySpeed }) {
@@ -8,12 +11,13 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
     const rules = resolveRules(level.rules ?? {});
     const charDef = registry.character[level.character?.id ?? 'milkshake'];
     const run = createRun(rules, charDef, carryJugs, carrySpeed);
+    const worn = wornLooks(registry, gfx);
     const streetAfter = level.ending ? (registry.ending[level.ending.id].streetAfter ?? 200) : 200;
     const world = createWorld(engine.scene, level, {
       registry, rules, seed: level.seed ?? ((Math.random() * 2 ** 32) >>> 0),
       end: level.length_m === null ? Infinity : level.length_m + streetAfter, speedFrom: run.speedFrom,
     });
-    if (import.meta.env.DEV) window.__milkshake = { run, world, level, engine, character }; // dev-only hook for the manual pass and scripts/hifi-shot.js; stripped from builds
+    if (import.meta.env.DEV) window.__milkshake = { run, world, level, engine, character, gfx, assets }; // dev-only hook for the manual pass and scripts/hifi-shot.js (gfx and assets are the page's own module instances); stripped from builds
     let paused = false, last = performance.now(), raf = 0, skyKey = '';
 
     const setPaused = (p) => { paused = p; hud.setPaused(p); last = performance.now(); };
@@ -35,6 +39,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
       const sky = world.skyAt(run.z), key = `${sky.id}/${sky.sky}/${sky.fog}`; // the id too: a theme switch under the same sky still changes the look
       if (key !== skyKey) { skyKey = key; engine.setSky(sky); }
       character.update(run);
+      worn.update(run, character.object);
       engine.follow(run, world.cameraAt(run.z), dt);
       hud.update(run, level, registry);
       if (run.over) end('dead');
@@ -52,6 +57,7 @@ export function playLevel({ engine, level, registry, hud, character, carryJugs =
     }
 
     function end(outcome, error) {
+      worn.dispose();
       cancelAnimationFrame(raf);
       unbind();
       document.removeEventListener('visibilitychange', onHide);
