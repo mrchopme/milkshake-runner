@@ -410,34 +410,54 @@ test('the same seed places the same furniture, and another seed different extras
   assert.notEqual(at(7), at(8));
 });
 
-test('per side a tree every 8-10 m and a lamp every 16-20 m, halfway between two trees, the sides staggered, no empty stretch over 10 m', async (t) => {
+// per side: the footprints along z (a tree's its pit) as [z0, z1], sorted; the empty stretches are the holes between them
+const spans = (by, s) => Object.entries(by[s]).filter(([k]) => k !== 'tree').flatMap(([k, list]) => list.map(({ z }) => { const h = k === 'pit' ? PITS.size / 2 : FOOT[k][1]; return [z - h, z + h]; }));
+const holes = (iv, from, at) => { iv.sort((a, b) => a[0] - b[0]); let reach = from; for (const [a, b] of iv) { assert.ok(a - reach <= 10 + 1e-4, `${at}: ${(a - reach).toFixed(2)} m empty from z ${reach.toFixed(2)}`); reach = Math.max(reach, b); } };
+const sideStreet = (g) => { const cz = g.userData.cross.z; return [cz - CLEAR, cz + CROSS.width + CLEAR]; };
+
+test('one tree pitch of 8-10 m a chunk, the +x trees halfway between the -x ones; a lamp every 2P (16-20 m) halfway between two trees, no empty stretch over 10 m', async (t) => {
   for (const id of THEMES) {
     const make = await themeChunk(id);
     let n = 0, N = 0;
     for (let seed = 1; seed <= 60; seed++) {
-      const z0 = 120 * (seed % 11), g = make(seed, z0), cz = g.userData.cross.z, by = placed(g), at = `${id}, seed ${seed}, chunk ${z0}`;
+      const z0 = 120 * (seed % 11), g = make(seed, z0), [c0, c1] = sideStreet(g), by = placed(g), at = `${id}, seed ${seed}, chunk ${z0}`;
       n += pieces(g); N++;
+      const pitch = (s) => { const z = by[s].tree.map((x) => x.z); return Math.min(...z.slice(1).map((v, i) => v - z[i])); }, P = pitch(-1);
+      assert.ok(Math.abs(pitch(1) - P) < 1e-4 && P >= RHYTHM.pitch[0] - 1e-6 && P <= RHYTHM.pitch[1] + 1e-6 && Math.round(120 / P) % 2 === 1, `${at}: pitches ${P.toFixed(2)} and ${pitch(1).toFixed(2)}, one odd n a chunk`);
+      const minus = by[-1].tree.map((x) => x.z), off = (z) => z > c0 - PITS.size / 2 && z < c1 + PITS.size / 2; // a spot the side street's clear zone took
+      for (const { z } of by[1].tree) for (const w of [z - P / 2, z + P / 2]) assert.ok(off(w) || minus.some((v) => Math.abs(v - w) < 1e-3), `${at}: the +x tree at z ${z.toFixed(2)} is not halfway between two -x trees`);
       for (const s of [-1, 1]) {
-        const trees = by[s].tree.map((t) => t.z), lamps = (by[s].lamp ?? []).map((l) => l.z), gaps = trees.slice(1).map((z, i) => z - trees[i]), P = Math.min(...gaps);
-        assert.ok(P >= RHYTHM.pitch[0] - 1e-6 && P <= RHYTHM.pitch[1] + 1e-6, `${at}, side ${s}: a ${P.toFixed(2)} m tree pitch`);
-        for (const d of gaps) assert.ok(Math.abs(d / P - Math.round(d / P)) < 1e-4, `${at}, side ${s}: a ${d.toFixed(2)} m gap is not a run of the ${P.toFixed(2)} m pitch (a skipped tree)`);
+        const trees = by[s].tree.map((x) => x.z), lamps = (by[s].lamp ?? []).map((l) => l.z);
+        for (const d of trees.slice(1).map((z, i) => z - trees[i])) assert.ok(Math.abs(d / P - Math.round(d / P)) < 1e-4, `${at}, side ${s}: a ${d.toFixed(2)} m gap is not a run of the ${P.toFixed(2)} m pitch (a skipped tree)`);
         const slot = (z, of) => { const u = ((z - z0) / P + of) % 1; return Math.min(u, 1 - u) < 1e-4; }; // z on the pitch's grid (instance matrices are float32), shifted by `of` pitches
         for (const z of trees) assert.ok(slot(z, s < 0 ? 0.5 : 0), `${at}: the ${s < 0 ? '-x side\'s trees stand at half pitches' : '+x side\'s at whole ones'}, z ${z.toFixed(2)}`);
-        for (const z of lamps) assert.ok(slot((z - z0) / 2 + z0, s < 0 ? 0.5 : 0.75) && slot(z, s < 0 ? 0 : 0.5), `${at}: a lamp at z ${z.toFixed(2)}, not halfway between the trees of every second gap`);
-        const lampGaps = lamps.slice(1).map((z, i) => z - lamps[i]), L = Math.min(...lampGaps);
-        assert.ok(lamps.length >= 3 && L >= 10 - 1e-6 && L <= 20 + 1e-6, `${at}, side ${s}: ${lamps.length} lamps, a ${L.toFixed(2)} m lamp pitch`);
-        for (const d of lampGaps) assert.ok(Math.abs(d / L - Math.round(d / L)) < 1e-4, `${at}, side ${s}: lamps ${d.toFixed(2)} m apart (a skipped lamp)`);
-        // the empty stretches along the side: between footprints (a tree's its pit), the 2 m seams and the side street's clear zone filled
-        const iv = [[-Infinity, z0 + SEAM], [z0 + 120 - SEAM, Infinity], [cz - CLEAR, cz + CROSS.width + CLEAR]];
-        for (const [k, list] of Object.entries(by[s])) if (k !== 'tree') for (const { z } of list) { const h = k === 'pit' ? PITS.size / 2 : FOOT[k][1]; iv.push([z - h, z + h]); }
-        iv.sort((a, b) => a[0] - b[0]);
-        let reach = z0;
-        for (const [a, b] of iv) { assert.ok(a - reach <= 10 + 1e-4, `${at}, side ${s}: ${(a - reach).toFixed(2)} m empty from z ${reach.toFixed(2)}`); reach = Math.max(reach, b); }
+        for (const z of lamps) assert.ok(slot(z, s < 0 ? 0 : 0.5), `${at}: a lamp at z ${z.toFixed(2)}, not halfway between two trees`);
+        // every 2P from the chunk's start (+x from 0.5P to length - 0.5P); -x's last at length - P, the one short gap its odd n costs
+        const grid = lamps.filter((z) => s > 0 || Math.abs(z - z0 - 120 + P) > 1e-3);
+        assert.ok(lamps.length >= 3 && 2 * P >= 10 - 1e-6 && 2 * P <= 20 + 1e-6, `${at}, side ${s}: ${lamps.length} lamps, a ${(2 * P).toFixed(2)} m lamp pitch`);
+        for (const z of grid) assert.ok(slot((z - z0) / 2 + z0, s < 0 ? 0.5 : 0.75), `${at}, side ${s}: a lamp at z ${z.toFixed(2)} off the 2P grid`);
+        assert.ok(s > 0 || grid.length === lamps.length - 1, `${at}: -x's lamp at length - P`);
+        // the 2 m seams are the two-chunk test's
+        holes([...spans(by, s), [-Infinity, z0 + SEAM], [z0 + 120 - SEAM, Infinity], [c0, c1]], z0, `${at}, side ${s}`);
       }
     }
     const mean = n / N;
     t.diagnostic(`${id}: ${mean.toFixed(1)} pieces a chunk`);
     assert.ok(mean >= 45 && mean <= 70, `${id}: ${mean.toFixed(1)} pieces a chunk (the prototype's rhythm with planters: about 58)`);
+  }
+});
+
+test('across a seam: no empty stretch over 10 m on either side, the lamps P to 2P apart (two chunks, z0 and z0 + 120)', async () => {
+  for (const id of THEMES) {
+    const make = await themeChunk(id);
+    for (let seed = 1; seed <= 60; seed++) {
+      const z0 = 120 * (seed % 11), A = make(seed, z0), B = make(seed + 100, z0 + 120), a = placed(A), b = placed(B), at = `${id}, seed ${seed}, seam ${z0 + 120}`;
+      for (const s of [-1, 1]) {
+        holes([...spans(a, s), ...spans(b, s), [-Infinity, z0 + 60], [z0 + 180, Infinity], sideStreet(A), sideStreet(B)], z0, `${at}, side ${s}`);
+        const last = a[s].lamp.at(-1).z, first = b[s].lamp[0].z;
+        assert.ok(first - last >= RHYTHM.pitch[0] - 1e-3 && first - last <= 20 + 1e-3, `${at}, side ${s}: lamps ${(first - last).toFixed(2)} m apart across the seam`);
+      }
+    }
   }
 });
 

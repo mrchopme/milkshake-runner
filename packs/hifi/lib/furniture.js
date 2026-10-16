@@ -4,22 +4,26 @@ import { instanced } from './shapes.js';
 import { material } from './materials.js';
 import { freeWith } from './paint.js';
 import { pickBy } from './rand.js';
+import { paint } from './buildings.js';
 import { CROSS, FACADE_X, WALK } from './street.js';
 // Street furniture, one InstancedMesh per part per kind; x from the road's centre line. Across the 6 m sidewalk (kerb 4.5, facade
 // 10.5): lamps, hydrants, signals and the bus shelter at the kerb; trees on the kerb side; the subway mid-sidewalk; bins, benches,
 // newsstands and planters against the buildings.
 //
 // The kerb's rhythm (Task 32; Caedon, 2026-10-15: "Regular rhythm like the frames", board 24 "Ship as prototyped"; it reverses
-// board 18's random stretches of trees and lamps). Per side, one tree pitch P drawn from pickBy(z0, side) in `pitch` and fitted to
-// the chunk (length / n, P kept in `pitch`); the -x side's trees stand at half pitches, the +x side's at whole ones, so the sides
-// stagger and the cadence runs on across a seam; a lamp halfway between every second pair of tree spots (2P), the two sides' lamps
-// in opposite gaps; a flush pit under every tree. Planter pairs at shop doors from the block list (buildings.js's header). The
-// benches, bins, newsstands, the rare shelter or subway and the hydrants keep board 18's stretches and rates in what is left.
+// board 18's random stretches of trees and lamps). One tree pitch P a chunk, both sides, drawn from pickBy(z0) in `pitch` and fitted
+// to the chunk (length / n, n odd); the -x side's trees stand at half pitches, the +x side's at whole ones, so every +x tree stands
+// halfway between two -x trees. A lamp halfway between every second pair of tree spots (2P), the two sides' lamps in opposite gaps.
+// n is odd for the seams: +x's trees at 0 and length fall in the seam margins, and only an odd n puts a +x lamp at 0.5P and at
+// length - 0.5P to fill that 2P hole (an even n left 1.5P, up to 15 m, empty). The cost: one short lamp gap (P) a seam on +x, and
+// on -x, whose lamps at whole pitches cannot reach both ends of an odd n, one extra lamp at length - P (a short gap inside the chunk,
+// 2P across the seam, not 3P). A flush pit under every tree. Planter pairs at shop doors from the block list (buildings.js's header).
+// The benches, bins, newsstands, the rare shelter or subway and the hydrants keep board 18's stretches and rates in what is left.
 // Everything the rhythm adds is hashed from its place (pickBy), so it draws nothing from the chunk's stream.
 // ponytail: calibration knobs. pitch [8, 10] (the prototype's [8, 12] made the lamps 16-24 m apart; the brief's band is 10-20 and
-// Caedon asked for "about every 18 m": 2P is 16-20). trees: kind -> x; 6.0 because the canopy reaches 2.31k m (k up to 0.9), so it
+// Caedon asked for "about every 18 m": at 120 m the odd n are 13 and 15, P 9.23 or 8, 2P 18.5 or 16). trees: kind -> x; 6.0 because the canopy reaches 2.31k m (k up to 0.9), so it
 // ends at 3.92, clear of the outer lane's edge at 3.75. A second tree model slots in as a KIT entry plus a row here, its FOOT
-// (the trunk, inside the pit's soil) and its REAL in the kit test. dusk: the lamps' glow in a `lit` theme (KIT.lamp's 1.2 by day).
+// (the trunk, inside the pit's soil) and its REAL in the kit test; TINT's `from` is tree.glb's measured green, so key it by kind then. dusk: the lamps' glow in a `lit` theme (KIT.lamp's 1.2 by day).
 export const RHYTHM = { pitch: [8, 10], trees: { tree: 6.0 }, lamp: 5.33, scale: [0.75, 0.9], jitter: 0.06, dusk: 2 };
 // the flush pit under every tree: `size` m square, a stone rim `rim` m wide round dark soil, their tops 1-1.5 cm over the sidewalk's
 export const PITS = { size: 1.5, rim: 0.1, stone: '#9a968f', soil: '#3a2e25' };
@@ -32,7 +36,8 @@ export const TINT = { downtown: ['#6ca126', '#4f8a3a'], midtown: ['#61901d', '#7
 // uptown's light pools: one additive radial quad under each lamp's head, `r` m out, centred `in` m toward the road from the pole
 export const POOL = { r: 2.2, in: 1.0, color: '#c9927d' };
 // board 18's stretches for the rest, SEG m long, each drawing one kind by weight, and a hydrant on top by chance. The bare weight
-// holds the old tree and lamp stretches' 0.34, so the stream and the extras' rates are board 18's.
+// holds the old tree and lamp stretches' 0.34, so the extras' rates are board 18's; the stream is not (the old tree and lamp draws
+// are gone), so the later parts (traffic) and the board 18 and stack stills reshuffle.
 export const SEG = [16, 34];
 export const STRETCH = [
   { weight: 0.76 }, // bare
@@ -71,14 +76,16 @@ export function furniture(gfx, { z0, length }, style, r, cross, blocks) {
   // side drawn at random, the other across the avenue past it, each base on the sidewalk 0.5 m from the paving. A crossing sits
   // 30 m or more from either end of its chunk (lib/city.js), so the far one never leaves it.
   if (cross) { const s = r() < 0.5 ? -1 : 1; at('traffic_light', s * 5.28, cross.z - 0.5, s); at('traffic_light', -s * 5.28, cross.z + CROSS.width + 0.5, -s); }
-  const kinds = Object.keys(RHYTHM.trees), [lo, hi] = RHYTHM.pitch;
+  const kinds = Object.keys(RHYTHM.trees), [lo, hi] = RHYTHM.pitch, odd = [];
+  for (let k = Math.ceil(length / hi); k <= Math.floor(length / lo); k++) if (k % 2) odd.push(k);
+  const n = odd[Math.floor(hash(z0, 0, 1) * odd.length)] ?? (Math.round(length / lo) | 1), P = length / n;
   for (const s of [-1, 1]) {
-    const n = Math.max(1, Math.min(Math.floor(length / lo), Math.max(Math.ceil(length / hi), Math.round(length / (lo + (hi - lo) * hash(z0, s, 1)))))), P = length / n, phase = s < 0 ? 0.5 : 0;
+    const phase = s < 0 ? 0.5 : 0;
     for (let j = 0; j <= n; j++) {
       const z = z0 + (j + phase) * P, tree = kinds[Math.floor(hash(z, s, 8) * kinds.length)];
       const k = RHYTHM.scale[0] + (RHYTHM.scale[1] - RHYTHM.scale[0]) * hash(z, s, 2), yaw = Math.floor(4 * hash(z, s, 3)) * Math.PI / 2 + (2 * hash(z, s, 4) - 1) * RHYTHM.jitter;
       if (place(tree, RHYTHM.trees[tree], z, s, k, yaw)) pits.push(new T.Matrix4().makeTranslation(s * RHYTHM.trees[tree], 0.18, z));
-      if (j % 2 === 0 && place('lamp', RHYTHM.lamp, z + P / 2, s)) pools.push(new T.Matrix4().makeRotationY(s < 0 ? Math.PI : 0).setPosition(s * (RHYTHM.lamp - POOL.in), 0, z + P / 2));
+      if ((j % 2 === 0 || (s < 0 && j === n - 2)) && place('lamp', RHYTHM.lamp, z + P / 2, s)) pools.push(new T.Matrix4().makeRotationY(s < 0 ? Math.PI : 0).setPosition(s * (RHYTHM.lamp - POOL.in), 0, z + P / 2));
     }
   }
   for (const b of blocks ?? []) if (b.shop != null && hash(b.z0, b.side, 5) < PLANTER.chance) for (const d of [-PLANTER.dz, PLANTER.dz]) place('planter', PLANTER.x, (b.z0 + b.z1) / 2 + d, b.side);
@@ -129,7 +136,7 @@ let pitShape = null, poolShape = null, poolMap = null;
 // a rim of four stone strips round a dark soil square, vertex-coloured
 function pitGeometry(T) {
   if (pitShape) return pitShape;
-  const { size: w, rim } = PITS, c = (geo, hex) => { const col = new T.Color(hex), n = geo.attributes.position.count, a = new Float32Array(n * 3); for (let i = 0; i < n; i++) col.toArray(a, i * 3); return geo.setAttribute('color', new T.BufferAttribute(a, 3)); };
+  const { size: w, rim } = PITS, c = (geo, hex) => { paint(T, geo, new T.Color(hex)); return geo; };
   return (pitShape = shared(mergeGeometries([
     c(new T.BoxGeometry(w - 2 * rim, 0.02, w - 2 * rim), PITS.soil),
     ...[[0, (w - rim) / 2, w, rim], [0, -(w - rim) / 2, w, rim], [(w - rim) / 2, 0, rim, w - 2 * rim], [-(w - rim) / 2, 0, rim, w - 2 * rim]].map(([x, z, sx, sz]) => c(new T.BoxGeometry(sx, 0.03, sz).translate(x, 0, z), PITS.stone)),

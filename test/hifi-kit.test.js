@@ -255,10 +255,13 @@ test('the tree stands free of its guard: below 1.1 m nothing but the trunk, the 
   for (const i of used) {
     v.fromBufferAttribute(g.attributes.position, i).applyMatrix4(p.matrix);
     const r = Math.hypot(v.x, v.z);
-    if (v.y < 1.1) assert.ok(r <= GUARD.trunk + 1e-6, `a vertex ${r.toFixed(2)} m from the trunk's axis at y ${v.y.toFixed(2)}`);
+    if (v.y < 1.1) assert.ok(r <= 0.45 + 1e-6, `a vertex ${r.toFixed(2)} m from the trunk's axis at y ${v.y.toFixed(2)}`); // the trunk measured on tree.glb, not the knob
     if (v.y < GUARD.top) assert.ok(r <= GUARD.out + 1e-6, `the guard left at r ${r.toFixed(2)}, y ${v.y.toFixed(2)}`);
     low = Math.min(low, v.y); top = Math.max(top, v.y); if (v.y > 2.2) reach = Math.max(reach, r);
   }
+  const kept = new Set(used), src = loaded.attributes.position; let cage = 0; // the guard box's own corners (r 1.73 at y 0 and 1.9) are out of the index
+  for (let i = 0; i < src.count; i++) { v.fromBufferAttribute(src, i).applyMatrix4(p.matrix); if (v.y < GUARD.top && Math.hypot(v.x, v.z) > 1) { cage++; assert.ok(!kept.has(i), `the guard's vertex ${i} kept`); } }
+  assert.ok(cage > 0, 'the stand-in has its guard');
   assert.ok(Math.abs(low) < 1e-6 && Math.abs(top - KIT.tree.h) < 1e-6 && Math.abs(reach - 2.31) < 0.01, `the trunk from ${low.toFixed(3)} m, the top at ${top.toFixed(2)}, the canopy's reach ${reach.toFixed(2)}`);
   const n = counts([g]);
   freeOnly(KIT.tree.path);
@@ -325,7 +328,6 @@ test('a loaded kit model whose build throws warns once and stays a stand-in, wit
   assert.equal(warn.mock.callCount(), 1, 'one warning');
   assert.match(String(warn.mock.calls[0].arguments[0]), /broken\.glb/);
 });
-
 
 test('a released kit file frees its paint and the glow the paint made, and leaves the model\'s own map to release', () => {
   withCanvas(() => {

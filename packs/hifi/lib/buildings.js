@@ -174,4 +174,4 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
   if (roofs.ac.length) g.add(instanced(T, new T.BoxGeometry(1.4, 0.9, 1.1).translate(0, 0.45, 0), steel, roofs.ac));
   return g;
 }
-function paint(T, geo, color) { const n = geo.attributes.position.count, c = new Float32Array(n * 3); for (let i = 0; i < n; i++) color.toArray(c, i * 3); geo.setAttribute('color', new T.BufferAttribute(c, 3)); }
+export function paint(T, geo, color) { const n = geo.attributes.position.count, c = new Float32Array(n * 3); for (let i = 0; i < n; i++) color.toArray(c, i * 3); geo.setAttribute('color', new T.BufferAttribute(c, 3)); }
