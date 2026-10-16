@@ -12,8 +12,6 @@ import { cityFiles } from '../lib/facade.js';
 // lip] from each shop image's top; storefront 04 (blank cyan) retired.
 const STYLE = { id: 'downtown', ground: { road: '#5c5d74', roadRough: 0.85, walk: '#9a96a3', walkRough: 0.9, flag: 1.5 }, paint: '#f2f2f2', parts: [buildings, signs, furniture, traffic], bladeRate: 1, lit: 0, facades: cityFiles('facades', 'downtown', 5), shops: cityFiles('shops', 'downtown', 3), ...SIGN_FILES,
   heights: { kind: 'runs', short: [14, 24], tall: [60, 140], tallShare: 0.5, shortTiles: [2, 3, 4], tallTiles: [0, 1], back: { share: 0.4, x: [12, 25], w: [12, 20] } }, tileClass: ['g', 'g', 'm', 's', 'm'], bodies: ['#8fa3b8', '#4e5562', '#a37a60', '#9b9289', '#9c6145'], trim: '#c9bda3', facadeTint: { mul: [1.02, 0.96, 1.68], only: [2, 4], warm: true }, shopBands: [[0.185, 0.185, 0.4], [0.17, 0.17, 0.37], [0.19, 0.19, 0.29]] }; // the generated city (round 2), board 15
-// ponytail: calibration knob — skylineHeight's near 110 (was 80; Task 32 C7, the redrawn strips, 2048 x 878 with sky over the towers):
-// two laps, 111 m, stand their towers' mass as tall as the old strips'; at 80, three laps of 74 m stood it about half as tall.
 const SKYLINE = [[1, 2, 3, 4].map((n) => `hifi/city/sky/downtown-near-${n}.webp`)]; // the near ring alone, four images in order round it, the first facing the avenue (Caedon, 2026-10-15: board 20's images; board 21, the far ring dropped: its hazy strip drew ghost towers and, turned, its mirror seam)
 export default {
   kind: 'theme', id: 'downtown',
@@ -21,6 +19,8 @@ export default {
   // The rig (Caedon, board 22, 2026-10-15, "Sun B + sky fill + height fog"): the sun on the avenue's axis 28 degrees up, so the
   // right-hand towers stop shading the road; a pale sky-tinted fill (the saturated sky blue tinted the whole street); a light
   // blue haze from 35 m deepening low down, the skyline hazed in the sky's own blue. ponytail: calibration knobs, tuned by eye.
+  // ponytail: calibration knob — skylineHeight's near 110 (was 80; Task 32 C7, the redrawn strips, 2048 x 878 with sky over the towers):
+  // two laps of 111 m stand its tower mass at 24 m (the old strips' 35 m), its spires about as tall as before; at 80, three laps of 74 m stood it about half as tall.
   look: { skyline: SKYLINE, skylineHeight: [110, 110], exposure: 1.05, sun: { color: '#fff3e0', intensity: 10, dir: [0, -0.47, -0.88] }, ambient: 2.0, env: 0.4, hemi: { sky: '#b4c8e4', ground: '#8c8177' },
     skyTop: '#6ccafb', skyBottom: '#9ac3ea', fog: { color: '#8cc4f0', near: 35, pale: 0.1, shade: '#7fb0de', y: [0, 30] }, skylineHaze: { mix: [0.65, 0.5], flatten: 0.5, foot: 0 },
     disc: { size: 1.2, core: 4, halo: 0.35, spread: 6, color: '#edffff' }, bloom: { strength: 0.5, threshold: 2.2, radius: 0.4 } },

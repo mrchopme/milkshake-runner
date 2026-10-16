@@ -151,7 +151,7 @@ test('the near ring may wear a list of one to eight images; the far ring may not
 
 test('a near ring wearing a list lays its images in order, each once, the sequence repeated a whole number of times, the first image centred on the avenue', () => {
   const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} vs ${b}`);
-  const strip = [2048, 690]; // the main session's near strips: 2048 by about 690 px, one size per theme
+  const strip = [2048, 690]; // illustrative: one strip size per theme (the old near strips were 2048 by about 690 px; the redrawn ones are 2048 x 878)
   const { height, arcs } = ringArcs(330, [strip, strip, strip, strip], 80);
   assert.deepEqual(arcs.map((a) => a.image), [0, 1, 2, 3, 0, 1, 2, 3], 'four strips at 80 m cover about half the ring, so the sequence goes round twice');
   near(height, ringWrap(330, (4 * 2048) / 690, 1, 80).height, 'the one height that closes the ring, rounded as one image\'s repeats are');

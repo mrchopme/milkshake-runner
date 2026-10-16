@@ -47,7 +47,8 @@ export const KIT = {
   bin_box: { path: 'hifi/furniture/bin_box.glb', h: 1.0, yaw: FRONT, glow: null },
   planter: { path: 'hifi/furniture/planter.glb', h: 1.0, yaw: FRONT, glow: null },
   tree: { path: 'hifi/furniture/tree.glb', h: 6.0, yaw: FRONT, glow: null, cut: GUARD, matte: MATTE }, // board 15's: on the 6 m sidewalk its 4 m canopy clears the facades and the blade signs
-  // tree.glb's 6 m, so the two models stand alike in the rhythm (4.5-5.4 m at its scale); a third of it clear trunk, as prompted
+  // tree.glb's 6 m, so the two models stand alike in the rhythm (4.5-5.4 m at its scale); a third of it clear trunk, as prompted.
+  // Its file optimised at --texture-size 1024 like tree.glb's (at 2048 its nearly flat normal map alone cost 22.4 MB of GPU)
   tree2: { path: 'hifi/furniture/tree2.glb', h: 6.0, yaw: FRONT, glow: null, cut: SLAB, texels: lift, matte: MATTE },
   newsstand: { path: 'hifi/furniture/newsstand.glb', h: 2.6, yaw: FRONT, glow: null },
   bus_shelter: { path: 'hifi/furniture/bus_shelter.glb', h: 2.7, yaw: FRONT, glow: null },
