@@ -2,10 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { lookState, cascadeHook, ringWrap, ringArcs, ringArc, lookFog } from '../src/look.js';
+import { lookState, cascadeHook, ringWrap, ringArcs, ringArc, lookFog, rigOf, blendRig, ringTexel } from '../src/look.js';
 import { checkLook, checkModule } from '../src/registry.js';
 import { createWorld } from '../src/world.js';
 import { resolveRules } from '../src/rules.js';
+import downtown from '../packs/hifi/themes/downtown.js';
+import midtown from '../packs/hifi/themes/midtown.js';
+import uptown from '../packs/hifi/themes/uptown.js';
+import bridge from '../packs/hifi/themes/bridge.js';
 
 const LOOK = { exposure: 1, sun: { color: '#fff3e0', intensity: 3 }, ambient: 0.5, env: 0.7, skyTop: '#5ea9ec', bloom: { strength: 0.5, threshold: 0.85, radius: 0.4 } };
 
@@ -177,4 +181,91 @@ test('each arc reads left to right from inside the ring, unmirrored, as its imag
       assert.ok(Math.abs(Math.hypot(v.x, v.z) - 330) < 1e-3 && Math.abs(v.y - uv.getY(i)) < 1e-6, 'on the ring (float32 positions), from its foot (v 0) to a unit top (v 1) that apply() scales');
     }
   }
+});
+
+// Task 32 (Caedon, board 22: "Sun B + sky fill + height fog"): the rig's new keys, the fog and haze per scene, the crossfade.
+const THEMES = { downtown, midtown, uptown, bridge };
+const BASE = () => ({ hemi: [new THREE.Color('#ffffff'), new THREE.Color('#55556a')], dir: new THREE.Vector3(6, -16, 12).normalize() }); // the engine's own
+const rigFor = (theme) => { const s = lookState(theme), fog = lookFog(new THREE.Fog(theme.sky ?? '#000000', 60, 200), s); return rigOf(s, { fog, ...BASE() }); };
+const close = (a, b, msg, eps = 1e-6) => assert.ok([].concat(a).every((x, i) => Math.abs(x - [].concat(b)[i]) < eps), `${msg}: ${a} vs ${b}`);
+const lin = (hex) => new THREE.Color(hex).toArray();
+
+test('a look may set its fill, horizon, fog, skyline haze and sun disc, each range-checked; ambient runs to 6', () => {
+  for (const [id, t] of Object.entries(THEMES)) assert.deepEqual(checkLook(t.look), [], id);
+  const full = { ambient: 6, skyBottom: '#9ac3ea', hemi: { sky: '#b4c8e4', ground: '#8c8177' }, fog: { color: '#8cc4f0', near: 35, pale: 0.1, shade: '#7fb0de', y: [0, 30] },
+    skylineHaze: { color: '#cfe6ff', mul: '#8a6f6a', mix: [0.65, 0.5], flatten: 0.5, foot: 0 }, disc: { size: 1.2, core: 4, halo: 0.35, spread: 6, color: '#edffff' } };
+  assert.deepEqual(checkLook(full), []);
+  for (const [bad, msg] of [
+    [{ ambient: 6.5 }, /look.ambient must be 0 to 6/], [{ skyBottom: 'pale' }, /look.skyBottom must be a hex colour/],
+    [{ hemi: { sky: 'blue' } }, /look.hemi.sky must be a hex colour/], [{ hemi: { up: '#ffffff' } }, /look.hemi may only set sky, ground/],
+    [{ fog: { y: [30, 0] } }, /look.fog.y must be \[a, b\], each -50 to 300, a < b/], [{ fog: { y: [5, 5] } }, /look.fog.y must be/], [{ fog: { y: [0] } }, /look.fog.y must be/],
+    [{ fog: { near: 500 } }, /look.fog.near must be 0 to 400/], [{ fog: { pale: 1.5 } }, /look.fog.pale must be 0 to 1/], [{ fog: { tint: '#ffffff' } }, /look.fog may only set color, near, pale, shade, y/],
+    [{ skylineHaze: { mix: [0, 2] } }, /look.skylineHaze.mix must be \[a, b\], each 0 to 1/], [{ skylineHaze: { flatten: -0.1 } }, /look.skylineHaze.flatten must be 0 to 1/], [{ skylineHaze: { foot: 60 } }, /look.skylineHaze.foot must be -50 to 50/],
+    [{ disc: 2 }, /look.disc must be an object/], [{ disc: { spread: 0 } }, /look.disc.spread must be 0.1 to 90/], [{ disc: { glow: 1 } }, /look.disc may only set size, core, halo, spread, color/],
+  ]) assert.match(checkLook(bad).join(), msg, JSON.stringify(bad));
+});
+
+test('the fog per look: its own near, colour and pale, and a shade low down; a look without fog keeps 120 m, the sky paled 45% and no height fog', () => {
+  const s = lookState({ sky: '#000000', look: { skyBottom: '#9ac3ea', fog: { color: '#8cc4f0', near: 35, pale: 0.1, shade: '#7fb0de', y: [0, 30] } } });
+  const fog = lookFog(new THREE.Fog('#000000', 60, 200), s);
+  assert.equal(fog.near, 35);
+  close(fog.color.toArray(), new THREE.Color('#8cc4f0').lerp(new THREE.Color('#ffffff'), 0.1).toArray(), 'the look\'s own colour, paled its own 10%');
+  const rig = rigOf(s, { fog, ...BASE() });
+  close(rig.shade, lin('#7fb0de'), 'the shade low down'); close(rig.fogY, [0, 30], 'from 0 to 30 m');
+  assert.equal(lookFog(new THREE.Fog('#000000', 10, 30), s).near, 10, 'a fog too thick to start at its near keeps its own');
+  const plain = lookState({ sky: '#c98bd8', look: {} }), f = lookFog(new THREE.Fog('#c98bd8', 60, 200), plain), r = rigOf(plain, { fog: f, ...BASE() });
+  close(f.color.toArray(), new THREE.Color('#c98bd8').lerp(new THREE.Color('#ffffff'), 0.45).toArray(), 'no fog key: the sky paled 45%');
+  assert.equal(f.near, 120);
+  close(r.shade, r.fog, 'and no height fog: the shade is the fog itself');
+});
+
+test('a look without the new keys renders as before Task 32: the engine\'s fill, the dome\'s horizon in the fog, no disc, the ring\'s old foot', () => {
+  const r = rigFor({ sky: '#9fd3f5', look: LOOK });
+  close(r.hemiSky, lin('#ffffff'), 'the engine\'s sky colour'); close(r.hemiGround, lin('#55556a'), 'and its ground');
+  close(r.bottom, r.fog, 'the dome meets the fog at the horizon'); close(r.top, lin('#5ea9ec'), 'skyTop as before');
+  close([...r.core, ...r.halo], [0, 0, 0, 0, 0, 0], 'no sun disc');
+  close(r.dir, BASE().dir.toArray(), 'no sun.dir: the engine\'s SUN_DIR');
+  assert.equal(r.haze.on, 0);
+  const texel = [0.3, 0.5, 0.7, 0.4];
+  close(ringTexel(texel, { v: 0, up: -20, cutY: 0 }, r), [...r.fog, 0.4], 'the foot fades to the fog colour, its alpha its own');
+  close(ringTexel(texel, { v: 0.08, up: -20, cutY: 0 }, r), texel, 'from 8% up the image as it is');
+  const own = rigFor({ sky: '#9fd3f5', look: { ...LOOK, skyBottom: '#123456' } });
+  close(own.bottom, lin('#123456'), 'skyBottom set: the dome\'s own horizon, decoupled from the fog');
+});
+
+test('the skyline haze: the image times mul, its luma flattened toward the haze colour\'s, mixed toward it foot to top; under the foot an opaque band in the height fog at the cut', () => {
+  const r = rigFor({ sky: '#000000', look: { fog: { color: '#808080', pale: 0, shade: '#202020', y: [0, 30] }, skylineHaze: { color: '#4080c0', mul: '#ffffff', mix: [0.6, 0.2], flatten: 0, foot: 0 } } });
+  assert.equal(r.haze.on, 1);
+  const texel = [0.2, 0.3, 0.1, 0.5], H = lin('#4080c0'), at = (v) => ringTexel(texel, { v, up: 40, cutY: 20 }, r);
+  close(at(0).slice(0, 3), texel.slice(0, 3).map((c, i) => c + (H[i] - c) * 0.6), 'the foot: 60% toward the haze');
+  close(at(1).slice(0, 3), texel.slice(0, 3).map((c, i) => c + (H[i] - c) * 0.2), 'the top: 20%');
+  assert.equal(at(1)[3], 0.5, 'above the band the image keeps its alpha');
+  const flat = rigFor({ sky: '#000000', look: { skylineHaze: { color: '#4080c0', flatten: 1, mix: [0, 0] } } }), luma = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  close(luma(ringTexel(texel, { v: 0.5, up: 40, cutY: 20 }, flat)), luma(H), 'flatten 1: every texel at the haze colour\'s luma (the window grids go)');
+  close(ringTexel(texel, { v: 0.5, up: 40, cutY: 20 }, flat).slice(0, 2).map((c, i, a) => c / a[1]), [0.2 / 0.3, 1], 'its hue kept');
+  const band = (cutY) => ringTexel(texel, { v: 0.5, up: -10, cutY }, r);
+  close(band(-5), [...lin('#202020'), 1], 'under the foot, cut low: the shade, opaque');
+  close(band(40), [...lin('#808080'), 1], 'cut above the fog\'s top: the fog colour');
+  close(band(15), [...lin('#202020').map((c, i) => c + (lin('#808080')[i] - c) * 0.5), 1], 'halfway: the smoothstep\'s middle');
+});
+
+test('a theme switch crossfades the rig: the old look at t = 0, the new at t = 1, every number moving one way between', () => {
+  const a = rigFor(bridge), b = rigFor(downtown);
+  assert.deepEqual(blendRig(a, b, 0), a);
+  assert.deepEqual(blendRig(a, b, 1), b);
+  const flat = (r) => JSON.stringify(r).match(/-?[\d.]+(e-?\d+)?/g).map(Number), A = flat(a), B = flat(b);
+  let prev = A;
+  for (let t = 0.1; t <= 1.0001; t += 0.1) {
+    const now = flat(blendRig(a, b, t));
+    now.forEach((x, i) => assert.ok((B[i] - A[i]) * (x - prev[i]) >= -1e-12 && Math.min(A[i], B[i]) - 1e-12 <= x && x <= Math.max(A[i], B[i]) + 1e-12, `value ${i} at t ${t.toFixed(1)}: ${prev[i]} -> ${x}, from ${A[i]} to ${B[i]}`));
+    prev = now;
+  }
+});
+
+test('each scene\'s sun.dir is the light\'s travel and points ahead (z < 0, the run goes +z): downtown on the avenue\'s axis 28 degrees up', () => {
+  for (const [id, t] of Object.entries(THEMES)) { const [, y, z] = t.look.sun.dir; assert.ok(y < 0 && z < 0, `${id}: ${t.look.sun.dir} travels down and back toward the camera, so the sun stands ahead`); }
+  const [x, y, z] = downtown.look.sun.dir;
+  assert.equal(x, 0, 'on the axis: the right-hand towers stop shading the road (main session, board 22)');
+  close(Math.asin(-y / Math.hypot(x, y, z)) * 180 / Math.PI, 28, 'about 28 degrees up', 0.5);
+  close(rigFor(downtown).dir, new THREE.Vector3(...downtown.look.sun.dir).normalize().toArray(), 'the rig aims along it, unit');
 });

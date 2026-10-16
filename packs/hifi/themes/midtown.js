@@ -15,6 +15,11 @@ const SKYLINE = [[1, 2, 3, 4].map((n) => `hifi/city/sky/midtown-near-${n}.webp`)
 export default {
   kind: 'theme', id: 'midtown',
   assets: [...STYLE.facades, ...STYLE.shops, ...Object.values(SIGN_FILES).flat(), ...SKYLINE.flat(), ...KIT_FILES],
-  look: { skyline: SKYLINE, skylineHeight: [110, 80], exposure: 0.95, sun: { color: '#ffd2a1', intensity: 2.0 }, ambient: 0.65, env: 0.85, skyTop: '#e07b5a', bloom: { strength: 0.5, threshold: 1.8, radius: 0.45 } },
+  // The rig (Caedon, board 22, 2026-10-15): a low sun dead ahead 8 degrees up at 3.5 under a bloom threshold of 2.4 (sun 6
+  // and bloom 1.8 blew the glass out white), a mauve fill, a peach sky to a gold horizon with a wide gold halo, rose-tan haze
+  // from 70 m deepening low down, the skyline darkened rose. ponytail: calibration knobs, tuned by eye.
+  look: { skyline: SKYLINE, skylineHeight: [110, 80], exposure: 1.05, sun: { color: '#ffd2a1', intensity: 3.5, dir: [0, -0.14, -0.99] }, ambient: 3.0, env: 0.45, hemi: { sky: '#9d86c4', ground: '#7a5a5a' },
+    skyTop: '#f2b08a', skyBottom: '#fdd27a', fog: { color: '#b98270', near: 70, pale: 0, shade: '#8f5f5c', y: [0, 45] }, skylineHaze: { color: '#b98270', mul: '#8a6f6a', mix: [0.3, 0.05], flatten: 0.2, foot: 0 },
+    disc: { size: 2, core: 5, halo: 0.7, spread: 18, color: '#fdd27a' }, bloom: { strength: 0.5, threshold: 2.4, radius: 0.45 } },
   createChunk(gfx, args) { return cityChunk(gfx, args, { ...STYLE, buildings: args.theme.buildings }); },
 };

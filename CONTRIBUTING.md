@@ -140,15 +140,28 @@ export default {
 ```
 
 A theme may also carry a `look`, used only in HiFi: `{ exposure, sun: { color, intensity, dir }, ambient, env, skyTop,
-bloom: { strength, threshold, radius }, skyline, skylineHeight }`, every field optional and range-checked like the rest.
-`skyTop` is the top of the sky gradient; the horizon is the level's sky colour. `sun.dir` is the way the sunlight travels,
-`[x, y, z]` with y below 0. `skyline` is one or two images from the theme's `assets` wrapped round the horizon (two: the
+skyBottom, hemi, fog, skylineHaze, disc, bloom: { strength, threshold, radius }, skyline, skylineHeight }`, every field
+optional and range-checked like the rest. `skyTop` is the top of the sky gradient. `sun.dir` is the way the sunlight
+travels, `[x, y, z]` with y below 0 (z below 0 puts the sun ahead of the runner). `ambient` (0–6) is the fill's strength.
+`skyline` is one or two images from the theme's `assets` wrapped round the horizon (two: the
 far ring's, then the near one's; one: the near ring), and `skylineHeight` their heights `[far, near]` in metres (10–400;
 90 and 80 by default). A single image is tiled with its mirror (`A|mirror(A)`, `scripts/tile-image.py --mirror`). The near
 ring may instead wear a list of 1 to 8 images, `skyline: [far, [near1, near2, …]]` (or `[[near1, …]]` with no far ring):
 they go round in order, each once and unmirrored, so each strip's own edges meet its neighbours; the whole sequence repeats
 as many whole times as fits at the target height, and `near1`'s middle faces the avenue. Both rings turn with the street
-through every turn. Low-fi ignores it.
+through every turn. Low-fi ignores it. The rest:
+- `skyBottom`: the sky's horizon colour (hex); without it the horizon takes the fog's colour.
+- `hemi: { sky, ground }`: the fill's colours (hex); without it the engine's white over grey.
+- `fog: { color, near, pale, shade, y: [a, b] }`: the fog's colour (else `skyBottom`, else the level's sky), where it starts
+  (0–400 m, 120 by default), how far it pales toward white (0–1, 0.45 by default), and a deeper `shade` low down that gives
+  way to `color` between `a` and `b` metres up (−50–300, a < b).
+- `skylineHaze: { color, mul, mix: [foot, top], flatten, foot }`: the skyline images times `mul`, their brightness pulled
+  `flatten` (0–1) of the way to `color`'s (else the fog's), mixed toward it by `mix` (0–1) from foot to top; below `foot` m
+  (−50–50) about eye level the ring turns solid in the fog's colour, so the street's fog meets it with no band.
+- `disc: { size, core, halo, spread, color }`: the sun drawn in the sky, `size` degrees (0–10) wide at `core` (0–20) times
+  the sun's colour, in a halo `spread` degrees (0.1–90) wide in `color` at `halo` (0–5). No disc, no sun drawn.
+
+A switch between two themes with looks crossfades their light, fog and sky over about a second.
 
 ### Character
 

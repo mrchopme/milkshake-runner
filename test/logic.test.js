@@ -594,6 +594,14 @@ test('HiFi lets the skyline through what the fog has fully hidden, and low-fi co
       const hi = compile(T, lib), f = hi.fragmentShader, decl = f.indexOf('uniform float uFogCut;');
       assert.equal(hi.uniforms.uFogCut, gfx.fogCut, `${lib}: one shared uniform the look switches per theme`);
       assert.ok(decl >= 0 && decl < f.indexOf('void main() {') && f.includes(CUT), `${lib}: declared before main; the cut right after three's fog, behind USE_FOG and uFogCut`);
+      // Task 32 height fog (Caedon, board 22): a bent mesh fogs toward uFogShade low down, by its world y before the bend
+      const lit = lib === 'toon', v = hi.vertexShader, MIX = 'mix( uFogShade, fogColor, smoothstep( uFogHeight.x, uFogHeight.y, vFogY ) )';
+      assert.equal(v.includes('varying float vFogY;') && f.includes('varying float vFogY;'), lit, `${lib}: the height varying only where three projects the vertex (a sprite has no project_vertex)`);
+      if (lit) {
+        assert.ok(v.indexOf('vFogY = bentWorld.y - bendOffset( bentWorld.z ).y;') > v.indexOf('bentWorld.xyz += bendOffset'), 'taken after the bend, minus its lift: a hill raises the street and its fog together');
+        assert.ok(f.includes(MIX) && f.indexOf(MIX) < f.indexOf('#include <fog_fragment>') && f.includes('#define fogColor'), 'three\'s fog mixes toward the height fog colour');
+        assert.ok(hi.uniforms.uFogShade === gfx.fogShade && hi.uniforms.uFogHeight === gfx.fogHeight, 'shared uniforms the look sets per theme');
+      } else assert.ok(!f.includes('uFogShade') && !('uFogShade' in hi.uniforms), 'a sprite keeps the plain fog');
     } finally { gfx.hook.cutFog = false; }
   }
 });

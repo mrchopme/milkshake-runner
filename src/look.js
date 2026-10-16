@@ -6,28 +6,45 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CSM } from 'three/addons/csm/CSM.js';
 import { texture } from './assets.js';
-import { fogCut, heading, hook } from './gfx.js';
+import { fogCut, fogShade, fogHeight, heading, hook } from './gfx.js';
 
 // The HiFi look (spec §4): tone mapping, sun shadows, studio reflections, a gradient sky and bloom, from a theme's `look`.
 // main.js loads this file only in HiFi sessions; without a look the engine renders exactly as before.
+//
+// The sun's vector (look.sun.dir, the engine's sunDir) is the way its light travels, from the sun toward the scene: the engine
+// puts the light at target - sunDir * SUN_BACK. The run goes +z and the view's right is -x, so a sun ahead of the runner has
+// dir.z < 0 and a sun on the right dir.x > 0; the dome draws its disc at -sunDir. The engine's own SUN_DIR (6, -16, 12) stands
+// behind the camera on the right, about 50 degrees up; every shipped look turns it ahead (Task 32, Caedon, board 22).
 
 // Each skyline ring's target height in metres (far, near), unless the look sets its own `skylineHeight`: its image wraps round
 // a whole number of times, the repeat count rounded from that target (ringWrap). 90 and 80 stand the tallest spires about as
 // tall as the Task 14 probe's placeholder did (towers up to 60% of its 145 m and 133 m rings); the generated strips' aspects
 // put the rings at 76–108 m. ponytail: calibration knob.
 const SKYLINE_HEIGHT = [90, 80];
+// Task 32 (Caedon's board 22 pick, "Sun B + sky fill + height fog", 2026-10-15). ponytail: calibration knobs.
+const SKY_EDGE = 0.3; // the dome reaches skyTop at this dir.y (0.45 before): a narrower pale band over the horizon
+const SHADOW_RADIUS = 2.5; // PCF blur in shadow-map texels: three 0.186 dropped PCFSoft (it fell back to plain PCF, hard edged)
+const REFLECT = 0.85; // L-C: the env strength glossy materials keep when a look's env drops to 0.4; userData.reflect overrides it
+// A theme switch crossfades the rig over FADE_MS; a camera move over JUMP m between two frames (a new run, a still) snaps it.
+const FADE_MS = 1000, JUMP = 5;
 
 // A look with its defaults filled in, or null for "no look". Pure, so it is tested in Node.
 export function lookState(theme) {
   const l = theme.look;
   if (!l) return null;
+  const h = l.skylineHaze, d = l.disc;
   return {
     exposure: l.exposure ?? 1,
     sun: { color: l.sun?.color ?? '#ffffff', intensity: l.sun?.intensity ?? 3, dir: l.sun?.dir ?? null },
     ambient: l.ambient ?? 0.5,
     env: l.env ?? 0.7,
     skyTop: l.skyTop ?? theme.sky,
-    skyBottom: theme.sky,
+    skyBottom: l.skyBottom ?? theme.sky, // what the fog pales when the look names no fog colour
+    horizon: l.skyBottom ?? null, // the dome's horizon; null: the fog's colour, as before Task 32
+    hemi: { sky: l.hemi?.sky ?? null, ground: l.hemi?.ground ?? null }, // null: the engine's own
+    fog: { color: l.fog?.color ?? null, near: l.fog?.near ?? FOG.near, pale: l.fog?.pale ?? FOG.pale, shade: l.fog?.shade ?? null, y: l.fog?.y ?? [0, 40] },
+    skylineHaze: h ? { color: h.color ?? null, mul: h.mul ?? '#ffffff', mix: h.mix ?? [0, 0], flatten: h.flatten ?? 0, foot: h.foot ?? 0 } : null,
+    disc: d ? { size: d.size ?? 1.2, core: d.core ?? 4, halo: d.halo ?? 0.3, spread: d.spread ?? 6, color: d.color ?? '#ffffff' } : null,
     skyline: [].concat(l.skyline ?? []),
     skylineHeight: l.skylineHeight ?? SKYLINE_HEIGHT,
     bloom: { strength: l.bloom?.strength ?? 0.5, threshold: l.bloom?.threshold ?? 0.85, radius: l.bloom?.radius ?? 0.4 },
@@ -45,17 +62,54 @@ export const cascadeHook = (csm) => (m) => {
 
 // Under a look the fog starts at `near` m, not the engine's 0.3 × far, and fades to the level sky `pale` of the way to white:
 // faded into the full sky colour from about 62 m, midtown's and uptown's far avenue misted over in orange and purple (Caedon,
-// board 19, 2026-10-15). ponytail: calibration knobs.
+// board 19, 2026-10-15). These are the defaults now: each shipped look sets its own `fog` (Caedon, 2026-10-15, "follow the
+// frames per scene"). ponytail: calibration knobs.
 const FOG = { near: 120, pale: 0.45 };
 const WHITE = new THREE.Color('#ffffff');
 
-// The look's fog, made from the low-fi one engine.setSky just built: its near pushed out (its far, the streaming edge, stays;
-// a fog too thick to start at FOG.near keeps its own) and its colour paled. No look leaves it as it is. Tested in Node.
+// The look's fog, made from the low-fi one engine.setSky just built: its near pushed out to the look's (its far, the streaming
+// edge, stays; a fog too thick to start there keeps its own) and its colour (look.fog.color, else skyBottom) paled. No look
+// leaves it as it is. Tested in Node.
 export function lookFog(fog, s) {
   if (!s) return fog;
-  if (FOG.near < fog.far) fog.near = FOG.near;
-  fog.color.set(s.skyBottom).lerp(WHITE, FOG.pale);
+  if (s.fog.near < fog.far) fog.near = s.fog.near;
+  fog.color.set(s.fog.color ?? s.skyBottom).lerp(WHITE, s.fog.pale);
   return fog;
+}
+
+// Everything a look sets per frame, as plain numbers: colours linear (three's working space), the sun's direction unit, the
+// disc in radians. apply() builds it from the look, the fog lookFog made and the engine's own fill colours and sun direction,
+// and writes it out; a theme switch blends the old one into it (blendRig). Pure, so it is tested in Node.
+const rgb = (c) => new THREE.Color(c).toArray(), luma = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+export function rigOf(s, { fog, hemi, dir }) {
+  const f = fog.color.toArray(), h = s.skylineHaze, d = s.disc, haze = h ? rgb(h.color ?? fog.color) : f, deg = THREE.MathUtils.degToRad;
+  return {
+    exposure: s.exposure, sun: s.sun.intensity, sunColor: rgb(s.sun.color), dir: (s.sun.dir ? new THREE.Vector3(...s.sun.dir) : dir.clone()).normalize().toArray(),
+    ambient: s.ambient, env: s.env, hemiSky: rgb(s.hemi.sky ?? hemi[0]), hemiGround: rgb(s.hemi.ground ?? hemi[1]),
+    fog: f, near: fog.near, shade: s.fog.shade ? rgb(s.fog.shade) : f, fogY: [...s.fog.y], // no shade: the fog at every height
+    top: rgb(s.skyTop), bottom: s.horizon ? rgb(s.horizon) : f,
+    core: rgb(s.sun.color).map((c) => c * (d?.core ?? 0)), halo: rgb(d?.color ?? '#000000').map((c) => c * (d?.halo ?? 0)), disc: [deg(d?.size ?? 1), deg(d?.spread ?? 1)],
+    bloom: [s.bloom.strength, s.bloom.threshold, s.bloom.radius],
+    haze: { on: h ? 1 : 0, color: haze, mul: rgb(h?.mul ?? '#ffffff'), mix: [...(h?.mix ?? [0, 0])], flatten: h?.flatten ?? 0, luma: luma(haze), foot: h?.foot ?? 0 },
+  };
+}
+// The rig a fraction t of the way from a to b, number by number (a * (1 - t) + b * t, so t = 0 is a and t = 1 is b exactly).
+export const blendRig = (a, b, t) => typeof b === 'number' ? a * (1 - t) + b * t : Array.isArray(b) ? b.map((v, i) => blendRig(a[i], v, t)) : Object.fromEntries(Object.entries(b).map(([k, v]) => [k, blendRig(a[k], v, t)]));
+
+// The skyline ring's texel, as its shader computes it (RING_FRAG) over the same rig: what the tests exercise; the GLSL is checked
+// by eye. rgba is the image's texel, v its height up the ring (0 foot, 1 top), up its world height over the camera in metres,
+// cutY the height where its sight line crosses the fog cut. With a skylineHaze: the texel times `mul`, its luma pulled
+// `flatten` of the way to the haze colour's (the window grids go, the hue stays), mixed toward the haze colour by mix[0] at the
+// foot to mix[1] at the top; under `foot` m about eye level it turns opaque in the height fog's colour at the cut, so the fogged
+// street meets it with no band. Without one, the foot fades to the fog colour over its lowest RING.fade, as before Task 32.
+const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+export function ringTexel([r, g, b, a], { v, up, cutY }, { haze: h, fog, shade, fogY }) {
+  let c = [r, g, b].map((x, i) => x * h.mul[i]);
+  const k = 1 + (h.luma / Math.max(luma(c), 0.02) - 1) * h.flatten, m = h.mix[0] + (h.mix[1] - h.mix[0]) * v;
+  c = c.map((x, i) => { x = Math.min(x * k, 1); return x + (h.color[i] - x) * m; });
+  const t = smooth(fogY[0], fogY[1], cutY), foot = fog.map((x, i) => shade[i] + (x - shade[i]) * t);
+  const on = h.on > 0.5, w = on ? 1 - smooth(h.foot, h.foot + RING.band, up) : 1 - smooth(0, RING.fade, v);
+  return [...c.map((x, i) => x + (foot[i] - x) * w), on ? Math.max(a, w) : a];
 }
 
 // How a skyline image wraps its ring: a whole number of times round, the repeat count that would stand it `target` metres tall
@@ -98,15 +152,39 @@ const SKY_VERT = /* glsl */`
     vDir = normalize( ( modelMatrix * vec4( position, 1.0 ) ).xyz - cameraPosition );
     gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
   }`;
+// The dome: bottom to top over the lowest SKY_EDGE of the sky, plus the sun's disc toward `sun` (toward the light, unit): a core
+// `disc.x` radians wide in the sun's colour times look.disc.core (linear HDR, past the bloom threshold, so it blooms a little)
+// and a gaussian halo `disc.y` radians wide. A look without a disc has both colours black (uptown).
 const SKY_FRAG = /* glsl */`
   uniform vec3 top;
   uniform vec3 bottom;
+  uniform vec3 sun;
+  uniform vec3 coreColor;
+  uniform vec3 haloColor;
+  uniform vec2 disc;
   varying vec3 vDir;
   void main() {
-    gl_FragColor = vec4( mix( bottom, top, smoothstep( 0.0, 0.45, vDir.y ) ), 1.0 );
+    vec3 d = normalize( vDir );
+    float a = acos( clamp( dot( d, sun ), -1.0, 1.0 ) );
+    vec3 c = mix( bottom, top, smoothstep( 0.0, ${SKY_EDGE.toFixed(3)}, d.y ) );
+    c += coreColor * ( 1.0 - smoothstep( disc.x * 0.7, disc.x, a ) ) + haloColor * exp( - a * a / ( disc.y * disc.y ) );
+    gl_FragColor = vec4( c, 1.0 );
     #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }`;
+
+// The skyline rings: radii (far, near), foot below the camera, yaw, the old foot fade (a fraction of the ring's height) and the
+// haze's band (metres over which the opaque foot lets go). ponytail: calibration knobs.
+const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08, band: 4 };
+// ringTexel in GLSL, after three's map_fragment (uv.y runs 0 at the ring's foot to 1 at its top).
+const RING_FRAG = /* glsl */`#include <map_fragment>
+  vec3 rc = diffuseColor.rgb * hazeMul;
+  rc = min( rc * mix( 1.0, hazeLuma / max( dot( rc, vec3( 0.2126, 0.7152, 0.0722 ) ), 0.02 ), hazeFlatten ), vec3( 1.0 ) );
+  rc = mix( rc, hazeColor, mix( hazeMix.x, hazeMix.y, vRingY ) );
+  float ringUp = vRingWorld.y - cameraPosition.y, ringCutY = cameraPosition.y + ringUp * hazeFar / max( length( vRingWorld.xz - cameraPosition.xz ), 1.0 );
+  vec3 footColor = mix( uFogShade, ringFog, smoothstep( uFogHeight.x, uFogHeight.y, ringCutY ) );
+  float ringFoot = hazeOn > 0.5 ? 1.0 - smoothstep( hazeFoot, hazeFoot + ${RING.band.toFixed(1)}, ringUp ) : 1.0 - smoothstep( 0.0, ${RING.fade.toFixed(3)}, vRingY );
+  diffuseColor = vec4( mix( rc, footColor, ringFoot ), hazeOn > 0.5 ? max( diffuseColor.a, ringFoot ) : diffuseColor.a );`;
 
 export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -114,10 +192,12 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   const env = pmrem.fromScene(room, 0.04).texture;
   room.dispose(); // final review, minor: the bake's scene is not needed afterwards
   pmrem.dispose();
+  const hemiBase = [hemi.color.clone(), hemi.groundColor.clone()]; // the engine's own fill, for a look without hemi and for no look
 
-  // A camera-centred dome, drawn first and outside the fog; the horizon colour is the fog's (lookFog), so the fog meets it.
+  // A camera-centred dome, drawn first and outside the fog; its horizon is the look's skyBottom, else the fog's colour.
   const dome = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 16), new THREE.ShaderMaterial({
-    uniforms: { top: { value: new THREE.Color() }, bottom: { value: new THREE.Color() } },
+    uniforms: { top: { value: new THREE.Color() }, bottom: { value: new THREE.Color() }, sun: { value: new THREE.Vector3(0, 1, 0) },
+      coreColor: { value: new THREE.Color(0) }, haloColor: { value: new THREE.Color(0) }, disc: { value: new THREE.Vector2(1, 1) } },
     vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false, fog: false,
   }));
   dome.renderOrder = -1;
@@ -127,21 +207,21 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
 
   // The skyline (round 2): up to two camera-centred open cylinders wearing look.skyline, far side first, between the dome and
   // the far plane; unbent, unfogged, no shadows. A missing image hides its ring. ponytail: calibration knobs.
-  // Its foot fades to the fog's colour over the lowest `fade` of the ring (the spec's "tinted to the level sky at its base"),
-  // so it meets the fogged street and buildings without a band; apply() re-tints it on every theme switch. Each ring stands
-  // its look's skylineHeight (SKYLINE_HEIGHT above). Each ring is a group: one whole cylinder for a single image, or, for a
-  // list (the near ring only, checkLook), one arc mesh per image per lap of the sequence (ringArcs), each wearing its own
-  // preloaded texture: no composed texture to build or hold, at a draw call an arc (eight for four strips twice round).
+  // Its foot meets the fogged street and buildings without a band, hazed per scene (ringTexel, RING_FRAG); apply() re-tints it
+  // on every theme switch. Each ring stands its look's skylineHeight (SKYLINE_HEIGHT above). Each ring is a group: one whole
+  // cylinder for a single image, or, for a list (the near ring only, checkLook), one arc mesh per image per lap of the sequence
+  // (ringArcs), each wearing its own preloaded texture: no composed texture to build or hold, at a draw call an arc (eight for
+  // four strips twice round).
   // ponytail: merge each image's arcs into one geometry if those draw calls ever show.
-  const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08 };
-  const tint = { value: new THREE.Color() };
+  const ringU = { hazeOn: { value: 0 }, hazeColor: { value: new THREE.Color() }, hazeMul: { value: new THREE.Color() }, hazeMix: { value: new THREE.Vector2() }, hazeFlatten: { value: 0 },
+    hazeLuma: { value: 0 }, hazeFoot: { value: 0 }, hazeFar: { value: 200 }, ringFog: { value: new THREE.Color() }, uFogShade: fogShade, uFogHeight: fogHeight };
   const ringMaterial = (map = null) => {
     const mat = new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
-    mat.onBeforeCompile = (sh) => { // uv.y runs 0 at the ring's foot to 1 at its top
-      sh.uniforms.tint = tint;
-      sh.vertexShader = sh.vertexShader.replace('void main() {', 'varying float vRingY;\nvoid main() {\n  vRingY = uv.y;');
-      sh.fragmentShader = sh.fragmentShader.replace('void main() {', `uniform vec3 tint;\nvarying float vRingY;\nvoid main() {`)
-        .replace('#include <map_fragment>', `#include <map_fragment>\n  diffuseColor.rgb = mix( tint, diffuseColor.rgb, smoothstep( 0.0, ${RING.fade.toFixed(3)}, vRingY ) );`);
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, ringU);
+      sh.vertexShader = sh.vertexShader.replace('void main() {', 'varying float vRingY;\nvarying vec3 vRingWorld;\nvoid main() {\n  vRingY = uv.y;\n  vRingWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;');
+      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, ringFog, uFogShade;\nuniform vec2 hazeMix, uFogHeight;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot, hazeFar;\nvarying float vRingY;\nvarying vec3 vRingWorld;\nvoid main() {')
+        .replace('#include <map_fragment>', RING_FRAG);
     };
     return mat;
   };
@@ -158,10 +238,23 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   // and the sun hides. They aim along the engine's sunDir itself, so a look that turns the sun turns them. Every lit material
   // bendable() wraps from now on gets CSM's setupMaterial (gfx.hook), after the module's own hook and before the bend.
   // Never csm.dispose(): it deletes each material's onBeforeCompile, which after bendable() is the bend itself.
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Task 32: PCF with a radius, the cascades fading into each other (CSM's constructor ignores a `fade` option: set after).
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   const csm = new CSM({ maxFar: 220, cascades: 2, shadowMapSize: 4096, lightDirection: sunDir, camera, parent: scene, shadowBias: -0.0004 });
-  for (const l of csm.lights) { l.shadow.normalBias = 0.03; l.visible = false; }
-  hook.beforeBend = cascadeHook(csm);
+  csm.fade = true;
+  for (const l of csm.lights) { l.shadow.normalBias = 0.03; l.shadow.radius = SHADOW_RADIUS; l.visible = false; }
+  // L-C: glossy materials (a clearcoat, or roughness 0.15 and under: Milkshake, the taxi and painted obstacles, the bridge's
+  // water) wear the env as their own at REFLECT (or userData.reflect), so their reflections survive the looks' env cut; three
+  // gives a material without its own envMap the scene's environmentIntensity instead. Facade glass shares its material with the
+  // masonry (a roughness map) and follows the scene's env.
+  let active = false, lastRatio = 0;
+  const glossy = new Set(), lit = cascadeHook(csm);
+  hook.beforeBend = (m) => {
+    lit(m);
+    if (!(m.isMeshStandardMaterial && (m.clearcoat > 0 || m.roughness <= 0.15))) return;
+    glossy.add(m); m.envMap = active ? env : null; m.envMapIntensity = m.userData.reflect ?? REFLECT;
+    m.addEventListener('dispose', () => glossy.delete(m));
+  };
   hook.cutFog = true; // the fog cut compiles into bent shaders from here on; a theme's look switches it with fogCut
   let view = ''; // the camera's fov and aspect when the cascade splits were last fitted
 
@@ -175,12 +268,31 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   composer.addPass(output);
   composer.renderTarget1.samples = 0; // only the target the scene renders into keeps 4x MSAA (about 190 MB saved at 3024x1964)
 
-  let active = false, lastRatio = 0;
+  // The rig apply() aims at, the one last written, and a theme switch's crossfade from it ({ from, at }), blended in render().
+  let rig = null, shown = null, fade = null;
+  const lastCam = new THREE.Vector3();
+  const put = (r) => {
+    shown = r;
+    renderer.toneMappingExposure = r.exposure;
+    sun.color.setRGB(...r.sunColor); sun.intensity = r.sun;
+    for (const l of csm.lights) { l.color.copy(sun.color); l.intensity = r.sun; }
+    sunDir.set(...r.dir).normalize(); // a blend of two unit vectors is shorter; the cascades and the disc want a unit
+    hemi.intensity = r.ambient; hemi.color.setRGB(...r.hemiSky); hemi.groundColor.setRGB(...r.hemiGround);
+    scene.environmentIntensity = r.env;
+    scene.fog.color.setRGB(...r.fog); scene.fog.near = r.near;
+    fogShade.value.setRGB(...r.shade); fogHeight.value.set(...r.fogY);
+    const u = dome.material.uniforms, h = r.haze;
+    u.top.value.setRGB(...r.top); u.bottom.value.setRGB(...r.bottom); u.sun.value.copy(sunDir).negate(); // the disc toward the light
+    u.coreColor.value.setRGB(...r.core); u.haloColor.value.setRGB(...r.halo); u.disc.value.set(...r.disc);
+    [bloom.strength, bloom.threshold, bloom.radius] = r.bloom;
+    ringU.hazeOn.value = h.on; ringU.hazeColor.value.setRGB(...h.color); ringU.hazeMul.value.setRGB(...h.mul); ringU.hazeMix.value.set(...h.mix);
+    ringU.hazeFlatten.value = h.flatten; ringU.hazeLuma.value = h.luma; ringU.hazeFoot.value = h.foot; ringU.ringFog.value.setRGB(...r.fog);
+  };
   return {
     get active() { return active; },
     // engine.setSky calls this after setting the low-fi sky, fog and light: a look overrides them, no look switches itself off.
     apply(theme) {
-      const s = lookState(theme);
+      const s = lookState(theme), was = active;
       active = !!s;
       fogCut.value = s ? 1 : 0;
       lookFog(scene.fog, s);
@@ -190,24 +302,20 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       sun.visible = !s; // the cascades light a look's scene; no look keeps the low-fi sun, which never casts
       for (const l of csm.lights) l.visible = !!s; // toggled with the shadow map, so the light state changes and materials recompile once
       scene.environment = s ? env : null;
+      for (const m of glossy) m.envMap = scene.environment; // no look: null, as before
       dome.visible = !!s;
       for (const r of rings) { // shown below when the look names loaded images; unbound, so a later release() of an old image leaves nothing disposed bound
         r.visible = false; r.userData.full.material.map = null;
         for (const arc of r.children.slice(1)) { r.remove(arc); arc.geometry.dispose(); arc.material.dispose(); } // an image's arcs share one geometry and material: disposing twice is harmless
       }
-      if (!s) return;
-      scene.environmentIntensity = s.env;
-      sun.color.set(s.sun.color);
-      sun.intensity = s.sun.intensity;
-      for (const l of csm.lights) { l.color.copy(sun.color); l.intensity = sun.intensity; }
-      hemi.intensity = s.ambient;
-      dome.material.uniforms.top.value.set(s.skyTop);
-      // the fog, the dome's horizon and the rings' feet in one pale: where the fog cut drops a fully fogged fragment at the
-      // horizon, the ring's foot or the dome between its towers shows the very colour it had faded to, so nothing bands
-      dome.material.uniforms.bottom.value.copy(scene.fog.color);
-      Object.assign(bloom, s.bloom);
-      tint.value.copy(scene.fog.color);
-      if (s.sun.dir) sunDir.set(...s.sun.dir).normalize();
+      if (!s) { hemi.color.copy(hemiBase[0]); hemi.groundColor.copy(hemiBase[1]); fogShade.value.copy(scene.fog.color); fade = null; return; }
+      ringU.hazeFar.value = scene.fog.far;
+      rig = rigOf(s, { fog: scene.fog, hemi: hemiBase, dir: sunDir }); // setSky has just put the engine's sunDir back
+      // A switch from one look to another fades over FADE_MS in render() (the bridge's sun 57 degrees up ahead-left to
+      // downtown's 28 degrees on the axis must not pop); the dome's colours fade with it, the ring images swap here. A first
+      // look, or one after none, lands at once. ponytail: a run that dies within JUMP m of the menu's camera fades the menu.
+      fade = was && shown ? { from: shown, at: performance.now() } : null;
+      put(fade ? fade.from : rig);
       rings.forEach((ring, i) => {
         const list = s.skyline, entry = list.length === 2 ? list[i] : i === 1 ? list[0] : undefined; // two entries: far, near; one: the near ring
         let maps = null;
@@ -239,6 +347,12 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       });
     },
     render() {
+      if (fade) {
+        const k = camera.position.distanceTo(lastCam) > JUMP ? 1 : Math.min(1, (performance.now() - fade.at) / FADE_MS);
+        put(k < 1 ? blendRig(fade.from, rig, k) : rig);
+        if (k === 1) fade = null;
+      }
+      lastCam.copy(camera.position);
       dome.position.copy(camera.position);
       for (const r of rings) {
         r.position.set(camera.position.x, camera.position.y + RING.base, camera.position.z);
