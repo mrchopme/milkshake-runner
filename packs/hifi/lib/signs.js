@@ -2,7 +2,7 @@ import { instanced } from './shapes.js';
 import { material } from './materials.js';
 import { cityFiles } from './facade.js';
 import { FACADE_X } from './street.js';
-import { CORNICE, SETBACK } from './buildings.js';
+import { CORNICE, LOWEST } from './buildings.js';
 // Colour-block and poster stacks on the facades and blade signs over the storefronts (board 01), instanced: one draw call per
 // image a chunk draws from. A missing poster's panel turns a colour block and a missing blade sign is left out; each image's
 // material is keyed by its loaded texture, so it still shows on the next chunk once it lands.
@@ -26,9 +26,9 @@ export function signs(gfx, { z0, length }, style, r, cross) {
   const one = (list = []) => list[Math.floor(r() * list.length)], turn = (a) => new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), a);
   const led = material('led', () => new T.MeshBasicMaterial({ color: new T.Color(LED, LED, LED) })); // its palette colour per panel
   const posters = Array.from({ length: PICK }, () => imageMaterial(gfx, one(style.posters))), blades = Array.from({ length: PICK }, () => imageMaterial(gfx, one(style.blades)));
-  // a stack's top bezel stays under the cornice of the shortest facade the theme builds: its lowest block, or a tall block's
-  // setback (buildings.js); the cornice juts out past the panels
-  const roof = Math.min(style.buildings.minH, SETBACK.from * SETBACK.above) - CORNICE.h;
+  // a stack's top bezel stays under the cornice of the shortest facade the theme builds (buildings.js's LOWEST since Task 32's
+  // walk-ups; the block list will carry each block's own); the cornice juts out past the panels
+  const roof = Math.min(style.buildings.minH, LOWEST) - CORNICE.h;
   // board 18: bigger panels (4–6 by 3–4.2 m) 4.2 m apart up the wall, more stacks, fewer posters. The first panel's centre at
   // 6.86 m keeps its bezel (1.1 × the panel) at 4.55 m or more, over the blade signs; one lift a stack keeps its panels apart.
   // seam: a panel spans z .. z + w (w <= 6) and its bezel 4% more each side, so the stack starts no later than 6.24 m from the end

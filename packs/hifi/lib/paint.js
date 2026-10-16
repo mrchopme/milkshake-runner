@@ -36,7 +36,7 @@ export function freeWith(source, paint) {
 // The colour map redrawn texel by texel (`each(px, i)` rewrites the RGB at px[i]), or null without a map or a canvas (Node).
 // Read the way the source map is (flipY, colour space, channel, wrap); offset and repeat are not copied, so a map that uses
 // them needs its UVs in [0,1].
-function redraw(T, map, size, each) {
+export function redraw(T, map, size, each) {
   if (!map?.image || typeof OffscreenCanvas === 'undefined') return null;
   const canvas = new OffscreenCanvas(size, size), ctx = canvas.getContext('2d');
   ctx.drawImage(map.image, 0, 0, size, size);

@@ -7,11 +7,12 @@ export function box(T, w, h, d, material, x = 0, y = h / 2, z = 0) {
 }
 // A wall plane facing ±x, `d` long along z and `h` tall, its UVs in units of one tile (tw by th metres), so a repeating
 // facade texture keeps its scale on any wall. side = +1 faces +x (a building on the -x side of the road faces +x).
-export function wall(T, d, h, side, tw, th, v0 = 0) {
+// axis 'z': a block's end wall facing -z (the camera looks +z), `d` wide along x, u left to right as the camera sees it; side unused.
+export function wall(T, d, h, side, tw, th, v0 = 0, axis = 'x') {
   const g = new T.PlaneGeometry(d, h, Math.max(1, Math.ceil(d / SEG)), 1);
   const uv = g.attributes.uv;
   for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * d / tw, v0 + uv.getY(i) * h / th);
-  g.rotateY(side > 0 ? Math.PI / 2 : -Math.PI / 2);
+  g.rotateY(axis === 'z' ? Math.PI : side > 0 ? Math.PI / 2 : -Math.PI / 2);
   return g;
 }
 // One InstancedMesh for many copies; matrices are world matrices (the chunk group stays at the origin).

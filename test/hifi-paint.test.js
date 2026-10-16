@@ -49,7 +49,7 @@ test('freeWith on a texture its own material wears frees the material once, with
 });
 
 test('a facade tile reloaded after assets.release wears a new material, and the released one goes with its own masks', () => {
-  const path = 'hifi/test/t27-tile.webp', style = { id: 't27', lit: 0.8, facades: [path], buildings: { colors: ['#888888'] } };
+  const path = 'hifi/test/t27-tile.webp', style = { id: 't27', glow: { share: 0.7, color: '#ffb46a', intensity: 1.2 }, facades: [path], buildings: { colors: ['#888888'] } }; // Task 32: the window cells' glow (was `lit`)
   const saved = globalThis.OffscreenCanvas; // a canvas to draw the masks on (Node has none)
   globalThis.OffscreenCanvas = class { getContext() { return { drawImage() {}, getImageData: () => ({ data: new Uint8ClampedArray(4) }), putImageData() {} }; } };
   try {
