@@ -9,7 +9,7 @@ import { street, CROSS, WALK, FACADE_X, DASH, KERB, PAVE, EDGE, KERB_TONE, pavin
 import { buildings, CORNICE, GAP } from '../packs/hifi/lib/buildings.js';
 import { cityChunk } from '../packs/hifi/lib/city.js';
 import { SHOP_H, tintFor, tinted } from '../packs/hifi/lib/facade.js';
-import { furniture, FOOT, SEAM } from '../packs/hifi/lib/furniture.js';
+import { furniture, FOOT, SEAM, CLEAR, RHYTHM, PITS, PLANTER, TINT } from '../packs/hifi/lib/furniture.js';
 import { ROAD_HALF } from '../src/world.js';
 import { DRIVE } from '../packs/hifi/lib/traffic.js';
 import { adopt } from '../src/assets.js';
@@ -387,30 +387,162 @@ test('a crossing\'s two traffic lights stand on diagonal corners, one before the
   assert.equal(nearSides.size, 2, 'the near corner falls on either side');
 });
 
-// Furniture in random stretches (Caedon, 2026-10-14, board 18): "WAY too many trees and streetlamps ... trees are too repetitive".
+// The kerb's rhythm (Task 32; Caedon, 2026-10-15: "Regular rhythm like the frames", board 24 "Ship as prototyped"; it reverses board 18's
+// random stretches): per side a tree every 8-10 m in a pit, a lamp halfway between every second pair, planters at shop doors.
 const pieces = (g) => { let n = 0; const first = new Set(); g.traverse((m) => { const k = m.userData.furniture; if (k && !first.has(k)) { first.add(k); n += m.count; } }); return n; }; // one instance a piece in each of its kind's part meshes
+const THEMES = ['downtown', 'midtown', 'uptown'];
+const themeChunk = async (id) => { const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }; return (seed, z0 = 0) => hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }); };
+const placed = (g) => { // per side: each kind's instances (the first of its part meshes) and the pits, as { x, z, m }
+  const out = { [-1]: {}, 1: {} }, seen = new Set();
+  g.traverse((n) => {
+    const k = n.userData.furniture ?? (n.userData.pit && 'pit');
+    if (!k || seen.has(k)) return;
+    seen.add(k);
+    for (let i = 0; i < n.count; i++) { const m = new THREE.Matrix4(); n.getMatrixAt(i, m); const x = m.elements[12], z = m.elements[14]; (out[Math.sign(x)][k] ??= []).push({ x, z, m }); }
+  });
+  for (const s of [-1, 1]) for (const l of Object.values(out[s])) l.sort((a, b) => a.z - b.z);
+  return out;
+};
 
-test('furniture stands in random stretches: the same seed places the same pieces, and a chunk holds well under half of board 15\'s rhythm', () => {
-  const placed = (seed) => { const out = []; furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 50 }).traverse((n) => { if (n.isInstancedMesh) out.push(n.userData.furniture, ...n.instanceMatrix.array); }); return out.join(); };
-  assert.equal(placed(7), placed(7));
-  assert.notEqual(placed(7), placed(8));
-  const N = 300, RHYTHM = 37.7; // board 15's rhythm, counted the same way over 500 chunks at f07cc2a
-  let n = 0;
-  for (let seed = 1; seed <= N; seed++) n += pieces(chunk(seed));
-  assert.ok(n / N < RHYTHM / 2, `${(n / N).toFixed(1)} pieces a chunk on average; board 15's rhythm placed ${RHYTHM}`);
+test('the same seed places the same furniture, and another seed different extras', () => {
+  const at = (seed) => { const out = []; furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 50 }).traverse((n) => { if (n.isInstancedMesh) out.push(n.userData.furniture, ...n.instanceMatrix.array); }); return out.join(); };
+  assert.equal(at(7), at(7));
+  assert.notEqual(at(7), at(8));
 });
 
-test('trees come in more than one size and turn', () => {
-  const sizes = new Set(), turns = new Set(), m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
-  for (let seed = 1; seed <= 20; seed++) {
-    let done = false;
-    chunk(seed).traverse((n) => {
-      if (done || n.userData.furniture !== 'tree') return;
-      done = true; // the first of the tree's part meshes: every part carries the same placement
-      for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); m.decompose(p, q, s); if (p.x > 0) { sizes.add(s.y.toFixed(3)); turns.add(q.toArray().map((v) => v.toFixed(3)).join()); } }
-    });
+// per side: the footprints along z (a tree's its pit) as [z0, z1], sorted; the empty stretches are the holes between them
+const spans = (by, s) => Object.entries(by[s]).filter(([k]) => k !== 'tree').flatMap(([k, list]) => list.map(({ z }) => { const h = k === 'pit' ? PITS.size / 2 : FOOT[k][1]; return [z - h, z + h]; }));
+const holes = (iv, from, at) => { iv.sort((a, b) => a[0] - b[0]); let reach = from; for (const [a, b] of iv) { assert.ok(a - reach <= 10 + 1e-4, `${at}: ${(a - reach).toFixed(2)} m empty from z ${reach.toFixed(2)}`); reach = Math.max(reach, b); } };
+const sideStreet = (g) => { const cz = g.userData.cross.z; return [cz - CLEAR, cz + CROSS.width + CLEAR]; };
+
+test('one tree pitch of 8-10 m a chunk, the +x trees halfway between the -x ones; a lamp every 2P (16-20 m) halfway between two trees, no empty stretch over 10 m', async (t) => {
+  for (const id of THEMES) {
+    const make = await themeChunk(id);
+    let n = 0, N = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const z0 = 120 * (seed % 11), g = make(seed, z0), [c0, c1] = sideStreet(g), by = placed(g), at = `${id}, seed ${seed}, chunk ${z0}`;
+      n += pieces(g); N++;
+      const pitch = (s) => { const z = by[s].tree.map((x) => x.z); return Math.min(...z.slice(1).map((v, i) => v - z[i])); }, P = pitch(-1);
+      assert.ok(Math.abs(pitch(1) - P) < 1e-4 && P >= RHYTHM.pitch[0] - 1e-6 && P <= RHYTHM.pitch[1] + 1e-6 && Math.round(120 / P) % 2 === 1, `${at}: pitches ${P.toFixed(2)} and ${pitch(1).toFixed(2)}, one odd n a chunk`);
+      const minus = by[-1].tree.map((x) => x.z), off = (z) => z > c0 - PITS.size / 2 && z < c1 + PITS.size / 2; // a spot the side street's clear zone took
+      for (const { z } of by[1].tree) for (const w of [z - P / 2, z + P / 2]) assert.ok(off(w) || minus.some((v) => Math.abs(v - w) < 1e-3), `${at}: the +x tree at z ${z.toFixed(2)} is not halfway between two -x trees`);
+      for (const s of [-1, 1]) {
+        const trees = by[s].tree.map((x) => x.z), lamps = (by[s].lamp ?? []).map((l) => l.z);
+        for (const d of trees.slice(1).map((z, i) => z - trees[i])) assert.ok(Math.abs(d / P - Math.round(d / P)) < 1e-4, `${at}, side ${s}: a ${d.toFixed(2)} m gap is not a run of the ${P.toFixed(2)} m pitch (a skipped tree)`);
+        const slot = (z, of) => { const u = ((z - z0) / P + of) % 1; return Math.min(u, 1 - u) < 1e-4; }; // z on the pitch's grid (instance matrices are float32), shifted by `of` pitches
+        for (const z of trees) assert.ok(slot(z, s < 0 ? 0.5 : 0), `${at}: the ${s < 0 ? '-x side\'s trees stand at half pitches' : '+x side\'s at whole ones'}, z ${z.toFixed(2)}`);
+        for (const z of lamps) assert.ok(slot(z, s < 0 ? 0 : 0.5), `${at}: a lamp at z ${z.toFixed(2)}, not halfway between two trees`);
+        // every 2P from the chunk's start (+x from 0.5P to length - 0.5P); -x's last at length - P, the one short gap its odd n costs
+        const grid = lamps.filter((z) => s > 0 || Math.abs(z - z0 - 120 + P) > 1e-3);
+        assert.ok(lamps.length >= 3 && 2 * P >= 10 - 1e-6 && 2 * P <= 20 + 1e-6, `${at}, side ${s}: ${lamps.length} lamps, a ${(2 * P).toFixed(2)} m lamp pitch`);
+        for (const z of grid) assert.ok(slot((z - z0) / 2 + z0, s < 0 ? 0.5 : 0.75), `${at}, side ${s}: a lamp at z ${z.toFixed(2)} off the 2P grid`);
+        assert.ok(s > 0 || grid.length === lamps.length - 1, `${at}: -x's lamp at length - P`);
+        // the 2 m seams are the two-chunk test's
+        holes([...spans(by, s), [-Infinity, z0 + SEAM], [z0 + 120 - SEAM, Infinity], [c0, c1]], z0, `${at}, side ${s}`);
+      }
+    }
+    const mean = n / N;
+    t.diagnostic(`${id}: ${mean.toFixed(1)} pieces a chunk`);
+    assert.ok(mean >= 45 && mean <= 70, `${id}: ${mean.toFixed(1)} pieces a chunk (the prototype's rhythm with planters: about 58)`);
   }
-  assert.ok(sizes.size > 1 && turns.size > 1, `${sizes.size} sizes and ${turns.size} turns among the right side's trees`);
+});
+
+test('across a seam: no empty stretch over 10 m on either side, the lamps P to 2P apart (two chunks, z0 and z0 + 120)', async () => {
+  for (const id of THEMES) {
+    const make = await themeChunk(id);
+    for (let seed = 1; seed <= 60; seed++) {
+      const z0 = 120 * (seed % 11), A = make(seed, z0), B = make(seed + 100, z0 + 120), a = placed(A), b = placed(B), at = `${id}, seed ${seed}, seam ${z0 + 120}`;
+      for (const s of [-1, 1]) {
+        holes([...spans(a, s), ...spans(b, s), [-Infinity, z0 + 60], [z0 + 180, Infinity], sideStreet(A), sideStreet(B)], z0, `${at}, side ${s}`);
+        const last = a[s].lamp.at(-1).z, first = b[s].lamp[0].z;
+        assert.ok(first - last >= RHYTHM.pitch[0] - 1e-3 && first - last <= 20 + 1e-3, `${at}, side ${s}: lamps ${(first - last).toFixed(2)} m apart across the seam`);
+      }
+    }
+  }
+});
+
+test('a flush pit stands under every tree, one instanced mesh a chunk; trees come in sizes 0.75-0.9, turned in 90 degree steps', async () => {
+  const make = await themeChunk('downtown'), sizes = new Set(), turns = new Set(), p = new THREE.Vector3(), q = new THREE.Quaternion(), k = new THREE.Vector3(), e = new THREE.Euler();
+  for (let seed = 1; seed <= 20; seed++) {
+    const g = make(seed, 120 * seed), by = placed(g);
+    let pits = 0; g.traverse((n) => { if (n.userData.pit) pits++; });
+    assert.equal(pits, 1, `seed ${seed}: ${pits} pit meshes`);
+    for (const s of [-1, 1]) {
+      assert.equal(by[s].pit.length, by[s].tree.length, `seed ${seed}: a pit a tree`);
+      by[s].tree.forEach((t, i) => {
+        const pit = by[s].pit[i];
+        assert.ok(Math.abs(pit.x - t.x) < 1e-6 && Math.abs(pit.z - t.z) < 1e-6 && Math.abs(pit.m.elements[13] - t.m.elements[13]) < 1e-6, `seed ${seed}: the pit at ${pit.x}, ${pit.z} and its tree at ${t.x}, ${t.z}`);
+        t.m.decompose(p, q, k); e.setFromQuaternion(q, 'YXZ');
+        const turn = (e.y - (s > 0 ? -Math.PI / 2 : Math.PI / 2)) / (Math.PI / 2), snap = turn - Math.round(turn);
+        assert.ok(k.y >= RHYTHM.scale[0] - 1e-6 && k.y <= RHYTHM.scale[1] + 1e-6 && Math.abs(snap) * Math.PI / 2 <= RHYTHM.jitter + 1e-6, `seed ${seed}: a tree at ${k.y.toFixed(3)}, turned ${turn.toFixed(3)} quarters`);
+        sizes.add(k.y.toFixed(3)); turns.add(((Math.round(turn) % 4) + 4) % 4);
+        assert.ok(Math.abs(Math.abs(t.x) - RHYTHM.trees.tree) < 1e-6, `a tree at x ${t.x}`);
+      });
+    }
+  }
+  assert.ok(sizes.size > 10 && turns.size === 4, `${sizes.size} sizes and ${turns.size} quarter turns`);
+  // the pit: 1.5 m square, its top just over the sidewalk's (flush to the eye)
+  let pit; make(1).traverse((n) => { if (n.userData.pit) pit = n; });
+  pit.geometry.computeBoundingBox();
+  const b = pit.geometry.boundingBox, top = b.max.y + pit.instanceMatrix.array[13];
+  assert.ok(Math.abs(b.max.x - b.min.x - PITS.size) < 1e-6 && Math.abs(b.max.z - b.min.z - PITS.size) < 1e-6 && top > KERB && top < KERB + 0.02, `a ${(b.max.x - b.min.x).toFixed(2)} m pit, its top at ${top.toFixed(3)}`);
+  assert.ok(pit.geometry.attributes.color && pit.material.vertexColors, 'stone rim and soil in its own colours');
+});
+
+test('planter pairs stand at shop doors from the block list, on about half the lots', async () => {
+  for (const id of THEMES) {
+    const make = await themeChunk(id);
+    let lots = 0, with_ = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      const g = make(seed, 120 * seed), blocks = g.userData.blocks, by = placed(g);
+      for (const s of [-1, 1]) {
+        const planters = by[s].planter ?? [];
+        for (const pl of planters) {
+          assert.ok(Math.abs(Math.abs(pl.x) - PLANTER.x) < 1e-4, `${id}: a planter at x ${pl.x}`);
+          assert.ok(blocks.some((b) => b.side === s && b.shop != null && [-PLANTER.dz, PLANTER.dz].some((d) => Math.abs((b.z0 + b.z1) / 2 + d - pl.z) < 1e-3)), `${id}, seed ${seed}: a planter at z ${pl.z.toFixed(2)} by no shop door`);
+        }
+        for (const b of blocks.filter((x) => x.side === s)) { lots++; if (planters.some((pl) => Math.abs(pl.z - (b.z0 + b.z1) / 2) <= PLANTER.dz + 1e-6)) with_++; }
+      }
+    }
+    assert.ok(with_ / lots > 0.3 && with_ / lots < 0.6, `${id}: planters at ${(100 * with_ / lots).toFixed(0)}% of the lots`);
+  }
+});
+
+test('uptown\'s lamps throw a light pool, one instanced mesh, on the road and the sidewalk at their own heights, inside the chunk; the day themes none', async () => {
+  for (const id of THEMES) {
+    const make = await themeChunk(id);
+    for (let seed = 1; seed <= 10; seed++) {
+      const z0 = 120 * seed, g = make(seed, z0);
+      let pool, lamps = 0, meshes = 0; g.traverse((n) => { if (n.userData.pool) { pool = n; meshes++; } if (n.userData.furniture === 'lamp') lamps = n.count; });
+      if (id !== 'uptown') { assert.equal(meshes, 0, `${id}: no pools by day`); continue; }
+      assert.ok(meshes === 1 && pool.count === lamps && pool.material.blending === THREE.AdditiveBlending && !pool.material.depthWrite, `seed ${seed}: ${meshes} pool meshes, ${pool?.count} pools for ${lamps} lamps`);
+      const v = new THREE.Vector3(), m = new THREE.Matrix4(), p = pool.geometry.attributes.position;
+      for (let i = 0; i < pool.count; i++) {
+        pool.getMatrixAt(i, m);
+        for (let k = 0; k < p.count; k++) {
+          v.fromBufferAttribute(p, k).applyMatrix4(m);
+          assert.ok(v.z >= z0 - 1e-6 && v.z <= z0 + 120 + 1e-6, `seed ${seed}: a pool reaches z ${v.z.toFixed(2)}`);
+          const road = v.y > 0.021 && v.y < 0.05, walk = v.y > KERB + 0.015 && v.y < KERB + 0.05, x = Math.abs(v.x); // the two meet at the kerb
+          assert.ok(x < ROAD_HALF - 1e-4 ? road : x > ROAD_HALF + 1e-4 ? walk : road || walk, `seed ${seed}: a pool's corner at x ${v.x.toFixed(2)}, y ${v.y.toFixed(3)}`);
+        }
+      }
+    }
+  }
+});
+
+test('each tree\'s canopy is tinted on its own (instanceColor), toward its theme\'s green', async () => {
+  for (const id of THEMES) {
+    const make = await themeChunk(id), c = new THREE.Color(), seen = new Set(), sum = [0, 0, 0];
+    let n = 0;
+    for (let seed = 1; seed <= 10; seed++) {
+      let mesh; make(seed, 120 * seed).traverse((m) => { if (m.userData.furniture === 'tree') mesh ??= m; });
+      assert.ok(mesh.instanceColor, `${id}: a colour per tree`);
+      for (let i = 0; i < mesh.count; i++) { mesh.getColorAt(i, c); seen.add(c.toArray().map((x) => x.toFixed(4)).join()); sum[0] += c.r; sum[1] += c.g; sum[2] += c.b; n++; }
+    }
+    const [from, to] = TINT[id].map((h) => new THREE.Color(h)), want = [to.r / from.r, to.g / from.g, to.b / from.b];
+    assert.ok(seen.size > n / 2, `${id}: ${seen.size} tints among ${n} trees`);
+    sum.forEach((v, k) => assert.ok(Math.abs(v / n / want[k] - 1) < 0.1, `${id}: channel ${k} at ${(v / n).toFixed(3)}, the theme's ${want[k].toFixed(3)}`));
+  }
 });
 
 test('two hundred dropped chunks free every instanced mesh they made and no shared material', () => {

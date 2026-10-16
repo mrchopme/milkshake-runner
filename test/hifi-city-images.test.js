@@ -10,6 +10,7 @@ import { signs, SIGN_FILES } from '../packs/hifi/lib/signs.js';
 import { FACADE_X } from '../packs/hifi/lib/street.js';
 import { CORNICE } from '../packs/hifi/lib/buildings.js';
 import { WATERFRONT } from '../packs/hifi/lib/bridge.js';
+import { KIT } from '../packs/hifi/lib/kit.js';
 import bridge from '../packs/hifi/themes/bridge.js';
 
 // Task 24: the city on its generated images (public/hifi/city). A file of its own: it fills the asset cache with stand-ins,
@@ -129,7 +130,9 @@ test('sign stacks are colour blocks and posters, blade signs hang over the store
     }
   }
   assert.deepEqual([...seen].sort(), ['blade', 'block', 'poster']);
-  for (const theme of STREET) for (const seed of [1, 2, 3]) { let n = 0; chunk(theme, seed).traverse((x) => { if (x.isMesh) n++; }); assert.ok(n <= 45, `${theme[0].id} seed ${seed}: ${n} meshes with every image loaded`); }
+  // the kit loads before play too: one mesh a model, as every generated GLB is (its stand-ins, two parts for a tree or a lamp, never play)
+  for (const k of Object.keys(KIT)) adopt(KIT[k].path, new T.Group().add(new T.Mesh(new T.BoxGeometry(1, 2, 1).translate(0, 1, 0), new T.MeshStandardMaterial())));
+  for (const theme of STREET) for (const seed of [1, 2, 3]) { let n = 0; chunk(theme, seed).traverse((x) => { if (x.isMesh) n++; }); assert.ok(n <= 45, `${theme[0].id} seed ${seed}: ${n} meshes with every image and model loaded`); }
 });
 
 test('every blade sign hangs under the lowest sign stack\'s bezel', () => {
