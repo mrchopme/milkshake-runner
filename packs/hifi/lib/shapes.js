@@ -22,3 +22,16 @@ export function instanced(T, geometry, material, matrices) {
   m.computeBoundingSphere();
   return m;
 }
+// UVs in metres, per face, from the vertex's world place (the chunk group stays at the origin; the mesh's own position is added):
+// a face looking along x maps (z, y), along y (x, z), along z (x, y); `face(x, y, z, n)` returns [u, v] to override any face.
+// Nothing stretches along z or round the bend; the texture's repeat carries its period.
+export function metreUV(mesh, face) {
+  const g = mesh.geometry, pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv, o = mesh.position, n = { x: 0, y: 0, z: 0 };
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) + o.x, y = pos.getY(i) + o.y, z = pos.getZ(i) + o.z;
+    Object.assign(n, { x: nor.getX(i), y: nor.getY(i), z: nor.getZ(i) });
+    uv.setXY(i, ...(face?.(x, y, z, n) ?? (Math.abs(n.x) > 0.5 ? [z, y] : Math.abs(n.y) > 0.5 ? [x, z] : [x, y])));
+  }
+  uv.needsUpdate = true;
+  return mesh;
+}
