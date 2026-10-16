@@ -108,7 +108,7 @@ test('nothing above the shop band but framed posters on their blocks and the odd
       let meshes = 0; g.traverse((x) => { if (x.isMesh) meshes++; });
       assert.ok(meshes <= 45, `${at}: ${meshes} meshes`);
       assert.ok(kids.length <= 5 && kids.every((n) => n.isInstancedMesh && n.material.isMeshStandardMaterial && !n.instanceColor), `${at}: ${kids.length} sign meshes, no colour blocks`);
-      const frames = kids.filter((n) => !n.material.map).flatMap(poses), perSide = { [-1]: [], [1]: [] };
+      const frames = kids.filter((n) => !n.material.map).flatMap(poses), perSide = { [-1]: [], [1]: [] }, on = { poster: new Set(), blade: new Set() };
       for (const n of kids.filter((x) => x.material.map)) {
         const kind = Object.keys(KIND).find((k) => KIND[k].includes(pathOf(n.material.map)));
         assert.ok(kind, `${at}: a sign wears one of the generated images`);
@@ -120,6 +120,7 @@ test('nothing above the shop band but framed posters on their blocks and the odd
           assert.ok(b, `${at}: a ${kind} at z ${p.z.toFixed(2)} stands on one block, never across a gap`);
           assert.ok(p.z >= 0 && p.z <= 120 && (!cross || p.z < cross.z || p.z > cross.z + 12), `${at}: a ${kind} at z ${p.z.toFixed(2)}, inside its chunk and out of the side street`);
           assert.ok(p.y - s.y / 2 >= 4.5, `${at}: a ${kind}'s bottom ${(p.y - s.y / 2).toFixed(2)} m, over the 4.5 m line`);
+          on[kind].add(b);
           if (kind === 'blade') {
             assert.ok(p.y - s.y / 2 >= 6 && p.y + s.y / 2 <= 9 && Math.abs(s.x - 1.4) < 1e-5, `${at}: a 1.4 m blade from ${(p.y - s.y / 2).toFixed(2)} to ${(p.y + s.y / 2).toFixed(2)} m`);
             assert.ok(Math.abs(p.x) - s.x / 2 >= 4.5 && Math.abs(p.x) + s.x / 2 <= FACADE_X, `${at}: a blade at x ${p.x.toFixed(2)}, over the sidewalk`);
@@ -137,6 +138,7 @@ test('nothing above the shop band but framed posters on their blocks and the odd
       }
       for (const zs of Object.values(perSide)) zs.sort((a, c) => a - c).forEach((z, i) => assert.ok(!i || z - zs[i - 1] >= 60, `${at}: posters ${(z - zs[i - 1]).toFixed(1)} m apart on a side`));
       assert.equal(frames.length, Object.values(perSide).flat().length, `${at}: a frame per poster, nothing else`);
+      assert.ok([...on.blade].every((b) => !on.poster.has(b)), `${at}: a blade never on a poster's block`);
     }
     const per100 = (n) => n / (SEEDS * 120) * 100 / 2; // per side
     assert.ok(per100(count.poster) <= 100 / 60 && count.poster / SEEDS >= 1, `${id}: ${per100(count.poster).toFixed(2)} posters per side per 100 m, ${(count.poster / SEEDS).toFixed(2)} a chunk`);

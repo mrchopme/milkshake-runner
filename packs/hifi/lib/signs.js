@@ -16,7 +16,7 @@ import { rng } from '../../../src/generator.js';
 // pictograms keep their aspect), centre height (floors 2-3, over the awnings and the fascia), off the wall, the chance of one a
 // side a chunk at style.bladeRate 1 (0.83: 100 m / 120 m, at most one a side per ~100 m).
 const GLOW = { day: 0.2, dusk: 0.6 }, PICK = 2;
-export const POSTER = { w: 4, min: 2.5, y: [8, 9], bottom: 6, frame: 0.15, off: 0.19, every: [60, 80] };
+const POSTER = { w: 4, min: 2.5, y: [8, 9], bottom: 6, frame: 0.15, off: 0.19, every: [60, 80] };
 export const BLADE = { w: 1.4, y: 7.2, wall: 0.1, chance: 0.83 };
 export const ASPECT = { poster: 1024 / 573, blade: 688 / 1024 }; // the generated images'; a poster or blade keeps its image's aspect
 export const SIGN_FILES = { posters: cityFiles('signs', 'poster', 12), blades: cityFiles('signs', 'blade', 6) };
@@ -25,7 +25,7 @@ function imageMaterial(gfx, path, glow) {
   const map = loaded(gfx, path);
   return map && material(`sign/${path}/${glow}`, () => new gfx.three.MeshStandardMaterial({ map, emissive: '#ffffff', emissiveMap: map, emissiveIntensity: glow, roughness: 0.7 }), map);
 }
-export function signs(gfx, { z0, length }, style, r, cross, blocks = []) {
+export function signs(gfx, { z0, length }, style, r, _cross, blocks = []) {
   const T = gfx.three, g = gfx.group(), sets = new Map(), frames = [];
   g.userData.signs = true; // for tests
   // ponytail: one draw from the chunk stream seeds the signs' own: furniture and traffic land where board 23's frames had them,
