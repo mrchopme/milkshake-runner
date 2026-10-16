@@ -392,13 +392,13 @@ test('a crossing\'s two traffic lights stand on diagonal corners, one before the
 const pieces = (g) => { let n = 0; const first = new Set(); g.traverse((m) => { const k = m.userData.furniture; if (k && !first.has(k)) { first.add(k); n += m.count; } }); return n; }; // one instance a piece in each of its kind's part meshes
 const THEMES = ['downtown', 'midtown', 'uptown'];
 const themeChunk = async (id) => { const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }; return (seed, z0 = 0) => hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }); };
-const placed = (g) => { // per side: each kind's instances (the first of its part meshes) and the pits, as { x, z, m }
+const placed = (g) => { // per side: each kind's instances (the first of its part meshes) and the pits, as { x, z, m, kind }; both tree models under `tree`
   const out = { [-1]: {}, 1: {} }, seen = new Set();
   g.traverse((n) => {
-    const k = n.userData.furniture ?? (n.userData.pit && 'pit');
-    if (!k || seen.has(k)) return;
-    seen.add(k);
-    for (let i = 0; i < n.count; i++) { const m = new THREE.Matrix4(); n.getMatrixAt(i, m); const x = m.elements[12], z = m.elements[14]; (out[Math.sign(x)][k] ??= []).push({ x, z, m }); }
+    const kind = n.userData.furniture ?? (n.userData.pit && 'pit'), k = kind in RHYTHM.trees ? 'tree' : kind;
+    if (!kind || seen.has(kind)) return;
+    seen.add(kind);
+    for (let i = 0; i < n.count; i++) { const m = new THREE.Matrix4(); n.getMatrixAt(i, m); const x = m.elements[12], z = m.elements[14]; (out[Math.sign(x)][k] ??= []).push({ x, z, m, kind }); }
   });
   for (const s of [-1, 1]) for (const l of Object.values(out[s])) l.sort((a, b) => a.z - b.z);
   return out;
@@ -461,6 +461,19 @@ test('across a seam: no empty stretch over 10 m on either side, the lamps P to 2
   }
 });
 
+// Task 32 C7 (Caedon: "One new tree", T3; the current tree stays as a second variant now its guard is cut): each tree slot draws one
+// of the two models from its place (pickBy), never from the chunk's stream.
+test('the kerb draws both tree models, about half each, slot by slot from its place, and the chunk\'s stream untouched', async () => {
+  for (const id of THEMES) {
+    const make = await themeChunk(id), count = { tree: 0, tree2: 0 };
+    for (let seed = 1; seed <= 30; seed++) for (const s of [-1, 1]) for (const t of placed(make(seed, 120 * seed))[s].tree) count[t.kind]++;
+    const share = count.tree2 / (count.tree + count.tree2);
+    assert.ok(share > 0.4 && share < 0.6, `${id}: ${count.tree} tree and ${count.tree2} tree2`);
+  }
+  const kinds = (g) => placed(g)[1].tree.map((t) => `${t.z.toFixed(3)}:${t.kind}`).join();
+  assert.equal(kinds(furniture(gfx, { z0: 240, length: 120 }, null, rng(3), null)), kinds(furniture(gfx, { z0: 240, length: 120 }, null, rng(4), null)), 'the same place, the same model, whatever the chunk\'s seed');
+});
+
 test('a flush pit stands under every tree, one instanced mesh a chunk; trees come in sizes 0.75-0.9, turned in 90 degree steps', async () => {
   const make = await themeChunk('downtown'), sizes = new Set(), turns = new Set(), p = new THREE.Vector3(), q = new THREE.Quaternion(), k = new THREE.Vector3(), e = new THREE.Euler();
   for (let seed = 1; seed <= 20; seed++) {
@@ -476,7 +489,7 @@ test('a flush pit stands under every tree, one instanced mesh a chunk; trees com
         const turn = (e.y - (s > 0 ? -Math.PI / 2 : Math.PI / 2)) / (Math.PI / 2), snap = turn - Math.round(turn);
         assert.ok(k.y >= RHYTHM.scale[0] - 1e-6 && k.y <= RHYTHM.scale[1] + 1e-6 && Math.abs(snap) * Math.PI / 2 <= RHYTHM.jitter + 1e-6, `seed ${seed}: a tree at ${k.y.toFixed(3)}, turned ${turn.toFixed(3)} quarters`);
         sizes.add(k.y.toFixed(3)); turns.add(((Math.round(turn) % 4) + 4) % 4);
-        assert.ok(Math.abs(Math.abs(t.x) - RHYTHM.trees.tree) < 1e-6, `a tree at x ${t.x}`);
+        assert.ok(Math.abs(Math.abs(t.x) - RHYTHM.trees[t.kind]) < 1e-6, `a ${t.kind} at x ${t.x}`);
       });
     }
   }
@@ -535,9 +548,11 @@ test('each tree\'s canopy is tinted on its own (instanceColor), toward its theme
     const make = await themeChunk(id), c = new THREE.Color(), seen = new Set(), sum = [0, 0, 0];
     let n = 0;
     for (let seed = 1; seed <= 10; seed++) {
-      let mesh; make(seed, 120 * seed).traverse((m) => { if (m.userData.furniture === 'tree') mesh ??= m; });
-      assert.ok(mesh.instanceColor, `${id}: a colour per tree`);
-      for (let i = 0; i < mesh.count; i++) { mesh.getColorAt(i, c); seen.add(c.toArray().map((x) => x.toFixed(4)).join()); sum[0] += c.r; sum[1] += c.g; sum[2] += c.b; n++; }
+      const meshes = {}; make(seed, 120 * seed).traverse((m) => { if (m.userData.furniture in RHYTHM.trees) meshes[m.userData.furniture] ??= m; }); // tree2's leaves are lifted to tree.glb's green (kit.js): one tint
+      for (const mesh of Object.values(meshes)) {
+        assert.ok(mesh.instanceColor, `${id}: a colour per tree`);
+        for (let i = 0; i < mesh.count; i++) { mesh.getColorAt(i, c); seen.add(c.toArray().map((x) => x.toFixed(4)).join()); sum[0] += c.r; sum[1] += c.g; sum[2] += c.b; n++; }
+      }
     }
     const [from, to] = TINT[id].map((h) => new THREE.Color(h)), want = [to.r / from.r, to.g / from.g, to.b / from.b];
     assert.ok(seen.size > n / 2, `${id}: ${seen.size} tints among ${n} trees`);

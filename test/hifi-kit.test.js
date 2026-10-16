@@ -46,7 +46,15 @@ const TREE = () => new THREE.Group().add(new THREE.Mesh(mergeGeometries([
   new THREE.CylinderGeometry(0.42, 0.6, 2.25, 8, 4).translate(0, 0.75 + 1.125, 0),
   new THREE.CylinderGeometry(2.31, 2.31, 3.78, 32).translate(0, 2.22 + 1.89, 0),
 ]), tripo()));
-const model = (kind) => (kind === 'tree' ? TREE() : real(REAL[kind]));
+// tree2 as generated (tree2.glb decoded, metres at KIT's 6 m; Task 32 C7, Caedon's T3): one mesh, its own pit a 3.01 m square slab
+// 0.12 m deep (the kit cuts it: the kit's pit is its pit), a slim trunk (r 0.32 at its foot, 0.27 under the canopy), the ball canopy
+// (reach 2.26) from 2.1 m to the top.
+const TREE2 = () => new THREE.Group().add(new THREE.Mesh(mergeGeometries([
+  new THREE.BoxGeometry(3.01, 0.12, 3.01).translate(0, 0.06, 0),
+  new THREE.CylinderGeometry(0.27, 0.316, 2.14, 8, 4).translate(0, 0.06 + 1.07, 0),
+  new THREE.CylinderGeometry(2.26, 2.26, 3.9, 32).translate(0, 2.1 + 1.95, 0),
+]), tripo()));
+const model = (kind) => (kind === 'tree' ? TREE() : kind === 'tree2' ? TREE2() : real(REAL[kind]));
 const real = ([min, max, footMin, footMax]) => {
   const paint = tripo(), h = max[1] - min[1], body = new THREE.Mesh(new THREE.BoxGeometry(max[0] - min[0], 0.94 * h, max[2] - min[2]), paint);
   body.position.set((min[0] + max[0]) / 2, min[1] + 0.53 * h, (min[2] + max[2]) / 2);
@@ -87,7 +95,7 @@ test('a kit piece stands on its footprint: a lamp\'s pole at the placed x, its a
 });
 
 test('each kit piece is painted once without the generator\'s random metal, and every copy in every chunk shares that paint', () => {
-  for (const [kind, entry] of Object.entries(KIT)) adopt(entry.path, REAL[kind] || kind === 'tree' ? model(kind) : standIn(FRONT[kind]));
+  for (const [kind, entry] of Object.entries(KIT)) adopt(entry.path, REAL[kind] || kind in RHYTHM.trees ? model(kind) : standIn(FRONT[kind]));
   for (const kind of Object.keys(KIT)) {
     const parts = kitParts(gfx, KIT[kind], placeholder(kind)), m = parts[0].material;
     assert.equal(kitParts(gfx, KIT[kind], placeholder(kind)), parts, `${kind}: built once`);
@@ -111,7 +119,7 @@ test('at their real proportions no placed piece reaches into the buildings or th
   // signs' bottom (a tree's canopy, a newsstand) stays clear of the band they hang over, out from the wall over the storefronts;
   // a canopy leans over the kerb but stays out of the outer lane (3 lanes of 2.5 m: its edge at 3.75)
   const KERB = 4.5, WALL = 0.2, LANE = 3.75, BLADES = FACADE_X - BLADE.wall - BLADE.w, UNDER = BLADE.y - BLADE.w / ASPECT.blade / 2, seen = new Set(), m = new THREE.Matrix4();
-  for (const [kind, entry] of Object.entries(KIT)) if (REAL[kind] || kind === 'tree') adopt(entry.path, model(kind));
+  for (const [kind, entry] of Object.entries(KIT)) if (REAL[kind] || kind in RHYTHM.trees) adopt(entry.path, model(kind));
   for (let seed = 1; seed <= 40; seed++) furniture(gfx, { z0: 120 * (seed % 5), length: 120 }, null, rng(seed), { z: 120 * (seed % 5) + 60 }, LOTS.map((b) => ({ ...b, z0: b.z0 + 120 * (seed % 5), z1: b.z1 + 120 * (seed % 5) }))).traverse((n) => {
     const kind = n.userData.furniture ?? (n.userData.pit && 'tree');
     if (!kind) return;
@@ -143,7 +151,7 @@ test('the footprints furniture spaces pieces by (FOOT) are the pieces\' own at K
 });
 
 test('at their real proportions no two footprints on a side of the street overlap', () => {
-  for (const [kind, entry] of Object.entries(KIT)) if (REAL[kind] || kind === 'tree') adopt(entry.path, model(kind));
+  for (const [kind, entry] of Object.entries(KIT)) if (REAL[kind] || kind in RHYTHM.trees) adopt(entry.path, model(kind));
   const m = new THREE.Matrix4(), apart = (a, b, k) => a.max[k] <= b.min[k] + 1e-6 || b.max[k] <= a.min[k] + 1e-6;
   for (let seed = 1; seed <= 200; seed++) { // 200: a tree pit by a corner's traffic light came up about once in 25 chunks
     const feet = [], z0 = 120 * (seed % 9), cross = { z: z0 + 30 + ((seed * 13) % 48) }; // anywhere a chunk puts it (lib/city.js); z0 moves the kerb's pitch
@@ -244,7 +252,7 @@ test('a day theme\'s lamps and a dusk theme\'s, built in one session, each keep 
 });
 
 // The guard cut (Task 32, Caedon's board 24 pick "as prototyped": the guards gone): the tree's iron cage, its soil and the root flare
-// are dropped from a clone of the loaded geometry, the trunk standing on the pit. A new tree model follows (Tripo, his T3).
+// are dropped from a clone of the loaded geometry, the trunk standing on the pit. The new tree (tree2, his T3) stands beside it in the rhythm.
 test('the tree stands free of its guard: below 1.1 m nothing but the trunk, the canopy as it was, on a clone shared per load and freed with it', () => {
   const tree = TREE(), loaded = tree.children[0].geometry, tris = loaded.index.count;
   adopt(KIT.tree.path, tree);
@@ -283,6 +291,44 @@ test('the tree is matte: specular down, its leaves rough from their own texels, 
     m.onBeforeCompile(shader);
     shader.uniforms.envMapIntensity.value = 0.4;
     assert.ok(Math.abs(shader.uniforms.envMapIntensity.value - 0.08) < 1e-9, `env ${shader.uniforms.envMapIntensity.value}`);
+  });
+});
+
+// The new tree (Task 32 C7; Caedon's T3 from page 26, Tripo, "Download it" 2026-10-16) comes in its own flat pit: the kit cuts the slab
+// so it stands in the kit's pit as the first tree does, one pit size and colour on every sidewalk (the tint and the scale would recolour
+// and resize a model pit).
+test('tree2 stands on its own slim trunk, its model pit cut away: below 1.1 m nothing but the trunk, the canopy from 2.1 m to its 6 m', () => {
+  const tree = TREE2(), loaded = tree.children[0].geometry, tris = loaded.index.count;
+  adopt(KIT.tree2.path, tree);
+  const [p] = kitParts(gfx, KIT.tree2, placeholder('tree2')), g = p.geometry, v = new THREE.Vector3(), used = [...new Set(g.index.array)];
+  assert.ok(g !== loaded && g.userData.shared && loaded.index.count === tris && g.index.count < tris, 'a shared clone, the loaded geometry untouched');
+  let low = Infinity, reach = 0, top = 0, under = Infinity;
+  for (const i of used) {
+    v.fromBufferAttribute(g.attributes.position, i).applyMatrix4(p.matrix);
+    const r = Math.hypot(v.x, v.z);
+    if (v.y < 1.1) assert.ok(r <= 0.32 + 1e-6, `a vertex ${r.toFixed(2)} m from the trunk's axis at y ${v.y.toFixed(2)}`); // the trunk measured on tree2.glb
+    if (r > 0.45) under = Math.min(under, v.y);
+    low = Math.min(low, v.y); top = Math.max(top, v.y); reach = Math.max(reach, r);
+  }
+  const kept = new Set(used), src = loaded.attributes.position;
+  for (let i = 0; i < src.count; i++) { v.fromBufferAttribute(src, i).applyMatrix4(p.matrix); if (v.y < 0.2 && Math.hypot(v.x, v.z) > 1) assert.ok(!kept.has(i), `the slab's vertex ${i} kept`); }
+  assert.ok(Math.abs(low) < 1e-6 && Math.abs(top - KIT.tree2.h) < 1e-6 && Math.abs(reach - 2.26) < 0.01 && Math.abs(under - 2.1) < 0.01, `the trunk from ${low.toFixed(3)} m, the canopy from ${under.toFixed(2)} to ${top.toFixed(2)}, its reach ${reach.toFixed(2)}`);
+  assert.equal(KIT.tree2.h, 6, 'tree.glb\'s 6 m: at the rhythm\'s scale 0.75-0.9 it tops out 4.5-5.4 m, about 5, the canopy from 1.6-1.9 m');
+});
+
+test('tree2 is matte as the first tree, its leaves lifted to tree.glb\'s green on a copy of its map and its bark kept, so one tint serves both', () => {
+  withCanvas(() => {
+    const leaf = [79, 130, 40, 255], dark = [31, 72, 6, 255], bark = [138, 94, 49, 255], stone = [137, 134, 133, 255], tree = TREE2();
+    const image = { px: new Uint8ClampedArray([...leaf, ...dark, ...bark, ...stone]) };
+    tree.children[0].material.map = new THREE.Texture(image);
+    adopt(KIT.tree2.path, tree);
+    const m = kitParts(gfx, KIT.tree2, placeholder('tree2'))[0].material, px = m.map.image.px;
+    assert.deepEqual([...px.slice(0, 4)], [118, 162, 68, 255], 'the mean leaf (#4f8228, measured) lifted to tree.glb\'s mean (#76a244)');
+    assert.ok(KIT.tree2.matte.leaf(...px.slice(4, 7)), `the dark leaf ${[...px.slice(4, 7)]} still a leaf`);
+    assert.deepEqual([...px.slice(8)], [...bark, ...stone], 'the bark and the stone as they were');
+    assert.deepEqual([...image.px], [...leaf, ...dark, ...bark, ...stone], 'the model\'s own map is untouched');
+    assert.ok(m.specularIntensity === 0.4 && m.roughness === 1, 'matte');
+    assert.deepEqual([...m.roughnessMap.image.px].filter((_, i) => i % 4 === 0), [230, 230, 191, 191], 'the leaves 0.9, the bark and stone 0.75');
   });
 });
 
