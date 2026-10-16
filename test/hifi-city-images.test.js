@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as gfx from '../src/gfx.js';
+import { ringArcs } from '../src/look.js';
 import { rng } from '../src/generator.js';
 import { adopt, release } from '../src/assets.js';
 import { facadeMaterial } from '../packs/hifi/lib/facade.js';
@@ -36,6 +37,23 @@ test('each street theme lists its five facade tiles, its storefronts, every sign
   assert.deepEqual(bridge.look.skyline, files('sky', 'bridge', 2));
   assert.deepEqual(WATERFRONT.facades, files('facades', 'downtown', 5), 'the waterfront wears downtown\'s tiles');
   for (const p of [...WATERFRONT.facades, ...bridge.look.skyline]) assert.ok(bridge.assets.includes(p), `bridge lists ${p}`);
+});
+
+// Task 32 C7 (Caedon, "Redraw the 12 strips"; page 26: downtown and uptown as generated, midtown re-rolled without a sun, "Accept all
+// four" 2026-10-16): twelve strips tiled uncropped, one 2048 x 878 frame each, so ringArcs' one arc height keeps their towers' relative
+// heights; the sky transparent (a VP8X WebP with its alpha flag). Each near ring stands two laps, 111 m (ringArcs at 330 m), as the
+// old strips did: at the old 70-80 m targets three laps of 74 m stood the towers' mass about half as tall as before.
+test('the twelve near-ring strips are 2048 x 878 with alpha, and each street theme stands its ring two laps, 111 m', () => {
+  for (const [hifi] of STREET) {
+    for (const p of hifi.look.skyline.flat()) {
+      const b = readFileSync(fileURLToPath(new URL(`../public/${p}`, import.meta.url))), u24 = (o) => b[o] | (b[o + 1] << 8) | (b[o + 2] << 16);
+      assert.ok(b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 16) === 'WEBPVP8X', `${p}: an extended WebP`);
+      assert.deepEqual([u24(24) + 1, u24(27) + 1, !!(b[20] & 0x10)], [2048, 878, true], `${p}: 2048 x 878 with alpha`);
+    }
+    assert.deepEqual(hifi.look.skylineHeight, [{ downtown: 110, midtown: 110, uptown: 100 }[hifi.id], 110], `${hifi.id}: the near target 110 (was 80, uptown 70); the far value unused (no far ring)`);
+    const { height, arcs } = ringArcs(330, Array(4).fill([2048, 878]), hifi.look.skylineHeight[1]);
+    assert.ok(arcs.length === 8 && Math.abs(height - 111.1) < 0.05, `${hifi.id}: ${arcs.length / 4} laps, ${height.toFixed(1)} m`);
+  }
 });
 
 test('the facades and storefronts wear their theme\'s own tiles once loaded, and a missing tile falls back to the placeholder', () => {

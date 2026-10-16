@@ -12,6 +12,8 @@ import { cityFiles } from '../lib/facade.js';
 // panes); shop interiors at 1.5.
 const STYLE = { id: 'uptown', ground: { road: '#594a6e', roadRough: 0.5, walk: '#a896a2', walkRough: 0.55, flag: 1.2 }, paint: '#f2f2f2', parts: [buildings, signs, furniture, traffic], bladeRate: 0.5, lit: 0.8, facades: cityFiles('facades', 'uptown', 5), shops: cityFiles('shops', 'uptown', 4), ...SIGN_FILES,
   heights: { kind: 'walk', range: [14, 28], steps: [0, 3.5, 7], outlier: { share: 0.1, h: [31.5, 35] }, tiles: [0, 1, 2, 3, 4] }, tileClass: ['m', 'm', 'm', 'm', 'm'], bodies: ['#915e45', '#705245', '#a48167', '#ccaa92', '#9e6d47'], trim: '#cec0be', facadeTint: { mul: [0.78, 0.78, 0.88] }, shopBands: [[0.195, 0.195, 0.4], [0.205, 0.205, 0.42], [0.21, 0.21, 0.4], [0.055, 0.055, 0.27]], glow: { share: 0.7, color: '#ffb46a', intensity: 1.2, skip: [1] }, shopGlow: { color: '#ffc46e', intensity: 1.5 } }; // the generated city (round 2), board 15
+// ponytail: calibration knob — skylineHeight's near 110 (was 70; Task 32 C7, the redrawn strips, 2048 x 878 with sky over the towers):
+// two laps, 111 m, stand their towers' mass as tall as the old strips'; at 70, three laps of 74 m stood it about half as tall.
 const SKYLINE = [[1, 2, 3, 4].map((n) => `hifi/city/sky/uptown-near-${n}.webp`)]; // the near ring alone, four images in order round it, the first facing the avenue (Caedon, 2026-10-15: board 20's images; board 21, the far ring dropped: its hazy strip drew ghost towers and, turned, its mirror seam)
 export default {
   kind: 'theme', id: 'uptown',
@@ -19,7 +21,7 @@ export default {
   // The rig (Caedon, board 22, 2026-10-15): no sun to speak of (a faint violet key, high, for soft contact shadows), a violet
   // fill, a violet sky to pink-magenta and no disc, deep plum haze deepening low down, the skyline dimmed lavender with its lit
   // windows kept; bloom low so they halo. ponytail: calibration knobs, tuned by eye.
-  look: { skyline: SKYLINE, skylineHeight: [100, 70], exposure: 0.75, sun: { color: '#b9a3ff', intensity: 0.45, dir: [0, -0.87, -0.5] }, ambient: 3.2, env: 0.45, hemi: { sky: '#9a7fd4', ground: '#4a3044' },
+  look: { skyline: SKYLINE, skylineHeight: [100, 110], exposure: 0.75, sun: { color: '#b9a3ff', intensity: 0.45, dir: [0, -0.87, -0.5] }, ambient: 3.2, env: 0.45, hemi: { sky: '#9a7fd4', ground: '#4a3044' },
     skyTop: '#8f68c6', skyBottom: '#d892d6', fog: { color: '#6a4e74', near: 120, pale: 0, shade: '#4f3a5e', y: [0, 35] }, skylineHaze: { mul: '#9a86a0', mix: [0.3, 0.05], flatten: 0, foot: 0 },
     bloom: { strength: 0.55, threshold: 0.95, radius: 0.5 } },
   createChunk(gfx, args) { return cityChunk(gfx, args, { ...STYLE, buildings: args.theme.buildings }); },
