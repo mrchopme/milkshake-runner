@@ -198,14 +198,17 @@ test('each street theme\'s heights follow its table: walk-ups and towers in runs
   }
 });
 
-test('the walls draw their layout from their own sub-streams: the shared stream leaves buildings where it always did', () => {
-  // signs, furniture and traffic read the shared stream after buildings: a theme's walls tables must never move them
+test('the walls seed their sub-streams from one draw of the chunk stream: the same seed, the same blocks', () => {
+  // a theme's walls tables never move the shared stream: whatever the style, buildings takes exactly one draw from it
   const plain = { id: 't32-plain', buildings: shipped.buildings, facades: [] }, walls = { ...plain, id: 't32-walls', heights: HEIGHTS_RUNS, bodies: ['#808080'], trim: '#ffffff' };
-  for (let seed = 1; seed <= 10; seed++) {
-    const a = rng(seed), b = rng(seed);
-    buildings(gfx, { z0: 0, length: 120 }, plain, a, { z: 50 });
-    buildings(gfx, { z0: 0, length: 120 }, walls, b, { z: 50 });
-    assert.equal(a(), b(), `seed ${seed}`);
+  for (let seed = 1; seed <= 10; seed++) for (const style of [plain, walls]) {
+    const a = rng(seed), b = rng(seed), ref = rng(seed), one = [], two = [];
+    buildings(gfx, { z0: 0, length: 120 }, style, a, { z: 50 }, one);
+    buildings(gfx, { z0: 0, length: 120 }, style, b, { z: 50 }, two);
+    assert.ok(one.length > 0, `${style.id} seed ${seed}: blocks built`);
+    assert.deepEqual(one, two, `${style.id} seed ${seed}: the same seed builds the same blocks`);
+    ref();
+    assert.equal(a(), ref(), `${style.id} seed ${seed}: one draw, not the pre-Task-32 replay (it kept nothing still once C3 and C5 moved signs and furniture off the stream)`);
   }
 });
 

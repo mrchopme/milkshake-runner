@@ -23,7 +23,8 @@ import { FACADE_X } from './street.js';
 import { rng } from '../../../src/generator.js';
 // ponytail: calibration knobs, metres (board 15; Task 32, board 23). Overhang bands: above 4.5 m up to 0.9 out (cornices), 3.0-4.5 m
 // only the awnings (1.6) over the fascia (0.4), below 3.0 m nothing past 0.4, never past x 4.5 (the road).
-export const DEPTH = [8, 14], GAP = 0.5, CORNICE = { h: 1.05, out: 0.85, ret: 0.25 }, ROOF = { maxH: 40, tower: 0.35 };
+const DEPTH = [8, 14];
+export const GAP = 0.5, CORNICE = { h: 1.05, out: 0.85, ret: 0.25 }, ROOF = { maxH: 40, tower: 0.35 };
 const DRESS = {
   fascia: { y: 3.8, out: 0.4 }, recess: 0.45, // the sign board from 3.8 m to SHOP_H, the storefront set back behind it
   ledge: { h: 0.16, out: 0.18 }, pier: { w: 0.4, out: 0.15, every: 2.5 }, // masonry: a ledge every floor; stone and glass: piers
@@ -36,24 +37,6 @@ function tiers(h) {
   const out = h <= DRESS.over ? [] : h <= 60 ? [snap(Math.max(DRESS.over, 0.6 * h))] : [snap(Math.max(DRESS.over, 0.45 * h))];
   if (h > 60) out.push(snap(Math.max(out[0] + 7, 0.75 * h)));
   return out.filter((t, k) => t < h - 3.4 && (k === 0 || t > out[k - 1]));
-}
-// ponytail: the pre-Task-32 part's draws, replayed so the shared stream reaches signs, furniture and traffic where it always did
-// (their layouts and the stills keep still); returns the first draw as this chunk's own seed. Drop it once every later part draws
-// from its own sub-stream.
-function burn(rr, { z0, length }, cross, { minH, maxH }) {
-  let first = 0;
-  const r = () => { const v = rr(); first ||= v; return v; };
-  for (const side of [-1, 1]) for (let z = z0; z < z0 + length;) {
-    if (cross && z >= cross.z && z < cross.z + 12) { z = cross.z + 12; continue; }
-    const end = Math.min(cross && z < cross.z ? cross.z : z0 + length, z0 + length);
-    const depth = Math.min(DEPTH[0] + r() * (DEPTH[1] - DEPTH[0]), end - z), h = minH + r() * (maxH - minH);
-    r(); r(); r();
-    if (depth < 3) { z = end; continue; }
-    if (h < ROOF.maxH && depth > 4) r();
-    for (let k = Math.floor(r() * 3); k > 0; k--) { r(); r(); }
-    z += depth;
-  }
-  return Math.floor(first * 2 ** 32);
 }
 // Heights (style.heights): 'runs' of 2-4 blocks, short or tall, a jump between like runs; 'walk' a clamped random walk with outliers.
 function heightModel(H, look) {
@@ -83,7 +66,7 @@ const merge = (T, geos) => { const g = mergeGeometries(geos.map((x) => (x.index 
 // Theme fields: heights, tileClass (per tile: 'm' masonry ledges, 's'/'g' stone or glass piers), bodies (per tile: its wall colour),
 // trim (cornices, fascia, ledges), facadeTint, shopBands (per shop image: [sign bottom, awning top or null, lip], fractions from its top).
 export function buildings(gfx, args, style, r, cross, blocks = []) {
-  const { z0, length } = args, seed = burn(r, args, cross, style.buildings);
+  const { z0, length } = args, seed = Math.floor(r() * 2 ** 32); // the chunk stream's one draw here: the walls' sub-streams' seed
   const T = gfx.three, groups = new Map(), roofs = { tower: [], ac: [] }, C = CORNICE;
   const put = (mat, geo) => { if (!groups.has(mat)) groups.set(mat, []); groups.get(mat).push(geo); };
   const body = material(`${style.id}/body`, () => new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }));
