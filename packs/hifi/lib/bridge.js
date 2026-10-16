@@ -4,7 +4,6 @@ import { chunkRng } from './rand.js';
 import { box, wall, instanced, metreUV } from './shapes.js';
 import { material } from './materials.js';
 import { DASH, EDGE, PAVE, pavingTexture, asphaltTexture } from './street.js';
-import { build as railFit } from '../props/railings.js';
 import { facadeMaterial, TILE, cityFiles } from './facade.js';
 // ponytail: calibration knobs, metres (Caedon's board 25 pick "Ship, water retuned in the clean build", 2026-10-15, reversing
 // board 15's "no sidewalks" and Task 31's 32 m towers every 240 m): a 16 m deck, a 10 m road (the three lanes and 0.5 m either side)
@@ -20,7 +19,9 @@ const DECK = { w: 16, road: '#5a596e', walk: '#a9a8b6', walkW: 3, walkH: 0.25, e
 const PIER = { every: 30, d: 3, top: -0.9 }; // as wide as the deck (the portal's as its legs), its top 0.1 m up inside the deck's 1 m slab
 // ponytail: railings.glb sections stretched to `pitch`, standing on the walkway `inset` in from the deck edge, in one satin steel-blue
 // (shade ~#4679b2, lit ~#aee1f7 in Caedon's board 25 frames; the main session confirms it on the re-shoot). pitch 4: 3 adds ~72k
-// triangles a chunk (railings.glb is 3,578 a section)
+// triangles a chunk (railings.glb is 3,578 a section, ~215k a 120 m chunk; the HiFi railings prop, which drew the same again on the
+// shipped bridge sections, now draws nothing). Unmeasured in a browser: if frame time suffers, a decimated railings.glb or a
+// box rail first, a distance LOD for anything past the first chunk.
 const RAIL = { pitch: 4, height: 1.1, inset: 0.25 }, STEEL = { color: '#7aa6d4', rough: 0.4, metal: 0.25 };
 // ponytail: board 25's portal and cables (Caedon's pick, 2026-10-15). The portal at z ≡ `at` (mod `every`), on the pier there:
 // legs w × d at ±x from the water to `top`, a crown beam, a second beam at `beam2` and an X-brace between them. The cable: a
@@ -63,6 +64,12 @@ export function waterMaterial(gfx) {
     };
     return m;
   });
+}
+
+// railings.glb to metres: centred, its base at y = 0, a section `pitch` long and `height` tall (its thickness scaled with the height).
+function railFit(T, model, pitch, height) {
+  const b = new T.Box3().setFromObject(model), size = b.getSize(new T.Vector3()), c = b.getCenter(new T.Vector3()), s = height / size.y;
+  return { fit: new T.Matrix4().makeScale(s, s, pitch / size.z).multiply(new T.Matrix4().makeTranslation(-c.x, -b.min.y, -c.z)) };
 }
 
 // Stone standing in the water (Task 31a): the quay under a street chunk, the bridge's piers. A block `w` wide and `d` long from
