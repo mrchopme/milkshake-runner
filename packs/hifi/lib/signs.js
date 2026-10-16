@@ -6,7 +6,7 @@ import { CORNICE } from './buildings.js';
 import { rng } from '../../../src/generator.js';
 import { pickBy } from './rand.js';
 // The signs over the shop band (Task 32, Caedon's board 23 pick, 2026-10-15: "As prototyped, signs: none"; board 18's colour
-// blocks withdrawn, "weird blocks of colour"): a framed poster about every 75 m a side and a blade sign now and then, each on one
+// blocks withdrawn, "weird blocks of colour"): a framed poster a side a chunk (60 m apart at least) and a blade sign now and then, each on one
 // block of the block list (buildings.js's header) and under its cornice, instanced (a draw call per image a chunk draws from).
 // Every image glows from its own texels; one not loaded yet is left out, and its material is keyed by its texture, so it shows on
 // the next chunk once it lands. No block list (a theme without buildings), no signs.

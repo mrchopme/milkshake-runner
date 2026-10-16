@@ -93,7 +93,7 @@ test('a facade tile\'s own glass is glossy, its window cells glow from their own
 });
 
 // Task 32 (Caedon, board 23, 2026-10-15: "As prototyped, signs: none"; board 18's colour blocks withdrawn, "weird blocks of
-// colour"): nothing above the shop band but a framed poster about every 75 m a side and a blade per ~100 m, each on a block of
+// colour"): nothing above the shop band but a framed poster a side a chunk (60 m apart at least) and a blade per ~100 m, each on a block of
 // the block list, lit by its own texels. RELIEF: the furthest buildings.js's facade relief reaches off the wall (a ledge).
 const RELIEF = 0.18, FRAME = 0.15, signsOf = (g) => g.children.find((n) => n.userData.signs);
 const poses = (n) => Array.from({ length: n.count }, (_, i) => { const m = new T.Matrix4(), p = new T.Vector3(), q = new T.Quaternion(), s = new T.Vector3(); n.getMatrixAt(i, m); m.decompose(p, q, s); return { p, q, s }; });
