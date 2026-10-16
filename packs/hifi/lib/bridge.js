@@ -16,14 +16,16 @@ import { facadeMaterial, TILE, cityFiles } from './facade.js';
 // (look.js honours userData.reflect while roughness <= 0.15, so 0.15 is the most satin it can be), a 3 m ripple tile, 60 facets
 // across, and its own fog from `fogNear` m in the fog's colour (the bridge look's height-fog shade would darken it below the deck).
 export const WATER = { y: -2.5, below: 1.5, half: 300, color: '#3a92cf', rough: 0.15, reflect: 0.2, tile: 3, segs: 60, fogNear: 40, scroll: 0.03 };
-export const DECK = { w: 16, road: '#5a596e', walk: '#a9a8b6', walkW: 3, walkH: 0.25, edge: 0.3, paint: '#f2f2f2' }; // edge lines at ±(roadHalf + edge)
+const DECK = { w: 16, road: '#5a596e', walk: '#a9a8b6', walkW: 3, walkH: 0.25, edge: 0.3, paint: '#f2f2f2' }; // edge lines at ±(roadHalf + edge)
 const PIER = { every: 30, d: 3, top: -0.9 }; // as wide as the deck (the portal's as its legs), its top 0.1 m up inside the deck's 1 m slab
-// railings.glb sections stretched to `pitch`, standing on the walkway `inset` in from the deck edge, in one satin steel-blue
-// (shade ~#4679b2, lit ~#aee1f7 in the frames; the main session confirms it on the re-shoot)
+// ponytail: railings.glb sections stretched to `pitch`, standing on the walkway `inset` in from the deck edge, in one satin steel-blue
+// (shade ~#4679b2, lit ~#aee1f7 in Caedon's board 25 frames; the main session confirms it on the re-shoot). pitch 4: 3 adds ~72k
+// triangles a chunk (railings.glb is 3,578 a section)
 const RAIL = { pitch: 4, height: 1.1, inset: 0.25 }, STEEL = { color: '#7aa6d4', rough: 0.4, metal: 0.25 };
-// The portal at z ≡ `at` (mod `every`), on the pier there: legs w × d at ±x from the water to `top`, a crown beam, a second beam at
-// `beam2` and an X-brace between them. The cable: a parabola of world z between portals, its saddle `saddle` under the top, lowest
-// `low` up at mid-span, x from the legs' centre in to `x`; tube `step` m a ring (cheapest trim: radial 24 -> 12).
+// ponytail: board 25's portal and cables (Caedon's pick, 2026-10-15). The portal at z ≡ `at` (mod `every`), on the pier there:
+// legs w × d at ±x from the water to `top`, a crown beam, a second beam at `beam2` and an X-brace between them. The cable: a
+// parabola of world z between portals, its saddle `saddle` under the top, lowest `low` up at mid-span, x from the legs' centre in
+// to `x`; tube `step` m a ring (cheapest trim: radial 24 -> 12).
 const PORTAL = { every: 120, at: 45, top: 45, w: 3.2, d: 2.8, x: 9.7, beam: 1.8, beam2: 28, brace: 0.8 };
 const CABLE = { r: 0.35, radial: 24, x: 8.0, low: 2.2, saddle: 1, step: 2, collar: { r: 0.5, len: 1.2 }, hanger: { r: 0.06, every: 5 } };
 const LOW = { x: 30.5, spread: 20, w: 8, minH: 2, maxH: 8 };
@@ -160,7 +162,7 @@ export function bridgeChunk(gfx, args, style) {
   const cableGeo = mergeGeometries(cableParts), cp = cableGeo.attributes.position;
   for (let i = 0; i < cp.count; i++) cp.setZ(i, Math.min(end, Math.max(z0, cp.getZ(i)))); // a sloped tube's end ring leans past the seam: flatten it onto it
   const cable = new T.Mesh(cableGeo, steel);
-  cable.userData.cable = { r: C.r };
+  cable.userData.cable = true;
   // no shadow: a cable's long shadow over the deck reads as a stripe across the lanes. gfx.bend marks every opaque mesh a caster
   // as world.js adds the chunk, so the flag is set again once the chunk is added (three fires 'added' after the bend).
   cable.castShadow = false;

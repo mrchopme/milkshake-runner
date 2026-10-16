@@ -85,7 +85,11 @@ test('steel railings along both walkway edges, one section every 4 m, 1.1 m tall
 
 test('the main cables are round, 0.35 m, cast no shadow even once the engine has added the chunk, and meet across a seam', () => {
   const g = chunk(1200), [cable] = find(g, 'cable');
-  assert.equal(cable.userData.cable.r, 0.35, 'the tube\'s radius');
+  // the ring nearest mid-span (z 1305, where the cable runs flat along z) is the tube's cross-section: 0.7 m tall and wide
+  const pos = cable.geometry.attributes.position, xs = [], ys = [];
+  for (let i = 0; i < pos.count; i++) if (pos.getX(i) > 0 && Math.abs(pos.getZ(i) - 1305) < 1.05) { xs.push(pos.getX(i)); ys.push(pos.getY(i)); }
+  const span = (v) => Math.max(...v) - Math.min(...v);
+  assert.ok(near(span(ys), 0.7, 0.03) && near(span(xs), 0.7, 0.03), `mid-span cross-section ${span(xs)} x ${span(ys)}, want 0.7 (r 0.35)`);
   gfx.bend(g); new THREE.Group().add(g); // what world.js does: gfx.bend marks every opaque mesh a caster, then adds it
   assert.equal(cable.castShadow, false);
   // the end rings either side of the seam (a ring leans about 0.1 m along z at the seam's slope): the same tube, to 5 cm
