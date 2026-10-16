@@ -55,10 +55,24 @@ const BEND_SPRITE = `
 // The HiFi fog cut: compiled in only when the look sets hook.cutFog; then with fogCut.value 1 (a theme with a look) a bent
 // fragment the fog has fully hidden is dropped, so the skyline ring shows through instead of a fog-coloured block.
 export const fogCut = { value: 0 };
+// The HiFi height fog, compiled in with the cut: a bent mesh's fog colour is mix(fogShade, the fog's, smoothstep(fogHeight.x,
+// fogHeight.y, its world y before the bend)), so the slot between the buildings fogs deeper low down than at the rooftops
+// (Task 32, Caedon, board 22). The look sets both per theme; a shade equal to the fog colour is no height fog. A sprite (no
+// project_vertex) keeps the plain fog. fogHeight.x < fogHeight.y always (checkLook): smoothstep is undefined otherwise.
+export const fogShade = { value: new THREE.Color() };
+export const fogHeight = { value: new THREE.Vector2(0, 1) };
+const HFOG_VERT = '#include <project_vertex>\n  vFogY = bentWorld.y - bendOffset( bentWorld.z ).y;'; // the bend (patched over the include next) lifts a hill's street and its fog together
+const HFOG_FRAG = '#ifdef USE_FOG\n  vec3 hFogColor = mix( uFogShade, fogColor, smoothstep( uFogHeight.x, uFogHeight.y, vFogY ) );\n  #define fogColor hFogColor\n#endif\n#include <fog_fragment>';
 function cutFog(shader) {
   if (!hook.cutFog) return; // low-fi compiles three's fragment shaders as they are: no uniform, no discard
+  const high = shader.vertexShader.includes('#include <project_vertex>');
   shader.uniforms.uFogCut = fogCut;
-  shader.fragmentShader = shader.fragmentShader.replace('void main() {', 'uniform float uFogCut;\nvoid main() {').replace('#include <fog_fragment>', '#include <fog_fragment>\n#ifdef USE_FOG\n  if ( uFogCut > 0.5 && fogFactor > 0.999 ) discard; // HiFi: what the fog has fully hidden lets the skyline through\n#endif');
+  if (high) {
+    Object.assign(shader.uniforms, { uFogShade: fogShade, uFogHeight: fogHeight });
+    shader.vertexShader = shader.vertexShader.replace('void main() {', 'varying float vFogY;\nvoid main() {').replace('#include <project_vertex>', HFOG_VERT);
+  }
+  shader.fragmentShader = shader.fragmentShader.replace('void main() {', `uniform float uFogCut;${high ? '\nuniform vec3 uFogShade;\nuniform vec2 uFogHeight;\nvarying float vFogY;' : ''}\nvoid main() {`)
+    .replace('#include <fog_fragment>', `${high ? HFOG_FRAG : '#include <fog_fragment>'}\n#ifdef USE_FOG\n  if ( uFogCut > 0.5 && fogFactor > 0.999 ) discard; // HiFi: what the fog has fully hidden lets the skyline through\n#endif`);
 }
 function patch(shader) {
   cutFog(shader);
