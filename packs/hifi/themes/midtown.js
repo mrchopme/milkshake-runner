@@ -5,7 +5,10 @@ import { furniture } from '../lib/furniture.js';
 import { traffic } from '../lib/traffic.js';
 import { KIT_FILES } from '../lib/kit.js';
 import { cityFiles } from '../lib/facade.js';
-// HiFi look for midtown (level 2, a low orange sun). ponytail: calibration knobs; `bladeRate` the blade signs' rate (lib/signs.js; board 23: downtown 1, midtown none, uptown about one a chunk); `lit` marks dusk (0: day); `ground` the cool grey road per scene over asphalt (Caedon, 2026-10-15, replacing board 18's warm grey) and the walk, each the mean colour it renders at over its tile, its roughness, the paving's flag size in metres (board 24; hexes tuned by eye in the Task 32 stack).
+// HiFi look for midtown (level 2, a low orange sun). ponytail: calibration knobs; `bladeRate` the blade signs' rate
+// (lib/signs.js; board 23: downtown 1, midtown none, uptown about one a chunk); `lit` marks dusk (0: day); `ground` the cool grey
+// road per scene over asphalt (Caedon, 2026-10-15, replacing board 18's warm grey) and the walk, each the mean colour it renders
+// at over its tile, its roughness, the paving's flag size in metres (board 24; hexes tuned by eye in the Task 32 stack).
 // The walls (Task 32, Caedon's board 23 pick, "as prototyped"; buildings.js reads them). ponytail: calibration knobs. heights: 55% mid-rises
 // 22-36 m, 45% towers 60-110 m, blocks 14-26 m long; the cream warmed toward the sun; 35% of window cells lit cream at 0.55 (the main
 // session's tuning: 2.0 blew the windows out white against bloom 1.8); shop interiors warm at 0.4 from their own glass.

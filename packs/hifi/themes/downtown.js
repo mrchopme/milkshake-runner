@@ -5,7 +5,11 @@ import { furniture } from '../lib/furniture.js';
 import { traffic } from '../lib/traffic.js';
 import { KIT_FILES } from '../lib/kit.js';
 import { cityFiles } from '../lib/facade.js';
-// HiFi look for downtown (level 1, a clear blue day). ponytail: calibration knobs, tuned against board 01's keyframes; `bladeRate` the blade signs' rate (lib/signs.js; board 23: downtown 1, midtown none, uptown about one a chunk); `lit` marks dusk (0: day); `ground` the cool grey road per scene over asphalt (Caedon, 2026-10-15, replacing board 18's warm grey) and the walk, each the mean colour it renders at over its tile, its roughness, the paving's flag size in metres (board 24; hexes tuned by eye in the Task 32 stack).
+// HiFi look for downtown (level 1, a clear blue day). ponytail: calibration knobs, tuned against board 01's keyframes;
+// `bladeRate` the blade signs' rate (lib/signs.js; board 23: downtown 1, midtown none, uptown about one a chunk); `lit` marks
+// dusk (0: day); `ground` the cool grey road per scene over asphalt (Caedon, 2026-10-15, replacing board 18's warm grey) and the
+// walk, each the mean colour it renders at over its tile, its roughness, the paving's flag size in metres (board 24; hexes tuned
+// by eye in the Task 32 stack).
 // The walls (Task 32, Caedon's board 23 pick, "as prototyped"; buildings.js reads them). ponytail: calibration knobs. heights: 50% walk-ups
 // 14-24 m, 50% towers 60-140 m in runs of 2-4, a tower behind 40% of walk-ups; tiles by class (g glass, s stone, m masonry); bodies:
 // each tile's wall colour; facadeTint: the brick toward h357-17 s0.33-0.53 (wall texels only); shopBands: [sign bottom, awning top,

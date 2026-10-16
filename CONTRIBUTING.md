@@ -154,7 +154,7 @@ through every turn. Low-fi ignores it. The rest:
 - `hemi: { sky, ground }`: the fill's colours (hex); without it the engine's white over grey.
 - `fog: { color, near, pale, shade, y: [a, b] }`: the fog's colour (else `skyBottom`, else the level's sky), where it starts
   (0–400 m, 120 by default), how far it pales toward white (0–1, 0.45 by default), and a deeper `shade` low down that gives
-  way to `color` between `a` and `b` metres up (−50–300, a < b).
+  way to `color` between `a` and `b` metres up (−50–300, a < b; [0, 40] by default).
 - `skylineHaze: { color, mul, mix: [foot, top], flatten, foot }`: the skyline images times `mul`, their brightness pulled
   `flatten` (0–1) of the way to `color`'s (else the fog's), mixed toward it by `mix` (0–1) from foot to top; below `foot` m
   (−50–50) about eye level the ring turns solid in the fog's colour, so the street's fog meets it with no band.
