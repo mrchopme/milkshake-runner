@@ -503,6 +503,10 @@ test('a flush pit stands under every tree, one instanced mesh a chunk; trees com
   const b = pit.geometry.boundingBox, top = b.max.y + pit.instanceMatrix.array[13];
   assert.ok(Math.abs(b.max.x - b.min.x - PITS.size) < 1e-6 && Math.abs(b.max.z - b.min.z - PITS.size) < 1e-6 && top > KERB && top < KERB + 0.02, `a ${(b.max.x - b.min.x).toFixed(2)} m pit, its top at ${top.toFixed(3)}`);
   assert.ok(pit.geometry.attributes.color && pit.material.vertexColors, 'stone rim and soil in its own colours');
+  const g = make(2); gfx.bend(g); new THREE.Group().add(g); // what world.js does: gfx.bend marks every opaque mesh a caster, then adds it
+  let checked = 0;
+  g.traverse((n) => { if (n.userData.pit) { checked++; assert.ok(!n.castShadow && n.receiveShadow, 'the 1.5 cm pit casts no shadow (nothing to see in either cascade) and still receives one'); } });
+  assert.equal(checked, 1);
 });
 
 test('planter pairs stand at shop doors from the block list, on about half the lots', async () => {

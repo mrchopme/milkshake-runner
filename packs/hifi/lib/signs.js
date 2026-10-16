@@ -10,17 +10,19 @@ import { pickBy } from './rand.js';
 // block of the block list (buildings.js's header) and under its cornice, instanced (a draw call per image a chunk draws from).
 // Every image glows from its own texels; one not loaded yet is left out, and its material is keyed by its texture, so it shows on
 // the next chunk once it lands. No block list (a theme without buildings), no signs.
-// ponytail: calibration knobs, metres (board 23's stack, tuned by eye). GLOW: an image's own emissive, by day (style.lit 0) and at
-// dusk (Caedon's board 23: 0.6 by day read as stuck on); PICK: images a chunk draws from. Posters: width (narrower on a short
+// ponytail: calibration knobs, metres (board 23's stack, tuned by eye). GLOW: an image's own emissive, by day (style.lit 0) and
+// at dusk (Caedon's board 23: 0.6 by day read as stuck on); PICK: images a chunk draws from. Posters: width (narrower on a short
 // block, never under 2.5), centre height range (the cornice can lower it, never under a 6 m bottom), frame margin and depth, and
-// spacing on a side (centres kept every[0] / 2 off each chunk end, so the spacing holds across a seam with no neighbour known); OFF: the frame's back off the wall, clear of the facade relief (ledges 0.18 m out). Blades: width (the
-// pictograms keep their aspect), centre height (floors 2-3, over the awnings and the fascia), off the wall, the chance of one a
-// side a chunk at style.bladeRate 1 (0.83: 100 m / 120 m, at most one a side per ~100 m), and edge: only a block starting
-// edge..length - edge into the chunk takes one, so two blades on a side keep 100 m apart across a seam with no neighbour known.
+// spacing on a side (centres kept every[0] / 2 off each chunk end, so the spacing holds across a seam with no neighbour known);
+// OFF: the frame's back off the wall, clear of the facade relief (ledges 0.18 m out). Blades: width (the pictograms keep their
+// aspect), centre height (floors 2-3, over the awnings and the fascia), off the wall (0.2: the inner edge at x 10.3 clears the
+// masonry ledges, 0.18 m out, and the piers, 0.15; 0.1 cut through both), the chance of one a side a chunk at style.bladeRate 1
+// (0.83: 100 m / 120 m, at most one a side per ~100 m), and edge: only a block starting edge..length - edge into the chunk takes
+// one, so two blades on a side keep 100 m apart across a seam with no neighbour known.
 // The rate is per z0, not per seed: the stream is pickBy(z0), so a given chunk position draws the same, whatever the level seed.
 const GLOW = { day: 0.2, dusk: 0.6 }, PICK = 2;
 const POSTER = { w: 4, min: 2.5, y: [8, 9], bottom: 6, frame: 0.15, off: 0.19, every: [60, 80] };
-export const BLADE = { w: 1.4, y: 7.2, wall: 0.1, chance: 0.83, edge: 50 };
+export const BLADE = { w: 1.4, y: 7.2, wall: 0.2, chance: 0.83, edge: 50 };
 export const ASPECT = { poster: 1024 / 573, blade: 688 / 1024 }; // the generated images'; a poster or blade keeps its image's aspect
 export const SIGN_FILES = { posters: cityFiles('signs', 'poster', 12), blades: cityFiles('signs', 'blade', 6) };
 const loaded = (gfx, path) => { try { return path ? gfx.texture(path) : null; } catch { return null; } };
