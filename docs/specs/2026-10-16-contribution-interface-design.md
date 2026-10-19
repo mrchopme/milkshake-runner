@@ -11,6 +11,33 @@ snapshot: 2026-10-16
 > agent's unless it is marked **Caedon**. Code pointers are to b601511; patterns may have moved since. Read the
 > current code before acting on this document.
 
+## Build notes (2026-10-19)
+
+> Point-in-time notes from the build (PR #17, `feat/contribution-interface` at 96cfa82), written 2026-10-19. The
+> sections below are the historical record and were not rewritten; where they and the code differ, the code is the
+> authority: `.github/workflows/level-submission.yml`, `.github/workflows/ci.yml`, `src/levels.js`,
+> `scripts/submit-level.js`, `test/content-smoke.test.js` and CONTRIBUTING.md.
+
+- **R8** (§4.3 item 4): the bot's branch is `level/<issue number>` (`level/$ISSUE`), not `level/<id>`: an id-keyed
+  `--force` push let any issue overwrite another contributor's pending branch and PR body. `gh pr edit` refreshes
+  the title as well as the body; the play link is `…/level/<issue>/levels/<id>.json`.
+- **R9** (§4.3): the `submit` job runs only while the issue is open
+  (`github.event.issue.state == 'open' && contains(github.event.issue.labels.*.name, 'level')`), so later edits to a
+  merged or declined issue do nothing.
+- **R6** (§4.3, `ci.yml`): "Score changed levels" uses `git diff --no-renames --name-only --diff-filter=AM …`, so a
+  level that replaces a similar deleted one is scored instead of hidden as a rename.
+- **R7** (§2, §4.2): `src/levels.js` imports its two JSON files `with { type: 'json' }` and calls `import.meta.glob`
+  inside `loadLevels`, so Node can import the module for `test/try.test.js`.
+- **R2/R5** (§4.3 item 1): `scripts/submit-level.js` rejects a non-string `id` and treats a missing body as
+  "no JSON block".
+- **R3** (§5): CONTRIBUTING.md, README.md, AGENTS.md and CLAUDE.md carry no YAML frontmatter; the `provenance` and
+  `last-verified` lines stay on the `docs/specs/` snapshots.
+- **R1** (§4.2): in dev, `src/main.js` detects fixtures mode by substring on the whole query string, so any `?try`
+  URL containing "fixtures" turns the pack on (production unaffected); with the pack on, the demo level's id is
+  already taken, so `?fixtures&try=<demo URL>` is refused. The success path was checked with a stubbed `fetch`
+  under a free id (`test/try.test.js`).
+- Tests after the build: 153 pass, 1 skipped (`prop "billboard" draws`, needs the DOM).
+
 ## 1. Intent
 
 **Caedon:** "improve and help create the interface for people to create and contribute vibe coded assets and levels

@@ -20,6 +20,33 @@ snapshot: 2026-10-16
 
 **Spec:** `docs/specs/2026-10-16-contribution-interface-design.md` (§2 holes and checked facts, §3 goals and anti-goals, §4 the three pieces, §5 constraints, §7 decisions to veto).
 
+## Build notes (2026-10-19)
+
+> Point-in-time notes from the build (PR #17, `feat/contribution-interface` at 96cfa82), written 2026-10-19. The
+> tasks below are the historical record and were not rewritten; where a step and the code differ, the code is the
+> authority: `.github/workflows/level-submission.yml`, `.github/workflows/ci.yml`, `src/levels.js`,
+> `scripts/submit-level.js`, `test/content-smoke.test.js` and CONTRIBUTING.md.
+
+- **R8** (Task 3 workflow): the bot's branch is `level/$ISSUE`, not `level/$ID`: an id-keyed `--force` push let any
+  issue overwrite another contributor's pending branch and PR body. `gh pr edit` also passes `--title`; the play
+  link is `…/level/$ISSUE/levels/$ID.json`.
+- **R9** (Task 3 workflow): the `submit` job carries
+  `if: github.event.issue.state == 'open' && contains(github.event.issue.labels.*.name, 'level')`, so later edits
+  to a merged or declined issue do nothing.
+- **R6** (Task 1, the `ci.yml` step): the diff is `git diff --no-renames --name-only --diff-filter=AM …`, so a level
+  that replaces a similar deleted one is scored instead of hidden as a rename.
+- **R7** (Task 2): `src/levels.js` imports its two JSON files `with { type: 'json' }` and calls `import.meta.glob`
+  inside `loadLevels`; that is what lets Node import the module for `test/try.test.js`.
+- **R2/R5** (Task 3 script): `extractLevel` rejects a non-string `id` and treats a missing body as "no JSON block".
+- **R3** (Global Constraints, Task 5): CONTRIBUTING.md, README.md, AGENTS.md and CLAUDE.md carry no YAML
+  frontmatter; the `provenance` and `last-verified` lines stay on the `docs/specs/` snapshots.
+- **R1** (Task 2 Step 7, case 2): unreachable. With `?fixtures`, `loadLevels` also loads
+  `test/fixtures/levels/*.json`, so the demo id is already taken and the URL is refused; and in dev `src/main.js`
+  detects fixtures mode by substring on the whole query string, so any `?try` URL containing "fixtures" turns the
+  pack on (production unaffected). The success case was checked with a stubbed `fetch` under a free id.
+- Tests after the build: 153 pass, 1 skipped (`prop "billboard" draws`, needs the DOM), not the self-review note's
+  120 + 5 + 3 + about 40; the per-step `pass` counts were minimums.
+
 ## Global Constraints
 
 - No new npm dependencies (`package.json` has `three` and `vite` only); no GitHub Action beyond `actions/checkout@v4` and `actions/setup-node@v4`, already in use.
