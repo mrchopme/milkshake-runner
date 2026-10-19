@@ -2,7 +2,7 @@ import './style.css';
 import * as gfx from './gfx.js';
 import { createEngine } from './engine.js';
 import { loadRegistry } from './registry.js';
-import { loadLevels } from './levels.js';
+import { loadLevels, tryLevel } from './levels.js';
 import { loadCharacter } from './character.js';
 import { createHud, pickupIcon, pickupName } from './hud.js';
 import { playLevel } from './game.js';
@@ -137,6 +137,13 @@ async function main() {
   $('endless').onclick = () => startLevel('endless');
   $('back').onclick = menu;
   $('to-menu').onclick = menu;
+  const tryUrl = new URLSearchParams(location.search).get('try');
+  if (tryUrl) { // a level by URL, played before it merges (CONTRIBUTING §0): its own id, which must be free in this build
+    const tried = await tryLevel(tryUrl, { levels, registry });
+    if (tried.errors.length) return showErrors({ [tryUrl]: tried.errors });
+    levels[tried.id] = tried.level;
+    return startLevel(tried.id);
+  }
   const { level } = params(); // Hatch picks the level; campaign locks don't apply, its history is Hatch's (A4)
   if (level && levels[level] && valid(level)) return startLevel(level);
   if (level) console.warn(`Unknown or broken level "${level}", showing the menu`);
