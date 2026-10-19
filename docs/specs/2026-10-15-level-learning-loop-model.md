@@ -212,6 +212,8 @@ Results were identical for notice 0.45, 0.6 and 1.0 s and collapsed at 0.3 s. Wh
 
 ## 10. How to run the loop (as run once, 2026-10-15, for the first generated level)
 
+> Superseded 2026-10-16 by CONTRIBUTING §0 ("Make a level with Claude") and the Submit a level bot; kept as the record of the first run.
+
 A snapshot of the steps used for `levels/fifth-avenue-dusk.json`, not a fixed procedure; the lab and the bands may have moved on since.
 
 1. Run `npm run lab -- sheet`, and read CONTRIBUTING §1 plus two shipped files (`levels/01-broadway.json`, `levels/endless.json`).

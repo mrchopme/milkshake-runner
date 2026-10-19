@@ -10,12 +10,38 @@ Both go through a pull request. CI runs the same checks the game runs when it lo
 would break the game cannot merge. Everything under `src/` is the engine; you should not need to edit it.
 If you find you do, open an issue: that is a bug in the engine's modularity, not in your contribution.
 
+## 0. Make a level with Claude
+
+You need nothing installed. Give Claude (or any coding agent) this prompt, with your idea in the last line:
+
+> You are writing a level for Milkshake Runner, a three-lane endless runner. Read the format in §1 of
+> https://github.com/mrchopme/milkshake-runner/blob/main/CONTRIBUTING.md and the content you may name (obstacles,
+> pickups, props, themes, endings, rules) in https://mrchopme.github.io/milkshake-runner/content-sheet.txt. Write one
+> JSON file, `levels/<id>.json`, id in a-z 0-9 and -, `author` set to my GitHub handle. Make it fun: speed `end` at
+> least 1.8 × `start`; density rising by 0.25 or more; a mix of jump, slide and lane obstacles so the player acts 15 to
+> 40 times a minute; a set piece every 300 m or so (a turn, a dip with an overpass, a tunnel with a low camera, a bridge
+> theme with railings on 120 m lines, a sprint at fixed density); 10 to 16 jugs per 100 m and a power-up or two; 45 to
+> 180 seconds long at those speeds. If you can run `npm run lab -- check` and `npm run lab -- play` on the file, do:
+> fix every failed gate and every warning my idea does not justify, then set `seed` to the ship seed it proposes. If you
+> cannot run them, leave `seed` out and tell me. No real people, brands, team names or logos. My idea: <your idea here>
+
+Then open **Submit a level** under [Issues](https://github.com/mrchopme/milkshake-runner/issues/new/choose) and paste
+the JSON. A bot validates it, plays it a hundred times with a reaction-limited bot, and replies with a link to play it
+in the live game and a pull request. If a check fails it says which; edit the issue and the checks run again. Once
+merged, the level is listed under **Levels** with your name.
+
+With the repo cloned (`npm ci`), the same loop is `npm run lab -- sheet`, `npm run lab -- check levels/<id>.json`,
+`npm run lab -- play levels/<id>.json`, then `npm run dev` and `?level=<id>`, then a pull request; CI scores every
+level a pull request adds or changes. Any level file on GitHub plays in the live game before it merges:
+`https://mrchopme.github.io/milkshake-runner/?try=<its raw.githubusercontent.com or gist.githubusercontent.com URL>`
+(a raw URL lags an edit by up to five minutes).
+
 ## 1. Add a level
 
 1. Fork the repo. Add `levels/<your-level-id>.json`. The id is `a-z 0-9 -` and must equal the file name.
 2. Do **not** edit `levels/index.json` or `levels/campaign.json`; your level is listed automatically after the shipped ones.
-3. Check it: `npm ci && npm test`, then `npm run dev` and play it from **Levels**.
-4. Open a pull request.
+3. Check it: `npm ci && npm test`, then `npm run lab -- check levels/<id>.json` and `npm run lab -- play levels/<id>.json` (the gates CI runs), then `npm run dev` and play it from **Levels**.
+4. Open a pull request. No fork and no install: the **Submit a level** issue form does the same (§0).
 
 ### A level that uses everything
 
@@ -73,6 +99,17 @@ Content is a one-file ES module with a default export. Pick a handle (your GitHu
 Modules receive `gfx` when they draw: `gfx.box(w, h, d, color, x, y, z)`, `gfx.cyl`, `gfx.sphere`, `gfx.capsule`, `gfx.cone`, `gfx.roundedBox`, `gfx.group(...)`, `gfx.blobShadow(r)`, `gfx.glow(r, color)`, `gfx.sprite`, `gfx.textTexture`, `gfx.palette` (the game's colours) and `gfx.three` if you need Three.js itself. Do not import `three` at the top of your file; tests import your module in Node. The world bends in the distance (a level's `curve`); build long pieces with `gfx.box`, which subdivides along z, because raw geometry longer than about 6 m stays a straight chord. Materials from these helpers bend by themselves, and the engine runs `gfx.bend(object)` over everything `createView` and `createChunk` return, so a material you build from `gfx.three` bends too. Anything you add later, in `update()`, is yours to pass through `gfx.bend`; it keeps a material's own `onBeforeCompile` and runs it before the bend.
 
 Complete, working examples live in `test/fixtures/content/` (a boulder, a 3× pickup, an arch prop, a forest theme that replaces the street, a robot character, a banner ending) and `test/fixtures/levels/`. Run `npm run dev` and open `http://localhost:5173/milkshake-runner/?fixtures` to play them.
+
+### Vibe-coding a module
+
+Give Claude this section and the examples in `test/fixtures/content/`, and ask for one file at
+`content/<kind>s/<handle>/<name>.js`. `npm test` is the gate: the module registers (shape, folder, id), it draws in
+Node with the game's `gfx` and returns `{ object }` (a module that labels itself with a canvas texture is checked in
+the browser instead), and an obstacle's box agrees with its move (a `jump` box stands on the ground and fits under a
+jump, a `slide` box leaves room to slide under, a `lane` box does neither). See it with `npm run dev` in any level that
+names its id. Modules are code, so they arrive as a pull request from a fork (GitHub's web editor is enough: add the
+file, open the pull request), CI runs the checks, and a person reads the code before it merges. The issue form takes
+levels only.
 
 ### Obstacle
 

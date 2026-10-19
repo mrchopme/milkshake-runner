@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/level-lab.js sheet > dist/content-sheet.txt",
     "preview": "vite preview",
     "test": "node --test test/*.test.js",
     "lab": "node scripts/level-lab.js"
