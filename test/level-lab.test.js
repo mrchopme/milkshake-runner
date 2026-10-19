@@ -1,6 +1,6 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { street, simulate, loadRegistry, NOTICE, playtest, scorecard, finishTime, GATES, contentSheet, check, loadLevelFile } from '../scripts/level-lab.js';
 import { generate, normalizeLevel, rng } from '../src/generator.js';
@@ -151,7 +151,9 @@ test('the content sheet names every registered id with the facts an author needs
 test('check runs the validator on a file by its name', () => {
   const file = fileURLToPath(new URL('../levels/01-broadway.json', import.meta.url));
   assert.deepEqual(check(file, registry), []);
-  assert.deepEqual(loadLevelFile(file).allIds.sort(), ['01-broadway', '02-garden', 'endless', 'fifth-avenue-dusk', 'last-train-newark']);
+  const onDisk = readdirSync(fileURLToPath(new URL('../levels/', import.meta.url))).filter((f) => f.endsWith('.json') && !['index.json', 'campaign.json'].includes(f)).map((f) => f.slice(0, -5)).sort();
+  assert.deepEqual(loadLevelFile(file).allIds.sort(), onDisk); // every file under levels/: a contributed level must never break the suite
+  assert.ok(onDisk.includes('01-broadway') && onDisk.includes('fifth-avenue-dusk'));
 });
 
 test('the CLI checks, refuses to play an invalid file, and plays a valid one', async () => {

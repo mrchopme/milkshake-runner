@@ -17,6 +17,18 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Score changed levels
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE"
+          status=0
+          for f in $(git diff --no-renames --name-only --diff-filter=AM "origin/$BASE" HEAD -- 'levels/*.json' | grep -Ev '/(index|campaign)\.json$' || true); do
+            node scripts/level-lab.js play "$f" > card.txt 2>&1 || status=1
+            { echo "### $f"; echo '```'; cat card.txt; echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+          done
+          exit $status
       - run: npm run build
       - if: github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
