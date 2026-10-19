@@ -1,0 +1,61 @@
+name: level submission
+on:
+  issues:
+    types: [opened, edited]
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+concurrency:
+  group: level-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+# ponytail: one job holds the write token because a level is data and nothing contributed executes (the code that runs is
+# main's own); if a form for content modules is ever added, split the step that runs contributed code from the step that
+# holds the token.
+jobs:
+  submit:
+    if: contains(github.event.issue.labels.*.name, 'level')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ISSUE: ${{ github.event.issue.number }}
+      LOGIN: ${{ github.event.issue.user.login }}
+      USER_ID: ${{ github.event.issue.user.id }}
+      SITE: https://mrchopme.github.io/milkshake-runner/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - id: level
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: node scripts/submit-level.js > out.txt 2> log.txt && cat out.txt >> "$GITHUB_OUTPUT"
+      - env:
+          ID: ${{ steps.level.outputs.id }}
+        run: node scripts/level-lab.js play "levels/$ID.json" 2>&1 | tee card.txt | tee -a log.txt
+      - run: npm test 2>&1 | tee -a log.txt | tail -3
+      - name: Branch, pull request, reply
+        env:
+          ID: ${{ steps.level.outputs.id }}
+          TITLE: ${{ steps.level.outputs.title }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "level/$ISSUE"
+          git add "levels/$ID.json"
+          git commit --author="$LOGIN <$USER_ID+$LOGIN@users.noreply.github.com>" -m "level: $TITLE (#$ISSUE, by @$LOGIN)"
+          git push --force origin "level/$ISSUE"
+          PLAY="${SITE}?try=https://raw.githubusercontent.com/$GITHUB_REPOSITORY/level/$ISSUE/levels/$ID.json"
+          { echo "**$TITLE** by @$LOGIN, submitted in #$ISSUE. Play it before merging: $PLAY"; echo; echo '```'; cat card.txt; echo '```'; echo; echo "Closes #$ISSUE"; } > body.md
+          PR=$(gh pr list --head "level/$ISSUE" --state open --json url --jq '.[0].url // empty')
+          if [ -n "$PR" ]; then gh pr edit "$PR" --title "Level: $TITLE" --body-file body.md
+          else PR=$(gh pr create --head "level/$ISSUE" --title "Level: $TITLE" --body-file body.md 2>>log.txt) || PR="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...level/$ISSUE?expand=1 (Actions may not open pull requests in this repo yet; open it from this link)"
+          fi
+          { echo "Your level passed every check. Play it now: $PLAY"; echo; echo "Pull request: $PR"; echo; echo '```'; cat card.txt; echo '```'; } | gh issue comment "$ISSUE" --body-file -
+      - if: failure()
+        run: |
+          { echo "The checks did not pass. Edit this issue to fix the level and they run again. The last lines:"; echo; echo '```'; tail -40 log.txt 2>/dev/null || echo "(no log)"; echo '```'; echo; echo "Full log: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; } | gh issue comment "$ISSUE" --body-file -

@@ -1,0 +1,24 @@
+name: Submit a level
+description: Add a level you made with Claude (or by hand). A bot checks it, lets you play it, and opens the pull request for you.
+title: "Level: "
+labels: [level]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Paste the whole level file below. The bot validates it, plays it a hundred times, and replies here with a link to play it in the live game and a pull request. If a check fails, edit this issue and the checks run again. How to make one: [CONTRIBUTING.md §0](https://github.com/mrchopme/milkshake-runner/blob/main/CONTRIBUTING.md#0-make-a-level-with-claude).
+  - type: textarea
+    id: level
+    attributes:
+      label: Level JSON
+      description: The complete contents of your levels/<id>.json
+      render: json
+    validations:
+      required: true
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: House rules
+      options:
+        - label: No real people, brands, team names or logos; this level is mine to give and may ship in the game
+          required: true
