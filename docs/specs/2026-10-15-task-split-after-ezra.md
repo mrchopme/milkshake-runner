@@ -104,3 +104,18 @@ Prompt:
 > wrapped, how tool args would replace the query-string and postMessage defaults, hosting
 > options, and the questions Caedon should take into the Ezra–Vlad session. No code.
 > Stop if the spec is moving faster than the sources can confirm and say so.
+
+---
+
+## Outcome (added 2026-10-19 at wrap-up)
+
+All three chats ran on 2026-10-15 and merged into `main` on Caedon's word:
+
+| # | Chat | Result |
+|---|---|---|
+| 1 | Level-gen learning loop | PR #15 (b601511): timing-wall fix, `scripts/level-lab.js`, spec `2026-10-15-level-learning-loop-model.md`, plan `2026-10-15-level-learning-loop-plan.md`, first prompt-written level "Fifth Avenue at Dusk" |
+| 2 | Hatch harness | PR #13 (3628134): `src/hatch.js`, five lines in `main.js`, `test/hatch.test.js`; `distance` added at Chat 1's request |
+| 3 | MCP app research | PR #14: `docs/specs/2026-10-15-mcp-app-research.md` |
+
+Still open: D1–D3 (the Ezra–Vlad session), memories (A2/D6). The contract draft and this file
+lived only on the breakdown branch until the wrap-up docs PR.

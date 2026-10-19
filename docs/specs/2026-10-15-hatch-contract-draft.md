@@ -29,7 +29,7 @@ the user (A7, A14).
 
 | Item | ID | What a run produces today | Status |
 |---|---|---|---|
-| "What happened" at session end | A5 | `levelId`, `outcome` (`complete` / `dead` / `error`), `jugs`, `time` (seconds). Chained levels (an ending's `next`) produce one result each | contents beyond high score unspecified |
+| "What happened" at session end | A5 | `levelId`, `outcome` (`complete` / `dead` / `error`), `jugs`, `time` (seconds), `distance` (metres, provisional, asked for by the level lab). Chained levels (an ending's `next`) produce one result each | contents beyond high score unspecified |
 
 ## Transport (open)
 
@@ -40,6 +40,12 @@ the user (A7, A14).
 Working default until D1–D3 land, so the game can be built against something: parameters
 on the query string, result via `postMessage` to the parent window, both behind one adapter
 module so the transport can change without touching the game loop.
+
+## Built against this draft (2026-10-15)
+
+`src/hatch.js` (PR #13, merged 3628134) implements the working default: `?level=<id>` in,
+one `postMessage` per finished run out, target origin `'*'` until Hatch's origin is known.
+`?level` ignores campaign locks and the one-time help screen stays; Caedon's calls.
 
 ## Do-nots
 
