@@ -29,7 +29,7 @@ async function main() {
   const engine = createEngine($('game'));
   const hud = createHud();
   const save = loadSave();
-  const fixtures = import.meta.env.DEV && location.search.includes('fixtures');
+  const fixtures = import.meta.env.DEV && new URLSearchParams(location.search).has('fixtures'); // the parameter itself, not a substring of the query (a ?try= URL may contain "fixtures")
   const { registry, problems } = loadRegistry({ fixtures }); // a broken content module disables only itself
   if (problems.length) console.warn('Some content files are disabled:', problems);
   const { levels, campaign, order, errors, valid } = loadLevels(registry, { fixtures });
