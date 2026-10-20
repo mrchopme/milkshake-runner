@@ -1,0 +1,144 @@
+{
+  "id": "fifth-avenue-test",
+  "title": "Fifth Avenue at Dusk (bot test)",
+  "author": "Claude, through the level lab",
+  "length_m": 1200,
+  "seed": 56,
+  "theme": {
+    "id": "uptown",
+    "sky": "#c98bd8",
+    "fog": 0.35
+  },
+  "rules": {
+    "speed": {
+      "start": 16,
+      "end": 30,
+      "cap": 32
+    }
+  },
+  "obstacles": {
+    "scaffold_beam": 3,
+    "pigeons": 2,
+    "barrier_low": 1,
+    "hot_dog_cart": 1,
+    "taxi": 2,
+    "delivery_bike": 1,
+    "manhole_steam": 1
+  },
+  "density": {
+    "start": 0.45,
+    "end": 0.75
+  },
+  "jugs": {
+    "per_100m": 13,
+    "powerups": [
+      "x2",
+      "shield"
+    ]
+  },
+  "props": {
+    "per_100m": 0.8,
+    "ids": {
+      "billboard": 3
+    }
+  },
+  "sections": [
+    {
+      "from_m": 120,
+      "to_m": 330,
+      "curve": {
+        "turn": 0.7
+      }
+    },
+    {
+      "from_m": 360,
+      "to_m": 540,
+      "camera": {
+        "height": 2.4,
+        "distance": 5,
+        "fov": 65
+      },
+      "placements": [
+        {
+          "at_m": 380,
+          "kind": "prop",
+          "id": "tunnel"
+        }
+      ]
+    },
+    {
+      "from_m": 570,
+      "to_m": 750,
+      "curve": {
+        "hill": -0.7
+      },
+      "placements": [
+        {
+          "at_m": 640,
+          "kind": "prop",
+          "id": "overpass"
+        }
+      ]
+    },
+    {
+      "from_m": 750,
+      "to_m": 960,
+      "curve": {
+        "turn": -0.6
+      },
+      "density": {
+        "start": 0.75,
+        "end": 0.75
+      }
+    },
+    {
+      "from_m": 960,
+      "to_m": 1200,
+      "camera": {
+        "height": 5.5,
+        "distance": 8.5
+      },
+      "theme": {
+        "id": "bridge"
+      },
+      "placements": [
+        {
+          "at_m": 960,
+          "kind": "prop",
+          "id": "railings"
+        },
+        {
+          "at_m": 1000,
+          "kind": "prop",
+          "id": "railings"
+        },
+        {
+          "at_m": 1040,
+          "kind": "prop",
+          "id": "railings"
+        },
+        {
+          "at_m": 1080,
+          "kind": "prop",
+          "id": "railings"
+        },
+        {
+          "at_m": 1120,
+          "kind": "prop",
+          "id": "railings"
+        },
+        {
+          "at_m": 1160,
+          "kind": "prop",
+          "id": "railings"
+        }
+      ]
+    }
+  ],
+  "ending": {
+    "id": "finish",
+    "params": {
+      "text": "FIFTH AVENUE CLEARED"
+    }
+  }
+}
