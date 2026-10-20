@@ -6,7 +6,7 @@ import { gloss, painter } from '../lib/paint.js';
 
 const YAW = Math.PI / 2; // ponytail: calibration knob — the model is long along x, its front (cargo box, rider's face) +x; +π/2 turns the front to the player (-z), the bike coming up the street
 // metalness 0: Tripo marks parts metallic at random, which reads as dark paint (Task 23 ruling); the roughness map stays
-const paint = painter((T, m) => gloss(T, m, { clearcoat: 0.6, clearcoatRoughness: 0.2, metalness: 0, metalnessMap: null }));
+const paint = painter((T, m) => gloss(T, m, { clearcoat: 0.3, clearcoatRoughness: 0.4, metalness: 0, metalnessMap: null }));
 
 let parts; // { scale, offset }, measured from the first copy
 

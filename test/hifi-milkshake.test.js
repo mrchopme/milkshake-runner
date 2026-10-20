@@ -47,7 +47,7 @@ test('the arm floor and back knobs are off for the shipped Milkshake, so its wei
   }
 });
 
-test('the HiFi Milkshake wears the generated model: skinned, glossy, unshadowed by a blob, 1.9 m tall, face ahead, arms swinging', async () => {
+test('the HiFi Milkshake wears the generated model: skinned, satin, a contact disc under the hooves, 1.9 m tall, face ahead, arms swinging', async () => {
   const T = gfx.three;
   // A stand-in in the optimised GLB's shape: positions in the quantised frame (y -1..1), the node scaling them down.
   const map = new T.Texture(), orm = new T.Texture();
@@ -63,9 +63,11 @@ test('the HiFi Milkshake wears the generated model: skinned, glossy, unshadowed 
   const skinned = [], blobs = [];
   view.object.traverse((n) => { if (n.isSkinnedMesh) skinned.push(n); if (n.geometry?.type === 'CircleGeometry') blobs.push(n); });
   assert.equal(skinned.length, 1, 'the generated mesh, skinned (not the shape cow)');
-  assert.equal(blobs.length, 0, 'no blob shadow: the HiFi look casts real ones');
+  assert.equal(blobs.length, 1, 'the contact disc under the hooves, beside the look\'s cast shadow (Caedon, board 29 pick 3: the cast one falls behind him)');
   const m = skinned[0].material;
-  assert.ok(m.isMeshPhysicalMaterial && m.clearcoat === 1 && m.clearcoatRoughness === 0.15, 'a glossy clearcoat');
+  // re-pinned from 1 / 0.15 (Caedon, board 29 pick 4): the full sharp coat mirrored every sun ahead into the camera
+  assert.ok(m.isMeshPhysicalMaterial && m.clearcoat === 0.35 && m.clearcoatRoughness === 0.4, `a satin clearcoat (${m.clearcoat}, ${m.clearcoatRoughness})`);
+  assert.equal(m.userData.reflect, undefined, 'its reflections take the look\'s shared REFLECT knob');
   assert.ok(m.metalness === 0 && m.metalnessMap === null, 'Tripo\'s random metal dropped');
   assert.ok(m.map === map && m.roughnessMap === orm, 'its own colour and roughness maps');
   const box = new T.Box3().setFromObject(skinned[0]);
@@ -79,4 +81,12 @@ test('the HiFi Milkshake wears the generated model: skinned, glossy, unshadowed 
   assert.ok(moved[2] < 1e-6 && moved[3] < 1e-6, `the tail and the belly hold still (${moved[2].toFixed(3)}, ${moved[3].toFixed(3)})`);
   assert.ok(moved[4] > 0.1, 'the hoof swings with its leg');
   assert.doesNotThrow(() => view.update({ x: 0, y: 0, z: 0, lane: 1, time: 0.3, slideT: 0, over: false, speed: 12, rules: { laneWidth: 2.5 } }));
+  view.update({ x: 0, y: 1.2, z: 5, lane: 1, time: 0.4, slideT: 0, over: false, speed: 12, rules: { laneWidth: 2.5 } });
+  view.object.updateMatrixWorld(true);
+  assert.ok(Math.abs(blobs[0].getWorldPosition(new T.Vector3()).y - 0.01) < 1e-9, 'the disc stays on the road while he jumps');
+  const puffs = view.object.children.find((c) => c.children.length === 6).children;
+  assert.ok(puffs.every((p) => p.material.color.getHexString() === '5f5c69'), 'the dust takes the road\'s grey (Caedon, board 29 pick 6)');
+  view.update({ x: 0, y: 0, z: 5, lane: 1, time: 0.4, slideT: 0, over: false, speed: 12, rules: { laneWidth: 2.5 } }); // a footfall from the air: a puff is born
+  const live = puffs.find((p) => p.visible && p.userData.born === 0.4);
+  assert.ok(live && Math.abs(live.material.opacity - 0.25) < 1e-9, `a fresh puff at the quieter 0.25 opacity (${live?.material.opacity})`);
 });

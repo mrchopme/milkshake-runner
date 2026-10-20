@@ -24,7 +24,9 @@ const SKYLINE_HEIGHT = [90, 80];
 // Task 32 (Caedon's board 22 pick, "Sun B + sky fill + height fog", 2026-10-15). ponytail: calibration knobs.
 const SKY_EDGE = 0.3; // the dome reaches skyTop at this dir.y (0.45 before): a narrower pale band over the horizon
 const SHADOW_RADIUS = 2.5; // PCF blur in shadow-map texels: three 0.186 dropped PCFSoft (it fell back to plain PCF, hard edged)
-const REFLECT = 0.85; // L-C: the env strength glossy materials keep when a look's env drops to 0.4; userData.reflect overrides it
+// The env strength glossy materials keep when a look's env drops to 0.4; userData.reflect overrides it. 0.4 (was 0.85; Caedon,
+// board 29 pick 4, 2026-10-20): with every sun ahead of the runner, 0.85 mirrored it off the head, the jug and the taxi's roof.
+export const REFLECT = 0.4;
 // A theme switch crossfades the rig over FADE_MS; a camera move over JUMP m between two frames (a new run, a still) snaps it.
 const FADE_MS = 1000, JUMP = 5;
 

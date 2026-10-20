@@ -21,5 +21,6 @@ test('the HiFi jug tells its milk from the lavender cap and base ring by texel',
 test('the HiFi jug glows from its own milky texels, not from a plate laid over it', () => {
   const p = paintOf(jug.createView(gfx));
   assert.deepEqual(stored, [245, 235, 255, 255, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 255], 'the milk stays in the emissive map, the cap and the shadow go black');
-  assert.ok(p.emissiveMap.isCanvasTexture && p.emissive.getHexString() === 'ffffff' && p.emissiveIntensity > 0, 'the paint is lit through that map');
+  assert.ok(p.emissiveMap.isCanvasTexture && p.emissive.getHexString() === 'ffffff', 'the paint is lit through that map');
+  assert.equal(p.emissiveIntensity, 0.35, 'the milk glows at 0.35 (was 0.6; Caedon, board 29 pick 4: with the old coat it bloomed white at dusk)');
 });

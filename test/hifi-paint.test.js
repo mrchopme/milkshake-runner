@@ -20,7 +20,7 @@ const def = applyPack(shipped, [{ path: 'packs/hifi/obstacles/barrier_low.js', m
 // Tripo's material: metal everywhere (task-23-models.md)
 const standIn = () => new T.Group().add(new T.Mesh(new T.BoxGeometry(0.42, 0.53, 0.98), new T.MeshStandardMaterial({ metalness: 1, metalnessMap: new T.Texture() })));
 const paints = (o) => { const s = new Set(); o.traverse((n) => { if (n.isMesh) s.add(n.material); }); return [...s]; };
-const glossy = (m) => m.isMeshPhysicalMaterial && m.clearcoat === 0.6 && m.metalness === 0 && m.metalnessMap === null;
+const glossy = (m) => m.isMeshPhysicalMaterial && m.clearcoat === 0.3 /* 0.6 before the gloss cut (Caedon, board 29 pick 4) */ && m.metalness === 0 && m.metalnessMap === null;
 
 test('a model reloaded after assets.release gets fresh paint, not its raw generated material', () => {
   adopt('hifi/barrier_low.glb', standIn());

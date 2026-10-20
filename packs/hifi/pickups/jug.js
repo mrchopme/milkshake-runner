@@ -2,7 +2,7 @@
 import { pickupOverlay } from '../lib/pickup.js';
 
 const YAW = Math.PI / 2; // ponytail: calibration knob — turns the model so its front (+x) looks at the player (-z); Task 22's lineup
-const MILK_GLOW = 0.6;   // ponytail: calibration knob — how hard the milk's own texels glow; white over-blooms in the current look, Task 24 retunes the bloom
+const MILK_GLOW = 0.35;  // ponytail: calibration knob — how hard the milk's own texels glow (was 0.6; Caedon, board 29 pick 4: it bloomed white at dusk)
 
 // The milky white texels of the base map: the body, not the lavender cap and base ring. Only they get the emissive map, so the bottle
 // glows in its own shape (Caedon, 2026-10-09). Measured on public/hifi/jug.glb: the body's green is 232 and up, the lavender's 210 and below.

@@ -35,9 +35,11 @@ export default {
 };
 
 // Milkshake's view around any model: `load` resolves to a scene, `skin` and `bones` place the skinning, `dress` paints each mesh,
-// `blob` adds the ground shadow. The defaults are the shipped character's; a pack (the HiFi remodel) passes its own.
-export async function cowView(gfx, def, { load, skin = SKIN, bones = BONES, dress = toon, yaw = def.yaw, blob = true } = {}) {
+// `blob` adds the ground shadow, `dust` ({ color, opacity }) tints the puffs. The defaults are the shipped character's; a pack
+// (the HiFi remodel) passes its own.
+export async function cowView(gfx, def, { load, skin = SKIN, bones = BONES, dress = toon, yaw = def.yaw, blob = true, dust } = {}) {
   const P = gfx.palette;
+  const D = { color: P.spot, opacity: 0.5, ...dust };
   const root = blob ? gfx.group(gfx.blobShadow(0.55)) : gfx.group();
   const shadow = blob ? root.children[0] : null;
   const body = gfx.group();
@@ -54,7 +56,7 @@ export async function cowView(gfx, def, { load, skin = SKIN, bones = BONES, dres
   const puffs = gfx.group();
   root.add(puffs);
   const pool = Array.from({ length: 6 }, () => {
-    const m = new gfx.three.Mesh(new gfx.three.SphereGeometry(0.18, 8, 6), new gfx.three.MeshBasicMaterial({ color: P.spot, transparent: true, opacity: 0.5, depthWrite: false }));
+    const m = new gfx.three.Mesh(new gfx.three.SphereGeometry(0.18, 8, 6), new gfx.three.MeshBasicMaterial({ color: D.color, transparent: true, opacity: D.opacity, depthWrite: false }));
     m.visible = false; puffs.add(m); return m;
   });
   let lastStride = 0, nextPuff = 0;
@@ -89,7 +91,7 @@ export async function cowView(gfx, def, { load, skin = SKIN, bones = BONES, dres
         if (age < 0 || age > 0.35) { p.visible = false; continue; } // a negative age is a puff from a clock that has since restarted
         p.position.set(p.userData.x - run.x, 0.1 - run.y, p.userData.z - run.z); // a child of the root, so world x and y are held by countering the root
         p.scale.setScalar(0.6 + age * 3);
-        p.material.opacity = 0.5 * (1 - age / 0.35);
+        p.material.opacity = D.opacity * (1 - age / 0.35);
       }
     },
     dispose() { pool.forEach((p) => p.material.dispose()); gfx.dispose(root); },

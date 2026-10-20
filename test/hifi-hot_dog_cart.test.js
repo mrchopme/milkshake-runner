@@ -42,6 +42,8 @@ test('the HiFi hot dog cart\'s body fills the jump box on the road, broadside to
 test('the HiFi hot dog cart shows its +x side to the player, with one glossy paint for every copy', () => {
   const a = def.createView(gfx, {}).object, b = def.createView(gfx, {}).object;
   assert.ok(part(a, 'face').getWorldPosition(new T.Vector3()).z < bounds(part(a, 'body')).getCenter(new T.Vector3()).z - 0.1, 'the +x face looks toward the camera, at -z');
+  // re-pinned from clearcoat 0.6 / 0.2 (Caedon, board 29 pick 4): the gloss cut across every glossy model
+  assert.ok(paint(a).clearcoat === 0.3 && paint(a).clearcoatRoughness === 0.4, 'satin');
   assert.ok(paint(a).clearcoat > 0 && paint(a).metalness === 0 && paint(a).metalnessMap === null, 'glossy, and not the random metal Tripo left in');
   assert.equal(paint(a), paint(b), 'every cart shares one paint material, umbrella and body');
   let parts = 0; a.traverse((n) => { if (n.isMesh) { parts++; assert.equal(n.material, paint(a), `${n.name} wears the shared paint`); } });

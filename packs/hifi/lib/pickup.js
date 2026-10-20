@@ -5,14 +5,18 @@ import { gloss, glowMap, painter } from './paint.js';
 
 const SPHERE = { r: 0.4, y: 0.9 };
 // Tripo marks parts metallic at random, which reads as dark paint (Task 23 ruling): metalness off, the roughness map stays.
-const PAINT = { metalness: 0, metalnessMap: null, clearcoat: 1, clearcoatRoughness: 0.15 }; // ponytail: calibration knobs
+// ponytail: calibration knobs — a satin coat and reflections below look.js's REFLECT (was 1 / 0.15 at 0.85; Caedon, board 29 pick 4):
+// the full coat mirrored the sun ahead and blew the jug out into a white column at dusk.
+const PAINT = { metalness: 0, metalnessMap: null, clearcoat: 0.3, clearcoatRoughness: 0.4 }, REFLECT = 0.3;
 
 // yaw: turns the model's front (+x) toward the player (-z). glow: { test, intensity } lights the texels `test` accepts, in their own shape.
 export function pickupOverlay(id, { yaw, glow }) {
   const path = `hifi/${id}.glb`;
   const paint = painter((T, m) => { // generated material -> a copy of it under a glossy clearcoat, its lit texels glowing
     const lit = glow && glowMap(T, m.map, glow.test);
-    return gloss(T, m, lit ? { ...PAINT, emissive: '#ffffff', emissiveMap: lit, emissiveIntensity: glow.intensity } : PAINT);
+    const p = gloss(T, m, lit ? { ...PAINT, emissive: '#ffffff', emissiveMap: lit, emissiveIntensity: glow.intensity } : PAINT);
+    p.userData.reflect = REFLECT; // on the copied userData: setValues would replace it, and with it the shared flag
+    return p;
   });
   let parts; // { scale, offset }, measured from the first copy
   return {

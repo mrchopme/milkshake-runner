@@ -39,6 +39,8 @@ test('the HiFi barrier shows its face to the player, with one glossy paint for e
   const faces = []; a.traverse((n) => { if (n.name === 'face') faces.push(n); });
   assert.equal(faces.length, 1);
   for (const f of faces) assert.ok(f.getWorldPosition(new T.Vector3()).z < bounds(f.parent).getCenter(new T.Vector3()).z - 0.1, 'the +x face looks toward the camera, at -z');
+  // re-pinned from clearcoat 0.6 / 0.2 (Caedon, board 29 pick 4): the gloss cut across every glossy model
+  assert.ok(paint(a).clearcoat === 0.3 && paint(a).clearcoatRoughness === 0.4, 'satin');
   assert.ok(paint(a).clearcoat > 0 && paint(a).metalness === 0 && paint(a).metalnessMap === null, 'glossy, and not the random metal Tripo left in');
   assert.equal(paint(a), paint(b), 'every barrier shares one paint material');
 });

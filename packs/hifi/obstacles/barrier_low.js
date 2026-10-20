@@ -6,7 +6,7 @@ import { gloss, painter } from '../lib/paint.js';
 
 const YAW = Math.PI / 2; // ponytail: calibration knob — the model's long side runs along z and its face looks +x; +π/2 turns the face to the player (-z) and the long side across the lane
 // metalness 0: Tripo marks parts metallic at random, which reads as dark paint (Task 23 ruling); the roughness map stays
-const paint = painter((T, m) => gloss(T, m, { clearcoat: 0.6, clearcoatRoughness: 0.2, metalness: 0, metalnessMap: null }));
+const paint = painter((T, m) => gloss(T, m, { clearcoat: 0.3, clearcoatRoughness: 0.4, metalness: 0, metalnessMap: null }));
 
 let fit; // { scale, offset }, measured from the first copy: the turned model's bounds stretched onto the box, centred, on the road
 
