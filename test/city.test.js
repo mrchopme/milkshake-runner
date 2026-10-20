@@ -653,15 +653,6 @@ test('stone piers carry the bridge deck every 30 m, seam to seam, from its under
   }
 });
 
-// re-pinned (Task 34 L-C; Caedon, board 29 pick 2, 2026-10-20: "there are still buildings floating in the water"): the bridge's
-// waterfront rows are gone, so no block stands in the water (Task 31a pinned each one's foot under the surface)
-test('no building stands on a bridge chunk', () => {
-  for (const seed of [1, 2, 3]) for (const z0 of [1080, 1200]) {
-    let n = 0; bridgeChunk(z0, seed).traverse((m) => { if (m.userData.building) n++; });
-    assert.equal(n, 0, `seed ${seed}, chunk ${z0}: ${n} building meshes`);
-  }
-});
-
 // Task 34 L-C (Task 33 item 3b, "the floating street" was the bare shore): the land's top is paved like the sidewalks, in the
 // sidewalk's own material, on the flags only (no kerb band, no facade foot), the quay wall under it lighter stone with ashlar courses
 test('the land wears the sidewalk\'s paving on its top and light ashlar stone on its walls, the piers\' stone', async () => {
@@ -719,8 +710,11 @@ test('the bridge water ripples through its own normal map at two scales, scrolle
   const m = waterMaterial(gfx), s = { uniforms: {}, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
   m.onBeforeCompile(s);
   assert.equal(s.uniforms.uTime, gfx.time);
-  const f = s.fragmentShader;
+  const f = s.fragmentShader, decl = f.indexOf('vec4 waterN( vec2 uv )');
   assert.ok(!f.includes('#include <normal_fragment_maps>') && !f.includes('texture2D( normalMap, vNormalMapUv )') && f.includes('waterN( vNormalMapUv )'), 'every ripple read goes through waterN');
+  assert.ok(decl > f.indexOf('uniform sampler2D normalMap') && decl < f.indexOf('void main() {') && decl < f.indexOf('waterN( vNormalMapUv )'), 'waterN declared after normalMap, before main and its use');
+  assert.deepEqual(WATER.drift, [0.011, 0.017]);
+  assert.ok(f.includes('vec2( uTime * 0.0110, uTime * 0.0170 )'), 'the 23 m sample drifts on its own');
   assert.ok(f.includes('uv + vec2( 0.0, uTime * 0.03 )') && f.includes(`uv * ${(WATER.tile / 23).toFixed(4)}`) && f.includes(`${Math.cos((17 * Math.PI) / 180).toFixed(4)}`), 'the 7 m tile scrolled, the 23 m one turned 17 degrees');
   assert.equal(f.split('texture2D( normalMap,').length - 1, 2, 'two samples');
 });

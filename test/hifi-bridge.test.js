@@ -181,6 +181,11 @@ test('the water, retuned: a steel blue, faint reflections, finer ripples, facets
   assert.ok(n.magFilter === THREE.LinearFilter && n.minFilter === THREE.LinearMipmapLinearFilter && n.generateMipmaps, 'the ripple map filtered and mipmapped');
 });
 
+test('a bridge chunk takes one draw from the scenery stream, as at 15f00b7, so the cities after it keep their seeds', () => {
+  const r = rng(7); bridge.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: r, theme }); const base = rng(7); base();
+  assert.equal(r(), base(), 'the next draw after a bridge chunk is the one after a single draw');
+});
+
 test('the deck chunk stays under the mesh cap with railings loaded', () => {
   for (const seed of [1, 2, 3]) { let meshes = 0; chunk(1200, seed).traverse((n) => { if (n.isMesh) meshes++; }); assert.ok(meshes <= 45, `${meshes} meshes`); }
 });

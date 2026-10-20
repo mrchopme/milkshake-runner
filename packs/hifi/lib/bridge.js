@@ -14,9 +14,11 @@ import { DASH, EDGE, PAVE, KERB, pavingTexture, asphaltTexture, tintedMaterial }
 // meets water, not a pale band. Retuned (board 25): a steel blue (aim: the frames' #4679b2-#628db7 with #aee1f7 glints), env 0.2
 // (look.js honours userData.reflect while roughness <= 0.15, so 0.15 is the most satin it can be), a 7 m ripple tile, 60 facets
 // across, and its own fog from `fogNear` m in the fog's colour (the bridge look's height-fog shade would darken it below the deck).
-// A second ripple sample `tile2` m turned `turn` degrees, averaged in (Task 33 P3, Task 34 L-C: the one 7 m tile read as a checker).
-export const WATER = { y: -2.5, below: 1.5, half: 300, color: '#2f6fb0', rough: 0.15, reflect: 0.2, tile: 7, tile2: 23, turn: 17, segs: 60, fogNear: 40, scroll: 0.03 };
-// ponytail: the walkway as high as the street's kerb (Task 34 L-C, was 0.25: a 7 cm step where the deck meets the sidewalk)
+// A second ripple sample `tile2` m turned `turn` degrees, drifting `drift` (uv a second, x and y), averaged in (Caedon, board 28,
+// Task 33 plan L-C "two-scale water normal", 2026-10-19: the one 7 m tile read as a checker).
+export const WATER = { y: -2.5, below: 1.5, half: 300, color: '#2f6fb0', rough: 0.15, reflect: 0.2, tile: 7, tile2: 23, turn: 17, drift: [0.011, 0.017], segs: 60, fogNear: 40, scroll: 0.03 };
+// ponytail: the walkway as high as the street's kerb (Caedon, board 28, Task 33 plan L-C "walkway step 0.25 -> 0.18", 2026-10-19:
+// was 0.25, a 7 cm step where the deck meets the sidewalk)
 const DECK = { w: 16, road: '#5a596e', walk: '#a9a8b6', walkW: 3, walkH: KERB, edge: 0.3, paint: '#f2f2f2' }; // edge lines at ±(roadHalf + edge)
 // as wide as the deck (the portal's as its legs), its top 0.1 m up inside the deck's 1 m slab; an abutment `abut` m long under each
 // deck end (Task 34 L-C): every bridge chunk has both, since a chunk cannot know it is its stretch's first or last, so a bridge seam
@@ -34,8 +36,8 @@ const RAIL = { pitch: 4, height: 1.1, inset: 0.25 }, STEEL = { color: '#7aa6d4',
 // to `x`; tube `step` m a ring (cheapest trim: radial 24 -> 12).
 const PORTAL = { every: 120, at: 45, top: 45, w: 3.2, d: 2.8, x: 9.7, beam: 1.8, beam2: 28, brace: 0.8 };
 const CABLE = { r: 0.35, radial: 24, x: 8.0, low: 2.2, saddle: 1, step: 2, collar: { r: 0.5, len: 1.2 }, hanger: { r: 0.06, every: 5 } };
-// ponytail: the theme's darkest building colour × dry; × wet below `band` above the water. dry 1.0 (Task 33 P3, Task 34 L-C; was 0.7:
-// the near-black quay face read as a floating street). Ashlar courses `course` tall, blocks `block` long, joints `joint` at `jointTone`,
+// ponytail: the theme's darkest building colour × dry; × wet below `band` above the water. dry 1.0 (Caedon, board 28, Task 33 plan L-C
+// "lighter land stone", 2026-10-19; was 0.7: the near-black quay face read as a floating street). Ashlar courses `course` tall, blocks `block` long, joints `joint` at `jointTone`,
 // blocks ±`tone` in tone, on metre UVs.
 const STONE = { dry: 1.0, wet: 0.5, band: 0.6, row: 0.25, course: 0.5, block: 1.2, joint: 0.04, jointTone: 0.7, tone: 0.07 };
 const PIER_COLORS = ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3']; // the piers' stone: downtown's building colours
@@ -83,7 +85,7 @@ export function waterMaterial(gfx) {
     m.onBeforeCompile = (s) => { // vNormalMapUv is a varying, read-only here: offset the uv where the chunk samples it
       s.uniforms.uTime = gfx.time;
       const waterN = `vec4 waterN( vec2 uv ) {
-  vec2 b = mat2( ${f(Math.cos(a))}, ${f(Math.sin(a))}, ${f(-Math.sin(a))}, ${f(Math.cos(a))} ) * uv * ${f(WATER.tile / WATER.tile2)} + vec2( uTime * 0.011, uTime * 0.017 );
+  vec2 b = mat2( ${f(Math.cos(a))}, ${f(Math.sin(a))}, ${f(-Math.sin(a))}, ${f(Math.cos(a))} ) * uv * ${f(WATER.tile / WATER.tile2)} + vec2( uTime * ${f(WATER.drift[0])}, uTime * ${f(WATER.drift[1])} );
   return 0.5 * ( texture2D( normalMap, uv + vec2( 0.0, uTime * ${WATER.scroll.toFixed(2)} ) ) + texture2D( normalMap, b ) );
 }
 void main() {`;
@@ -117,6 +119,7 @@ export function stone(gfx, colors, w, top, d) {
 
 export function bridgeChunk(gfx, args, style) {
   const T = gfx.three, { z0, length, lanes } = args, g = gfx.group(), zc = z0 + length / 2, end = z0 + length;
+  args.rng(); // the one draw the chunk's waterfront rows took (gone, Task 34 L-C): kept, so the scenery stream through a bridge chunk stays where 15f00b7 left it and the cities after it do not reshuffle
   const half = DECK.w / 2, roadHalf = half - DECK.walkW, P = PORTAL, C = CABLE;
   const tinted = (...a) => tintedMaterial(T, style, ...a);
   // the deck on the asphalt grain, and the walkways on it: a kerb face toward the road, the paving's UVs as street.js's
@@ -146,7 +149,8 @@ export function bridgeChunk(gfx, args, style) {
   g.add(pierMesh);
   // an abutment under each deck end, so leaving the bridge you never see under the street (Task 34 L-C); one mesh for both
   if (PIER.abut > 0) {
-    const ends = [z0 + PIER.abut / 2, end - PIER.abut / 2].map((z) => stone(gfx, PIER_COLORS, DECK.w, PIER.top, PIER.abut).geometry.translate(0, 0, z));
+    const one = stone(gfx, PIER_COLORS, DECK.w, PIER.top, PIER.abut).geometry, ends = [z0 + PIER.abut / 2, end - PIER.abut / 2].map((z) => one.clone().translate(0, 0, z));
+    one.dispose();
     const abut = new T.Mesh(mergeGeometries(ends), pier.material);
     ends.forEach((x) => x.dispose());
     abut.userData.abutment = true;
