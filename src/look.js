@@ -6,7 +6,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CSM } from 'three/addons/csm/CSM.js';
 import { texture } from './assets.js';
-import { fogCut, fogShade, fogHeight, heading, hook } from './gfx.js';
+import { fogCut, fogShade, fogHeight, heading, hook, bendOffset, bendStart } from './gfx.js';
 
 // The HiFi look (spec §4): tone mapping, sun shadows, studio reflections, a gradient sky and bloom, from a theme's `look`.
 // main.js loads this file only in HiFi sessions; without a look the engine renders exactly as before.
@@ -176,12 +176,25 @@ const SKY_FRAG = /* glsl */`
 // The skyline rings: radii (far, near), foot below the camera, yaw, the old foot fade (a fraction of the ring's height) and the
 // haze's band (metres over which the opaque foot lets go). ponytail: calibration knobs.
 const RING = { radius: [360, 330], base: -14, yaw: 0, fade: 0.08, band: 4 };
-// ringTexel in GLSL, after three's map_fragment (uv.y runs 0 at the ring's foot to 1 at its top).
+// The rings follow the bent street (Task 33 pick 5, Caedon, board 28: "follow the road, the sky holds"): each slides by the
+// street's offset o at BG_DEPTH m past the bend start times R / d (d: that depth from the camera), so it keeps the angle the
+// street has there (K 1; about d / R = 0.46 would stand it at its own depth on the street). On a turn the far city slides with
+// the road, on a hill it sinks or rises with it; the dome, its horizon and the sun disc stay camera-centred, and heading still
+// turns the rings. ponytail: calibration knob. 140 = world's AHEAD 200 - BEND_LEAD 40 - DEAD 20, the deepest z whose every
+// stretch is already in the uniforms (deeper, an entering stretch pops the skyline 14-20 degrees in a metre); 180 once
+// main's f483688 (the uniforms list builtTo + BEND_LEAD) is on this branch.
+export const BG_DEPTH = 140;
+export function ringShift(camZ, radius) {
+  const zq = bendStart.value + BG_DEPTH, o = bendOffset(zq), k = radius / Math.max(1, zq - camZ);
+  return { x: o.x * k, y: o.y * k };
+}
+// ringTexel in GLSL, after three's map_fragment (uv.y runs 0 at the ring's foot to 1 at its top). `up` is over the ring's own
+// eye-level place: vRingLift takes off what ringShift moved it, so the hazed foot stays at its foot on a hill.
 const RING_FRAG = /* glsl */`#include <map_fragment>
   vec3 rc = diffuseColor.rgb * hazeMul;
   rc = min( rc * mix( 1.0, hazeLuma / max( dot( rc, vec3( 0.2126, 0.7152, 0.0722 ) ), 0.02 ), hazeFlatten ), vec3( 1.0 ) );
   rc = mix( rc, hazeColor, mix( hazeMix.x, hazeMix.y, vRingY ) );
-  float ringUp = vRingWorld.y - cameraPosition.y, ringCutY = cameraPosition.y + ringUp * hazeFar / max( length( vRingWorld.xz - cameraPosition.xz ), 1.0 );
+  float ringUp = vRingWorld.y - cameraPosition.y - vRingLift, ringCutY = cameraPosition.y + ringUp * hazeFar / max( length( vRingWorld.xz - cameraPosition.xz ), 1.0 );
   vec3 footColor = mix( uFogShade, ringFog, smoothstep( uFogHeight.x, uFogHeight.y, ringCutY ) );
   float ringFoot = hazeOn > 0.5 ? 1.0 - smoothstep( hazeFoot, hazeFoot + ${RING.band.toFixed(1)}, ringUp ) : 1.0 - smoothstep( 0.0, ${RING.fade.toFixed(3)}, vRingY );
   diffuseColor = vec4( mix( rc, footColor, ringFoot ), hazeOn > 0.5 ? max( diffuseColor.a, ringFoot ) : diffuseColor.a );`;
@@ -219,8 +232,8 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
     const mat = new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, ringU);
-      sh.vertexShader = sh.vertexShader.replace('void main() {', 'varying float vRingY;\nvarying vec3 vRingWorld;\nvoid main() {\n  vRingY = uv.y;\n  vRingWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;');
-      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, ringFog, uFogShade;\nuniform vec2 hazeMix, uFogHeight;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot, hazeFar;\nvarying float vRingY;\nvarying vec3 vRingWorld;\nvoid main() {')
+      sh.vertexShader = sh.vertexShader.replace('void main() {', `varying float vRingY, vRingLift;\nvarying vec3 vRingWorld;\nvoid main() {\n  vRingY = uv.y;\n  vRingLift = modelMatrix[ 3 ].y - cameraPosition.y - (${RING.base.toFixed(1)});\n  vRingWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;`); // a ring's meshes sit at its group's origin
+      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, ringFog, uFogShade;\nuniform vec2 hazeMix, uFogHeight;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot, hazeFar;\nvarying float vRingY, vRingLift;\nvarying vec3 vRingWorld;\nvoid main() {')
         .replace('#include <map_fragment>', RING_FRAG);
     };
     return mat;
@@ -354,10 +367,11 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
       }
       lastCam.copy(camera.position);
       dome.position.copy(camera.position);
-      for (const r of rings) {
-        r.position.set(camera.position.x, camera.position.y + RING.base, camera.position.z);
+      rings.forEach((r, i) => {
+        const p = camera.position, o = ringShift(p.z, RING.radius[i]); // slid with the bent street
+        r.position.set(p.x + o.x, p.y + RING.base + o.y, p.z);
         r.rotation.y = r.userData.yaw + heading.value; // turned with the street: after a turn, what lay at its far end faces the avenue
-      }
+      });
       const v = `${camera.fov} ${camera.aspect}`;
       if (v !== view) { view = v; csm.updateFrustums(); } // the speed-eased fov and resizes move the cascade splits
       camera.updateMatrixWorld(); // follow() moved the camera since the last render
