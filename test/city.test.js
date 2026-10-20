@@ -372,26 +372,28 @@ test('nothing but the traffic lights within 2 m of the side street, at most one 
   }
 });
 
-test('a crossing\'s two traffic lights stand on diagonal corners, one before the side street and one past it across the avenue, facing the road (Caedon, board 19)', () => {
-  const nearSides = new Set(), m = new THREE.Matrix4();
+test('a crossing\'s two traffic lights stand on the far corners, one each side, heads facing -z at the runner (Caedon, board 29)', () => {
+  const m = new THREE.Matrix4();
   for (let seed = 1; seed <= 100; seed++) {
     const length = seed % 2 ? 120 : 100, g = chunk(seed, 0, length), cz = g.userData.cross.z; // 100 m: the shortest chunk with a crossing, nearest its end
     let mesh; g.traverse((n) => { if (n.userData.furniture === 'traffic_light') mesh ??= n; }); // the stand-in: one part, so one mesh
     const lights = [];
+    // z: 1.22 m past the paving, the 1.44 m base's half plus 0.5 (main session, fix round 1: at 0.5 the base reached 0.22 m onto it)
+    // the lens: the piece's front, local +z after the kit's FRONT (the stand-in's matrix is the identity), through at()'s turn
     for (let i = 0; i < mesh.count; i++) { mesh.getMatrixAt(i, m); lights.push({ x: m.elements[12], z: m.elements[14], face: new THREE.Vector3(0, 0, 1).transformDirection(m) }); }
     assert.equal(lights.length, 2, `seed ${seed}: ${lights.length} signals`);
-    const [near, far] = lights.sort((a, b) => a.z - b.z);
-    assert.ok(near.z < cz && far.z > cz + CROSS.width, `seed ${seed}: signals at z ${near.z} and ${far.z}, the side street ${cz} to ${cz + CROSS.width}`);
-    assert.ok(Math.sign(near.x) === -Math.sign(far.x), `seed ${seed}: both on the ${near.x > 0 ? 'right' : 'left'}`);
-    for (const l of lights) assert.ok(l.face.x * Math.sign(l.x) < -0.99, `seed ${seed}: the signal at x ${l.x} turns from the road`);
-    assert.ok(near.z - FOOT.traffic_light[1] >= SEAM && far.z + FOOT.traffic_light[1] <= length - SEAM, `seed ${seed}: a signal past the chunk's seam`);
-    nearSides.add(Math.sign(near.x));
+    assert.deepEqual(lights.map((l) => Math.sign(l.x)).sort(), [-1, 1], `seed ${seed}: both on one side`);
+    for (const l of lights) {
+      assert.ok(Math.abs(Math.abs(l.x) - 5.28) < 1e-6 && Math.abs(l.z - (cz + CROSS.width + 1.22)) < 1e-4, `seed ${seed}: a signal at ${l.x}, ${l.z}, the side street ${cz} to ${cz + CROSS.width}`);
+      assert.ok(l.face.z < -0.99, `seed ${seed}: the signal at x ${l.x} faces ${l.face.toArray().map((v) => v.toFixed(2))}, not -z`);
+      assert.ok(l.z + FOOT.traffic_light[1] <= length - SEAM, `seed ${seed}: a signal past the chunk's seam`);
+    }
   }
-  assert.equal(nearSides.size, 2, 'the near corner falls on either side');
 });
 
 // The kerb's rhythm (Task 32; Caedon, 2026-10-15: "Regular rhythm like the frames", board 24 "Ship as prototyped"; it reverses board 18's
-// random stretches): per side a tree every 8-10 m in a pit, a lamp halfway between every second pair, planters at shop doors.
+// random stretches): per side a tree every 11-14 m in a pit (Task 33 pick 3, board 28: the small trees, 8-10 m before), a lamp halfway
+// between every second pair, planters at shop doors.
 const pieces = (g) => { let n = 0; const first = new Set(); g.traverse((m) => { const k = m.userData.furniture; if (k && !first.has(k)) { first.add(k); n += m.count; } }); return n; }; // one instance a piece in each of its kind's part meshes
 const THEMES = ['downtown', 'midtown', 'uptown'];
 const themeChunk = async (id) => { const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }; return (seed, z0 = 0) => hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }); };
@@ -407,6 +409,18 @@ const placed = (g) => { // per side: each kind's instances (the first of its par
   return out;
 };
 
+// rules § Invariants: the chunk's stream leaves furniture at the same point whatever fits where (put()'s tries hash from their place),
+// so moving a piece (Task 33's trees, x 6.0 -> 7.6) reshuffles no later part (traffic) nor the stills
+test('the furniture draws as much of the chunk\'s stream whatever fits: the same next draw with the trees moved and planters added', () => {
+  const after = (seed, x, blocks) => { const r = rng(seed), was = RHYTHM.trees; RHYTHM.trees = { tree: x, tree2: x }; try { furniture(gfx, { z0: 120, length: 120 }, null, r, seed % 2 ? { z: 170 } : null, blocks); } finally { RHYTHM.trees = was; } return r(); };
+  const shops = [-1, 1].flatMap((side) => [0, 1, 2, 3].map((i) => ({ side, z0: 125 + 28 * i, z1: 150 + 28 * i, shop: 0 })));
+  for (let seed = 1; seed <= 200; seed++) {
+    const want = after(seed, RHYTHM.trees.tree);
+    assert.equal(after(seed, 6.0), want, `seed ${seed}: the trees at x 6.0 moved the stream`);
+    assert.equal(after(seed, RHYTHM.trees.tree, shops), want, `seed ${seed}: the planters moved the stream`);
+  }
+});
+
 test('the same seed places the same furniture, and another seed different extras', () => {
   const at = (seed) => { const out = []; furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 50 }).traverse((n) => { if (n.isInstancedMesh) out.push(n.userData.furniture, ...n.instanceMatrix.array); }); return out.join(); };
   assert.equal(at(7), at(7));
@@ -415,10 +429,13 @@ test('the same seed places the same furniture, and another seed different extras
 
 // per side: the footprints along z (a tree's its pit) as [z0, z1], sorted; the empty stretches are the holes between them
 const spans = (by, s) => Object.entries(by[s]).filter(([k]) => k !== 'tree').flatMap(([k, list]) => list.map(({ z }) => { const h = k === 'pit' ? PITS.size / 2 : FOOT[k][1]; return [z - h, z + h]; }));
-const holes = (iv, from, at) => { iv.sort((a, b) => a[0] - b[0]); let reach = from; for (const [a, b] of iv) { assert.ok(a - reach <= 10 + 1e-4, `${at}: ${(a - reach).toFixed(2)} m empty from z ${reach.toFixed(2)}`); reach = Math.max(reach, b); } };
+// the longest empty stretch: a pitch (Task 33 pick 3: the pit to pit run where no lamp stands, P - 1.5 m, up to 12.5 at P 14; 10 m at 8-10)
+const EMPTY = RHYTHM.pitch[1];
+const holes = (iv, from, at) => { iv.sort((a, b) => a[0] - b[0]); let reach = from; for (const [a, b] of iv) { assert.ok(a - reach <= EMPTY + 1e-4, `${at}: ${(a - reach).toFixed(2)} m empty from z ${reach.toFixed(2)}`); reach = Math.max(reach, b); } };
 const sideStreet = (g) => { const cz = g.userData.cross.z; return [cz - CLEAR, cz + CROSS.width + CLEAR]; };
 
-test('one tree pitch of 8-10 m a chunk, the +x trees halfway between the -x ones; a lamp every 2P (16-20 m) halfway between two trees, no empty stretch over 10 m', async (t) => {
+test('one tree pitch of 11-14 m a chunk, the +x trees halfway between the -x ones; a lamp every 2P (22-28 m) halfway between two trees, no empty stretch over a pitch', async (t) => {
+  assert.deepEqual(RHYTHM.pitch, [11, 14], 'Task 33 pick 3 (board 28): the small trees\' pitch');
   for (const id of THEMES) {
     const make = await themeChunk(id);
     let n = 0, N = 0;
@@ -437,7 +454,7 @@ test('one tree pitch of 8-10 m a chunk, the +x trees halfway between the -x ones
         for (const z of lamps) assert.ok(slot(z, s < 0 ? 0 : 0.5), `${at}: a lamp at z ${z.toFixed(2)}, not halfway between two trees`);
         // every 2P from the chunk's start (+x from 0.5P to length - 0.5P); -x's last at length - P, the one short gap its odd n costs
         const grid = lamps.filter((z) => s > 0 || Math.abs(z - z0 - 120 + P) > 1e-3);
-        assert.ok(lamps.length >= 3 && 2 * P >= 10 - 1e-6 && 2 * P <= 20 + 1e-6, `${at}, side ${s}: ${lamps.length} lamps, a ${(2 * P).toFixed(2)} m lamp pitch`);
+        assert.ok(lamps.length >= 3 && 2 * P >= 2 * RHYTHM.pitch[0] - 1e-6 && 2 * P <= 2 * RHYTHM.pitch[1] + 1e-6, `${at}, side ${s}: ${lamps.length} lamps, a ${(2 * P).toFixed(2)} m lamp pitch`);
         for (const z of grid) assert.ok(slot((z - z0) / 2 + z0, s < 0 ? 0.5 : 0.75), `${at}, side ${s}: a lamp at z ${z.toFixed(2)} off the 2P grid`);
         assert.ok(s > 0 || grid.length === lamps.length - 1, `${at}: -x's lamp at length - P`);
         // the 2 m seams are the two-chunk test's
@@ -446,11 +463,11 @@ test('one tree pitch of 8-10 m a chunk, the +x trees halfway between the -x ones
     }
     const mean = n / N;
     t.diagnostic(`${id}: ${mean.toFixed(1)} pieces a chunk`);
-    assert.ok(mean >= 45 && mean <= 70, `${id}: ${mean.toFixed(1)} pieces a chunk (the prototype's rhythm with planters: about 58)`);
+    assert.ok(mean >= 35 && mean <= 60, `${id}: ${mean.toFixed(1)} pieces a chunk (Task 33 pick 3's wider pitch: 41-49 measured; 58 at Task 32's 8-10 m)`);
   }
 });
 
-test('across a seam: no empty stretch over 10 m on either side, the lamps P to 2P apart (two chunks, z0 and z0 + 120)', async () => {
+test('across a seam: no empty stretch over a pitch on either side, the lamps P to 2P apart (two chunks, z0 and z0 + 120)', async () => {
   for (const id of THEMES) {
     const make = await themeChunk(id);
     for (let seed = 1; seed <= 60; seed++) {
@@ -458,7 +475,7 @@ test('across a seam: no empty stretch over 10 m on either side, the lamps P to 2
       for (const s of [-1, 1]) {
         holes([...spans(a, s), ...spans(b, s), [-Infinity, z0 + 60], [z0 + 180, Infinity], sideStreet(A), sideStreet(B)], z0, `${at}, side ${s}`);
         const last = a[s].lamp.at(-1).z, first = b[s].lamp[0].z;
-        assert.ok(first - last >= RHYTHM.pitch[0] - 1e-3 && first - last <= 20 + 1e-3, `${at}, side ${s}: lamps ${(first - last).toFixed(2)} m apart across the seam`);
+        assert.ok(first - last >= RHYTHM.pitch[0] - 1e-3 && first - last <= 2 * RHYTHM.pitch[1] + 1e-3, `${at}, side ${s}: lamps ${(first - last).toFixed(2)} m apart across the seam`);
       }
     }
   }
@@ -477,7 +494,9 @@ test('the kerb draws both tree models, about half each, slot by slot from its pl
   assert.equal(kinds(furniture(gfx, { z0: 240, length: 120 }, null, rng(3), null)), kinds(furniture(gfx, { z0: 240, length: 120 }, null, rng(4), null)), 'the same place, the same model, whatever the chunk\'s seed');
 });
 
-test('a flush pit stands under every tree, one instanced mesh a chunk; trees come in sizes 0.75-0.9, turned in 90 degree steps', async () => {
+test('a flush pit stands under every tree, one instanced mesh a chunk; trees come in sizes 0.55-0.68 on the back half of the sidewalk, turned in 90 degree steps', async () => {
+  assert.deepEqual(RHYTHM.scale, [0.55, 0.68], 'Task 33 pick 3 (board 28): the small trees, 3.3-4.1 m');
+  for (const x of Object.values(RHYTHM.trees)) assert.ok(x > (lanes.roadHalf + FACADE_X) / 2, `trees at x ${x}, not on the sidewalk's back half`);
   const make = await themeChunk('downtown'), sizes = new Set(), turns = new Set(), p = new THREE.Vector3(), q = new THREE.Quaternion(), k = new THREE.Vector3(), e = new THREE.Euler();
   for (let seed = 1; seed <= 20; seed++) {
     const g = make(seed, 120 * seed), by = placed(g);
