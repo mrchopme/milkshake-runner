@@ -97,11 +97,11 @@ export function rigOf(s, { fog, hemi, dir }) {
 export const blendRig = (a, b, t) => typeof b === 'number' ? a * (1 - t) + b * t : Array.isArray(b) ? b.map((v, i) => blendRig(a[i], v, t)) : Object.fromEntries(Object.entries(b).map(([k, v]) => [k, blendRig(a[k], v, t)]));
 
 // The skyline ring's texel, as its shader computes it (RING_FRAG) over the same rig: what the tests exercise; the GLSL is checked
-// by eye. rgba is the image's texel, v its height up the ring (0 foot, 1 top), up its world height over the camera in metres,
-// cutY the height where its sight line crosses the fog cut. With a skylineHaze: the texel times `mul`, its luma pulled
-// `flatten` of the way to the haze colour's (the window grids go, the hue stays), mixed toward the haze colour by mix[0] at the
-// foot to mix[1] at the top; under `foot` m about eye level it turns opaque in the height fog's colour at the cut, so the fogged
-// street meets it with no band. Without one, the foot fades to the fog colour over its lowest RING.fade, as before Task 32.
+// by eye. rgba is the image's texel, v its height up the ring (0 foot, 1 top), up its height in metres over the camera as if the
+// ring were unmoved (the shader takes off what ringShift slid it, vRingShift), cutY where that sight line crosses the fog cut.
+// With a skylineHaze: the texel times `mul`, its luma pulled `flatten` of the way to the haze colour's (the window grids go, the
+// hue stays), mixed toward the haze colour by mix[0] at the foot to mix[1] at the top; under `foot` m about eye level it turns
+// opaque in the height fog's colour at the cut, so the fogged street meets it with no band. Without one, the foot fades to the fog colour over its lowest RING.fade, as before Task 32.
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 export function ringTexel([r, g, b, a], { v, up, cutY }, { haze: h, fog, shade, fogY }) {
   let c = [r, g, b].map((x, i) => x * h.mul[i]);
@@ -188,13 +188,15 @@ export function ringShift(camZ, radius) {
   const zq = bendStart.value + BG_DEPTH, o = bendOffset(zq), k = radius / Math.max(1, zq - camZ);
   return { x: o.x * k, y: o.y * k };
 }
-// ringTexel in GLSL, after three's map_fragment (uv.y runs 0 at the ring's foot to 1 at its top). `up` is over the ring's own
-// eye-level place: vRingLift takes off what ringShift moved it, so the hazed foot stays at its foot on a hill.
+// ringTexel in GLSL, after three's map_fragment (uv.y runs 0 at the ring's foot to 1 at its top). Its up and cut are measured as
+// for an unmoved ring: vRingShift (what ringShift slid it) comes off both, so the hazed foot stays at its foot on a hill and the
+// cut keeps the ring's own radius on a turn.
 const RING_FRAG = /* glsl */`#include <map_fragment>
   vec3 rc = diffuseColor.rgb * hazeMul;
   rc = min( rc * mix( 1.0, hazeLuma / max( dot( rc, vec3( 0.2126, 0.7152, 0.0722 ) ), 0.02 ), hazeFlatten ), vec3( 1.0 ) );
   rc = mix( rc, hazeColor, mix( hazeMix.x, hazeMix.y, vRingY ) );
-  float ringUp = vRingWorld.y - cameraPosition.y - vRingLift, ringCutY = cameraPosition.y + ringUp * hazeFar / max( length( vRingWorld.xz - cameraPosition.xz ), 1.0 );
+  vec3 ringAt = vRingWorld - cameraPosition - vRingShift;
+  float ringUp = ringAt.y, ringCutY = cameraPosition.y + ringUp * hazeFar / max( length( ringAt.xz ), 1.0 );
   vec3 footColor = mix( uFogShade, ringFog, smoothstep( uFogHeight.x, uFogHeight.y, ringCutY ) );
   float ringFoot = hazeOn > 0.5 ? 1.0 - smoothstep( hazeFoot, hazeFoot + ${RING.band.toFixed(1)}, ringUp ) : 1.0 - smoothstep( 0.0, ${RING.fade.toFixed(3)}, vRingY );
   diffuseColor = vec4( mix( rc, footColor, ringFoot ), hazeOn > 0.5 ? max( diffuseColor.a, ringFoot ) : diffuseColor.a );`;
@@ -232,8 +234,8 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
     const mat = new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, ringU);
-      sh.vertexShader = sh.vertexShader.replace('void main() {', `varying float vRingY, vRingLift;\nvarying vec3 vRingWorld;\nvoid main() {\n  vRingY = uv.y;\n  vRingLift = modelMatrix[ 3 ].y - cameraPosition.y - (${RING.base.toFixed(1)});\n  vRingWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;`); // a ring's meshes sit at its group's origin
-      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, ringFog, uFogShade;\nuniform vec2 hazeMix, uFogHeight;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot, hazeFar;\nvarying float vRingY, vRingLift;\nvarying vec3 vRingWorld;\nvoid main() {')
+      sh.vertexShader = sh.vertexShader.replace('void main() {', `varying float vRingY;\nvarying vec3 vRingWorld, vRingShift;\nvoid main() {\n  vRingY = uv.y;\n  vRingShift = modelMatrix[ 3 ].xyz - cameraPosition - vec3( 0.0, ${RING.base.toFixed(1)}, 0.0 );\n  vRingWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;`); // a ring's meshes sit at its group's origin
+      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, ringFog, uFogShade;\nuniform vec2 hazeMix, uFogHeight;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot, hazeFar;\nvarying float vRingY;\nvarying vec3 vRingWorld, vRingShift;\nvoid main() {')
         .replace('#include <map_fragment>', RING_FRAG);
     };
     return mat;

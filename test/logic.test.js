@@ -422,6 +422,8 @@ test('curveSegments scales each section\'s hill by hillOf(section), 1 by default
   assert.deepEqual(level.filter((s) => s.from !== 300), today.filter((s) => s.from !== 300), 'every other section is as before');
   const half = curveSegments(norm, 0, 1500, 7, () => 0.5);
   assert.deepEqual(half.map((s) => [s.from, s.to, s.turn, s.hill]), today.map((s) => [s.from, s.to, s.turn, s.hill * 0.5]), 'random hills scale too, from the same picks');
+  const down = normalizeLevel(lvl({ length_m: 1500, sections: [{ from_m: 300, to_m: 600, curve: { turn: 0.3, hill: -0.5 } }, { from_m: 600, to_m: 1380, curve: 'random' }] }));
+  assert.ok(curveSegments(down, 0, 1500, 7, () => 0).every((s) => Object.is(s.hill, 0)), 'a downhill levelled is +0, never -0, as setBend keeps a straight road');
 });
 
 test('curveSegments merges touching stretches with the same bend, so a level-wide curve over many sections is one stretch and never fills the slots', () => {

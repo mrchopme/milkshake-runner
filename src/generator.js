@@ -86,12 +86,13 @@ export function curveSegments(norm, fromZ, toZ, seed = 0, hillOf = () => 1) {
   };
   for (const s of norm.sections) {
     if (!s.curve || s.to <= fromZ || s.from >= Math.min(toZ, end)) continue;
+    const f = hillOf(s), share = (hill) => (f ? hill * f : 0); // f 0 is +0, never a downhill's -0
     if (s.curve === 'random') {
       for (let k = Math.floor(Math.max(s.from, fromZ) / RANDOM_CURVE_M); k * RANDOM_CURVE_M < Math.min(s.to, toZ, end); k++) {
         const pick = rng((seed + 0x9e3779b9 * (k + 1)) >>> 0);
-        push(Math.max(s.from, k * RANDOM_CURVE_M), Math.min(s.to, (k + 1) * RANDOM_CURVE_M), [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], [-0.6, 0, 0.6][Math.floor(pick() * 3)] * hillOf(s));
+        push(Math.max(s.from, k * RANDOM_CURVE_M), Math.min(s.to, (k + 1) * RANDOM_CURVE_M), [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], share([-0.6, 0, 0.6][Math.floor(pick() * 3)]));
       }
-    } else push(s.from, s.to, s.curve.turn ?? 0, (s.curve.hill ?? 0) * hillOf(s));
+    } else push(s.from, s.to, s.curve.turn ?? 0, share(s.curve.hill ?? 0));
   }
   return out;
 }
