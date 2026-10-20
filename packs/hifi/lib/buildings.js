@@ -62,7 +62,8 @@ function heightModel(H, look) {
     return { h: snap(clamp(h, st.range)), tall: st.tall };
   };
 }
-// ponytail: calibration knobs, metres (the prototype P3's backRow, board 28): `rows` rows `w` deep with an `alley` between, the first
+// ponytail: calibration knobs, metres (the prototype P3's backRow; Caedon's pick 7 on board 28, "the floating street was the bare slab
+// behind the city"): `rows` rows `w` deep with an `alley` between, the first
 // `x` behind the facade line (past the deepest avenue body, 16, and a service lane), lots `lot` long, an empty lot at `empty`, roofs
 // snapped from `h` (+3.5 a row out). A lot that would touch a downtown tower, the side street or its lots is left out (P3's
 // `skip` 10-11 m round the cross street did that by hand).
@@ -156,21 +157,6 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       z += depth;
     }
   }
-  beyond();
-  const g = gfx.group();
-  g.userData.lots = lotsOut;
-  for (const [mat, geos] of groups) {
-    const m = new T.Mesh(merge(T, geos), mat);
-    m.userData.building = true;
-    g.add(m);
-  }
-  // Rooftop props in code (spec: water towers and AC units), two instanced meshes a chunk; a tank on legs, a box with a fan top
-  const roofMat = material(`${style.id}/roof`, () => new T.MeshStandardMaterial({ color: '#7a5a43', roughness: 0.7 }));
-  const steel = material('roof/steel', () => new T.MeshStandardMaterial({ color: '#b9bec8', roughness: 0.35, metalness: 0.6 }));
-  if (roofs.tower.length) g.add(instanced(T, mergeGeometries([new T.CylinderGeometry(1.6, 1.6, 3.2, 16).translate(0, 4.6, 0), new T.ConeGeometry(1.8, 1.2, 16).translate(0, 6.8, 0), ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([a, b]) => new T.CylinderGeometry(0.08, 0.08, 3, 6).translate(a * 1.1, 1.5, b * 1.1))].map((x) => x.toNonIndexed())), roofMat, roofs.tower));
-  if (roofs.ac.length) g.add(instanced(T, new T.BoxGeometry(1.4, 0.9, 1.1).translate(0, 0.45, 0), steel, roofs.ac));
-  return g;
-
   // The side street's lots and end blocks, then the back rows: bodies and cornices in the body mesh, facades and storefronts only on
   // tiles this chunk already draws (no new mesh), from their own sub-stream of the walls' seed (nothing else reshuffles).
   // ponytail: flat storefront and facade planes and a cornice, no fascia, awning or relief (seen from 20 m and more); walk-up heights
@@ -227,5 +213,19 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       }
     }
   }
+  beyond();
+  const g = gfx.group();
+  g.userData.lots = lotsOut;
+  for (const [mat, geos] of groups) {
+    const m = new T.Mesh(merge(T, geos), mat);
+    m.userData.building = true;
+    g.add(m);
+  }
+  // Rooftop props in code (spec: water towers and AC units), two instanced meshes a chunk; a tank on legs, a box with a fan top
+  const roofMat = material(`${style.id}/roof`, () => new T.MeshStandardMaterial({ color: '#7a5a43', roughness: 0.7 }));
+  const steel = material('roof/steel', () => new T.MeshStandardMaterial({ color: '#b9bec8', roughness: 0.35, metalness: 0.6 }));
+  if (roofs.tower.length) g.add(instanced(T, mergeGeometries([new T.CylinderGeometry(1.6, 1.6, 3.2, 16).translate(0, 4.6, 0), new T.ConeGeometry(1.8, 1.2, 16).translate(0, 6.8, 0), ...[[-1, -1], [-1, 1], [1, -1], [1, 1]].map(([a, b]) => new T.CylinderGeometry(0.08, 0.08, 3, 6).translate(a * 1.1, 1.5, b * 1.1))].map((x) => x.toNonIndexed())), roofMat, roofs.tower));
+  if (roofs.ac.length) g.add(instanced(T, new T.BoxGeometry(1.4, 0.9, 1.1).translate(0, 0.45, 0), steel, roofs.ac));
+  return g;
 }
 export function paint(T, geo, color) { const n = geo.attributes.position.count, c = new Float32Array(n * 3); for (let i = 0; i < n; i++) color.toArray(c, i * 3); geo.setAttribute('color', new T.BufferAttribute(c, 3)); }

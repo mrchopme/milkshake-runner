@@ -212,11 +212,33 @@ test('the walls seed their sub-streams from one draw of the chunk stream: the sa
   }
 });
 
+const streetTheme = async (id) => { const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }; return (seed, z0 = 0, length = 120) => hifi.createChunk.call(theme, gfx, { z0, length, lanes, rng: rng(seed), theme }); };
+// the side street's ground and furniture stay in the chunk and the land block, out to the end block's back (the review of Task 34 L-B)
+test('the side street\'s paving, walks and furniture stay inside [z0, z0 + length] and |x| <= SIDE.far + SIDE.end', async () => {
+  for (const id of ['downtown', 'midtown', 'uptown']) {
+    const make = await streetTheme(id);
+    for (let seed = 1; seed <= 20; seed++) {
+      const z0 = 120 * seed, g = make(seed, z0), at = `${id}, seed ${seed}`;
+      const b = bounds(g, (n) => n.userData.crossing || n.userData.sideWalk);
+      assert.ok(b.min.z >= z0 - 1e-6 && b.max.z <= z0 + 120 + 1e-6 && Math.max(-b.min.x, b.max.x) <= SIDE.far + SIDE.end + 1e-6, `${at}: the side street's ground ${b.min.x.toFixed(2)}..${b.max.x.toFixed(2)}, z ${b.min.z.toFixed(2)}..${b.max.z.toFixed(2)}`);
+      g.traverse((n) => {
+        if (!n.userData.furniture && !n.userData.pit && !n.userData.pool) return;
+        const m = new THREE.Matrix4();
+        for (let i = 0; i < n.count; i++) {
+          n.getMatrixAt(i, m);
+          if (Math.abs(m.elements[12]) <= FACADE_X) continue; // the avenue's, the tests above
+          const box = new THREE.Box3().setFromBufferAttribute(n.geometry.attributes.position).applyMatrix4(m);
+          assert.ok(box.min.z >= z0 - 1e-6 && box.max.z <= z0 + 120 + 1e-6 && Math.max(-box.min.x, box.max.x) <= SIDE.far + SIDE.end + 1e-6, `${at}: a side-street ${n.userData.furniture ?? 'pit or pool'} at x ${box.min.x.toFixed(2)}..${box.max.x.toFixed(2)}, z ${box.min.z.toFixed(2)}..${box.max.z.toFixed(2)}`);
+        }
+      });
+    }
+  }
+});
+
 // The side street's blocks (Task 33 pick 2, Caedon board 28 "ON"): rows of lots on the city facade kit, their fronts on its two walls,
 // out to an end block across it at SIDE.far; and the shore's back rows behind the avenue's blocks (pick 7: "the floating street was
 // the bare slab behind the city"), off the side street and its lots. The buildings part lists every footprint on its group's
 // userData.lots ({ kind: 'block' | 'side' | 'end' | 'back', x: [lo, hi], z: [lo, hi] }, x signed) for these tests.
-const streetTheme = async (id) => { const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }; return (seed, z0 = 0, length = 120) => hifi.createChunk.call(theme, gfx, { z0, length, lanes, rng: rng(seed), theme }); };
 const lotsOf = (g) => { let out; g.traverse((n) => { out ??= n.userData.lots; }); return out; };
 test('the side street\'s blocks face it: storefronts and facades on its two walls looking ±z, lots end to end out to an end block at SIDE.far, on the mesh budget', async () => {
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
@@ -442,7 +464,7 @@ test('furniture stands only on the sidewalk band, never in a lane', () => {
   assert.ok(seen > 0 && side > 0, `furniture was built, ${side} pieces down the side streets`);
 });
 
-test('at most one car drives each side of the cross street: the 6 m loop has no room for two', () => {
+test('at most one car drives each side of the cross street (the count kept when the loop ran on down the side street, Task 34 L-B)', () => {
   let cars = 0;
   for (let seed = 1; seed <= 100; seed++) {
     const sides = [];
@@ -702,8 +724,11 @@ test('a loaded car model drives along the cross street whatever its own frame, a
     n.geometry.computeBoundingBox();
     const b = n.geometry.boundingBox, m = new THREE.Matrix4(), p = new THREE.Vector3(), ahead = new THREE.Vector3(), half = Math.max(-b.min.x, b.max.x);
     assert.ok(b.max.z - b.min.z > b.max.x - b.min.x, `${n.userData.traffic}: its length lies along the drive axis (+z)`);
-    // the paving runs from the kerb out to CROSS.reach, the back of the blocks: the whole car stays on it, out of the avenue
-    assert.ok(DRIVE.to + b.max.z <= CROSS.reach + 1e-6, `${n.userData.traffic}: its nose leaves the paving at ${(DRIVE.to + b.max.z).toFixed(2)}`);
+    // the side street's paving runs out to SIDE.far, the end block's front: the whole car stays on it and wraps there, at the street's
+    // far end, not 20 m down it in plain view (the review of Task 34 L-B)
+    assert.ok(DRIVE.to + b.max.z <= SIDE.far + 1e-6 && DRIVE.to + b.max.z >= SIDE.far - 1, `${n.userData.traffic}: its nose wraps at ${(DRIVE.to + b.max.z).toFixed(2)}, the side street ends at ${SIDE.far}`);
+    const far = new THREE.Vector3(), mat = new THREE.Matrix4(); // and frustum culling sees it all the way (the drive is in the vertex stage)
+    for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, mat); far.set(0, 0, DRIVE.to - DRIVE.from).applyMatrix4(mat); assert.ok(n.boundingSphere.containsPoint(far), `${n.userData.traffic}: its bounds miss the drive's far end at x ${far.x.toFixed(2)}`); }
     assert.ok(DRIVE.from + b.min.z >= ROAD_HALF, `${n.userData.traffic}: its tail starts in the avenue at ${(DRIVE.from + b.min.z).toFixed(2)}`);
     for (let i = 0; i < n.count; i++) {
       n.getMatrixAt(i, m); p.setFromMatrixPosition(m); ahead.set(0, 0, 1).applyMatrix4(m).sub(p); // the drive's +z in the world, unscaled

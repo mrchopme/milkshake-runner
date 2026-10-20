@@ -63,7 +63,7 @@ export const tintedMaterial = (T, style, key, hex, rough, map, extra) => materia
 // the teaser's road; was 0.12 wide, 3 long every 6)
 export const KERB = 0.18, WALK = 6, DASH = { w: 0.16, len: 6, every: 6 };
 export const FACADE_X = 4.5 + WALK; // the facade line: the road's edge (ROAD_HALF in src/world.js, which a pack cannot import; a test holds the two together) plus the sidewalk
-export const CROSS = { width: 12, stripe: 0.6, reach: FACADE_X + 10 }; // reach: the back of the avenue's blocks (10 m deep), where the cars wrap
+export const CROSS = { width: 12, stripe: 0.6 }; // its paving runs out to SIDE.far (below); `reach` (the back of the avenue's blocks) went with the old 20.5 m paving
 // The side street (Task 33 pick 2, Caedon board 28 "ON"; he saw "literally into space" at every T): paved out to `far` each side of the
 // avenue, a walk along each wall with its kerb band from the paving tile, lined with blocks facing it (buildings.js) and an end block
 // across it at `far`, trees and lamps on its walks (furniture.js), its cars on its road (traffic.js DRIVE.lanes). The walls stand
