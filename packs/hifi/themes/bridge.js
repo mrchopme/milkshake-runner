@@ -1,10 +1,10 @@
-import { bridgeChunk, WATERFRONT } from '../lib/bridge.js';
+import { bridgeChunk } from '../lib/bridge.js';
 import { cityFiles } from '../lib/facade.js';
 // HiFi look for the bridge stretch: the same day as downtown, so crossing it mid-run keeps the light. ponytail: calibration knobs.
 const SKYLINE = cityFiles('sky', 'bridge', 2); // the far ring's strip, then the near one's
 export default {
   kind: 'theme', id: 'bridge',
-  assets: [...WATERFRONT.facades, ...SKYLINE, 'hifi/railings.glb'], // railings.glb: the walkway railings (lib/bridge.js)
+  assets: [...SKYLINE, 'hifi/railings.glb'], // railings.glb: the walkway railings (lib/bridge.js); no facades since the waterfront rows went (Task 34 L-C)
   // The rig (Caedon, board 22, 2026-10-15): a high sun ahead 57 degrees up and 15 left, a sky-blue fill over a dark blue
   // ground, a clear sky to a pale cyan horizon, light haze from 80 m, the skyline hazed toward pale blue; the switch to and
   // from downtown crossfades (src/look.js). ponytail: calibration knobs, tuned by eye.

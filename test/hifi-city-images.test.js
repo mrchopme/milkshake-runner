@@ -10,7 +10,6 @@ import { facadeMaterial } from '../packs/hifi/lib/facade.js';
 import { signs, SIGN_FILES } from '../packs/hifi/lib/signs.js';
 import { FACADE_X } from '../packs/hifi/lib/street.js';
 import { CORNICE } from '../packs/hifi/lib/buildings.js';
-import { WATERFRONT } from '../packs/hifi/lib/bridge.js';
 import { KIT } from '../packs/hifi/lib/kit.js';
 import bridge from '../packs/hifi/themes/bridge.js';
 
@@ -35,8 +34,9 @@ test('each street theme lists its five facade tiles, its storefronts, every sign
     for (const p of [...files('facades', hifi.id, 5), ...files('shops', hifi.id, SHOPS[hifi.id]), ...Object.values(SIGN_FILES).flat(), ...hifi.look.skyline.flat()]) assert.ok(hifi.assets.includes(p), `${hifi.id} lists ${p}`);
   }
   assert.deepEqual(bridge.look.skyline, files('sky', 'bridge', 2));
-  assert.deepEqual(WATERFRONT.facades, files('facades', 'downtown', 5), 'the waterfront wears downtown\'s tiles');
-  for (const p of [...WATERFRONT.facades, ...bridge.look.skyline]) assert.ok(bridge.assets.includes(p), `bridge lists ${p}`);
+  // re-pinned (Task 34 L-C): the waterfront rows that wore downtown's tiles are gone (Caedon, board 29 pick 2), so the bridge loads none
+  assert.ok(!bridge.assets.some((p) => p.includes('/facades/')), 'the bridge loads no facade tile');
+  for (const p of bridge.look.skyline) assert.ok(bridge.assets.includes(p), `bridge lists ${p}`);
 });
 
 // Task 32 C7 (Caedon, "Redraw the 12 strips"; page 26: downtown and uptown as generated, midtown re-rolled without a sun, "Accept all
