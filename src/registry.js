@@ -3,7 +3,12 @@ export const KIND_DIR = { obstacle: 'obstacles', pickup: 'pickups', prop: 'props
 const KINDS = Object.keys(KIND_DIR);
 const PLAIN = /^[a-z0-9_-]+$/, NAMESPACED = /^[a-z0-9_-]+\/[a-z0-9_-]+$/, HEX = /^#[0-9a-fA-F]{6}$/;
 const ASSET = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.(?:glb|webp|png)$/; // a model or an image under public/: lowercase, no leading slash, no ..
-const LOOK_RANGES = { exposure: [0.2, 3], ambient: [0, 6], env: [0, 3] }; // ambient to 6 (Task 32): the hemisphere is now the main fill
+const LOOK_RANGES = {
+  exposure: [0.2, 3],
+  ambient: [0, 6], // to 6 (Task 32): the hemisphere is now the main fill
+  env: [0, 3],
+  hill: [0, 1], // the share of its sections' hill the HiFi street shows (Task 33 pick 6): 0 levels a bridge, never more than the level's own
+};
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const fn = (v) => typeof v === 'function';
@@ -94,7 +99,7 @@ const LOOK_SHAPES = {
 export function checkLook(l) {
   if (!isObj(l)) return ['look must be an object'];
   const e = [];
-  for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'skyBottom', 'hemi', 'fog', 'skylineHaze', 'disc', 'bloom', 'skyline', 'skylineHeight'].includes(k)) e.push(`look: unknown key "${k}"`);
+  for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'skyBottom', 'hemi', 'fog', 'skylineHaze', 'disc', 'bloom', 'skyline', 'skylineHeight', 'hill'].includes(k)) e.push(`look: unknown key "${k}"`);
   for (const [k, [lo, hi]] of Object.entries(LOOK_RANGES)) if (l[k] !== undefined && !num(l[k], lo, hi)) e.push(`look.${k} must be ${lo} to ${hi}`);
   for (const k of ['skyTop', 'skyBottom']) if (l[k] !== undefined && !HEX.test(l[k])) e.push(`look.${k} must be a hex colour`);
   // the fill's colours, the fog per scene, the skyline's haze and the sun's disc: each object takes only its own fields

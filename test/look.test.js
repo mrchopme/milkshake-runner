@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { REFLECT, lookState, cascadeHook, ringWrap, ringArcs, ringArc, lookFog, rigOf, blendRig, ringTexel } from '../src/look.js';
+import { REFLECT, lookState, cascadeHook, ringWrap, ringArcs, ringArc, lookFog, rigOf, blendRig, ringTexel, ringShift, BG_DEPTH } from '../src/look.js';
 import { checkLook, checkModule } from '../src/registry.js';
 import { createWorld } from '../src/world.js';
 import { resolveRules } from '../src/rules.js';
@@ -66,6 +66,19 @@ test('look values are checked on themes', () => {
   const theme = { kind: 'theme', id: 'ari/sea', sky: '#9fd3f5', fog: 0.2, buildings: { colors: ['#ffffff'], minH: 5, maxH: 10 } };
   assert.equal(checkModule({ ...theme, look: LOOK }).length, 0);
   assert.match(checkModule({ ...theme, look: { env: 5 } }).join(), /look.env must be 0 to 3/);
+});
+
+test('the skyline rings slide with the bent street: the angle it has 140 m past the bend start, x and y (Task 33 pick 5)', () => {
+  assert.equal(BG_DEPTH, 140, 'world AHEAD 200 - BEND_LEAD 40 - DEAD 20: every stretch bending the street there is already in the uniforms');
+  try {
+    gfx.setBend({ origin: 0, segments: [{ from: 100, to: 400, turn: 0.7, hill: -0.5 }] });
+    const zq = gfx.bendStart.value + BG_DEPTH, o = gfx.bendOffset(zq), d = zq + 5, s = ringShift(-5, 360);
+    assert.deepEqual(s, { x: (o.x * 360) / d, y: (o.y * 360) / d }, 'the ring keeps the street\'s angle at that depth (K 1)');
+    assert.ok(s.x < 0 && s.y < 0, 'a right turn slides the far city right (-x), a downhill sinks it');
+    assert.ok(Math.abs(ringShift(-5, 330).x) < Math.abs(s.x), 'the near ring slides less, by its radius');
+    gfx.setBend();
+    assert.deepEqual(ringShift(-5, 360), { x: 0, y: 0 }, 'a straight street leaves the rings camera-centred');
+  } finally { gfx.setBend(); }
 });
 
 test('the look follows the section theme, so a mid-level theme switch switches the look', () => {

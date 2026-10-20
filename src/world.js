@@ -39,6 +39,8 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
   const drop = (obj) => { root.remove(obj); gfx.dispose(obj); };
   const dropView = (item, label) => { if (item.view.dispose) safeCall(`${label} ${item.id} dispose`, () => item.view.dispose()); drop(item.view.object); };
   const fallbackView = () => ({ object: gfx.box(1, 1, 1, '#ff00ff') }); // a loud pink block instead of a crash
+  // A section's share of its hill: its theme's look.hill under a HiFi look (hook.cutFog), else the whole hill, so low-fi bends as before
+  const hillOf = (s) => (gfx.hook.cutFog ? registry.theme[s.theme.id]?.look?.hill ?? 1 : 1);
 
   function build() {
     const length = Math.min(CHUNK, end - builtTo); // the last chunk stops exactly at `end`, so no street runs past the finish line
@@ -95,7 +97,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
       if (p.view.update) safeCall(`pickup ${p.id} update`, () => p.view.update(p, run, dt));
     }
     for (const p of live.props) if (p.view.update) safeCall(`prop ${p.id} update`, () => p.view.update(p, run, dt));
-    gfx.setBend({ origin: run.z, segments: curveSegments(norm, run.z, builtTo, seed), turned: turnedBy(norm, run.z + gfx.DEAD, seed) }); // every stretch the built street lies in, so nothing pops when it enters view; nothing eases, the street is the anchor
+    gfx.setBend({ origin: run.z, segments: curveSegments(norm, run.z, builtTo, seed, hillOf), turned: turnedBy(norm, run.z + gfx.DEAD, seed) }); // every stretch the built street lies in, so nothing pops when it enters view; nothing eases, the street is the anchor
   }
 
   const skyAt = (z) => {
