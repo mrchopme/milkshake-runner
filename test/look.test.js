@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { lookState, cascadeHook, ringWrap, ringArcs, ringArc, lookFog, rigOf, blendRig, ringTexel } from '../src/look.js';
+import { REFLECT, lookState, cascadeHook, ringWrap, ringArcs, ringArc, lookFog, rigOf, blendRig, ringTexel } from '../src/look.js';
 import { checkLook, checkModule } from '../src/registry.js';
 import { createWorld } from '../src/world.js';
 import { resolveRules } from '../src/rules.js';
@@ -268,4 +268,8 @@ test('each scene\'s sun.dir is the light\'s travel and points ahead (z < 0, the 
   assert.equal(x, 0, 'on the axis: the right-hand towers stop shading the road (main session, board 22)');
   close(Math.asin(-y / Math.hypot(x, y, z)) * 180 / Math.PI, 28, 'about 28 degrees up', 0.5);
   close(rigFor(downtown).dir, new THREE.Vector3(...downtown.look.sun.dir).normalize().toArray(), 'the rig aims along it, unit');
+});
+
+test('glossy materials keep the env at the shared REFLECT 0.4 (was 0.85; Caedon, board 29 pick 4: the old one mirrored every sun ahead)', () => {
+  assert.equal(REFLECT, 0.4);
 });

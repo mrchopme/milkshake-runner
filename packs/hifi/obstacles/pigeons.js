@@ -27,7 +27,7 @@ export function flap(x, y, k) {
 }
 
 const paint = painter((T, m, gfx) => {
-  const p = gloss(T, m, { clearcoat: 0.6, clearcoatRoughness: 0.2, metalness: 0, metalnessMap: null });
+  const p = gloss(T, m, { clearcoat: 0.3, clearcoatRoughness: 0.4, metalness: 0, metalnessMap: null });
   p.onBeforeCompile = (s) => { // the bird's own vertices, before three's instance and model matrices and the bend place it
     s.uniforms.uTime = gfx.time;
     s.vertexShader = 'uniform float uTime;\n' + s.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>${FLAP_VERTEX}`);

@@ -137,3 +137,16 @@ test('the HiFi pack can reuse Milkshake\'s view with its own model, skin knobs a
   assert.equal(skinned, 1, 'skinned with v4\'s code'); assert.equal(blobs, 0, 'no blob shadow when the caller says so');
   assert.doesNotThrow(() => view.update({ x: 0, y: 0, z: 0, lane: 1, time: 0.3, slideT: 0, over: false, speed: 12, rules: { laneWidth: 2.5 } }));
 });
+
+test('the shipped Milkshake\'s dust is unchanged by the dust option at its defaults: the palette\'s spot at 0.5 opacity (?lofi)', async () => {
+  const view = await milkshake.createView(gfx);
+  const puffs = view.object.children.find((c) => c.children.length === 6).children;
+  for (const p of puffs) {
+    const m = p.material;
+    assert.ok(m.isMeshBasicMaterial && m.color.equals(new gfx.three.Color(gfx.palette.spot)) && m.transparent && !m.depthWrite && m.opacity === 0.5, 'the shipped puff material');
+  }
+  const run = createRun(resolveRules(), milkshake);
+  run.time = 0.3; view.update(run); run.y = 1; view.update(run); run.y = 0; view.update(run); // a footfall from the air
+  assert.equal(puffs.find((p) => p.visible)?.material.opacity, 0.5, 'a fresh puff at the shipped 0.5');
+  assert.equal(view.object.children[0].geometry.type, 'CircleGeometry', 'and the shipped ground disc');
+});

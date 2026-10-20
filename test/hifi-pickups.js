@@ -37,7 +37,9 @@ export function checkPickup(id, overlay, geometry, { glows = false } = {}) {
 
   test(`every HiFi ${id} shares one glossy paint without Tripo's random metal`, () => {
     const a = overlay.createView(gfx), b = overlay.createView(gfx), p = paintOf(a);
-    assert.ok(p?.clearcoat > 0, 'glossy clearcoat paint');
+    // re-pinned from 1 / 0.15 and the shared 0.85 env (Caedon, board 29 pick 4): the full coat blew the jug out into a white column
+    assert.ok(p?.clearcoat === 0.3 && p.clearcoatRoughness === 0.4, `a satin clearcoat (${p?.clearcoat}, ${p?.clearcoatRoughness})`);
+    assert.equal(p.userData.reflect, 0.3, 'reflections below the look\'s shared knob');
     assert.equal(p, paintOf(b), 'every copy shares one paint material');
     assert.ok(p.metalness === 0 && p.metalnessMap === null, 'no metal');
     assert.ok(p.roughnessMap === orm, 'the roughness map stays');

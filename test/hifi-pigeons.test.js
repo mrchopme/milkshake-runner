@@ -64,7 +64,7 @@ test('the HiFi pigeons: one bird instanced over the shipped flock, every bird in
   const other = flock(b);
   assert.equal(other.geometry, g, 'every flock draws one geometry');
   assert.equal(other.material, birds.material, 'and one paint');
-  assert.ok(birds.material.isMeshPhysicalMaterial && birds.material.clearcoat === 0.6 && birds.material.clearcoatRoughness === 0.2, 'the template\'s gloss');
+  assert.ok(birds.material.isMeshPhysicalMaterial && birds.material.clearcoat === 0.3 && birds.material.clearcoatRoughness === 0.4, 'the template\'s satin (was 0.6 / 0.2; Caedon, board 29 pick 4)');
   assert.ok(birds.material.metalness === 0 && birds.material.metalnessMap === null, 'Tripo\'s random metal dropped (the Task 23 ruling)');
   let freed = 0;
   for (const x of [g, birds.material]) x.addEventListener('dispose', () => freed++);

@@ -92,6 +92,8 @@ test('the HiFi scaffold spreads its posts apart for Milkshake without stretching
 test('the HiFi scaffold shows its doorway to the player, with one glossy paint for every copy', () => {
   const a = def.createView(gfx, {}).object, b = def.createView(gfx, {}).object;
   assert.ok(find(a, 'face').getWorldPosition(new T.Vector3()).z < bounds(a).getCenter(new T.Vector3()).z - 0.05, 'the +x doorway faces the camera, at -z');
+  // re-pinned from clearcoat 0.6 / 0.2 (Caedon, board 29 pick 4): the gloss cut across every glossy model
+  assert.ok(paint(a).clearcoat === 0.3 && paint(a).clearcoatRoughness === 0.4, 'satin');
   assert.ok(paint(a).clearcoat > 0 && paint(a).metalness === 0 && paint(a).metalnessMap === null, 'glossy, and not the random metal Tripo left in');
   assert.equal(paint(a), paint(b), 'every scaffold shares one paint material');
 });

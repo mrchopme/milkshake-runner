@@ -1,5 +1,5 @@
 // HiFi Milkshake: the generated cow in public/hifi/milkshake.glb on the shipped character's view (cowView: v4's skinning,
-// stride, lean and dust), with knobs measured on this mesh, a glossy toy paint and no blob shadow (the look casts real ones).
+// stride, lean and dust), with knobs measured on this mesh, a satin toy paint, the contact disc and quieter dust.
 import { cowView } from '../../../content/characters/milkshake.js';
 import { gloss } from '../lib/paint.js';
 
@@ -26,14 +26,20 @@ export const BONES = {
   legL: [0.01, SKIN.crotch, 0.21], legR: [0.01, SKIN.crotch, -0.21], // the top of each leg
 };
 const YAW = -Math.PI / 2; // ponytail: calibration knob — the muzzle (+x in the GLB) turns to +z, the way Milkshake runs (the shipped yaw)
+// ponytail: calibration knobs (Caedon, board 29 picks 4 and 6, 2026-10-20). A satin coat (was 1 / 0.15: a mirror that threw every sun
+// ahead into the camera off the head and hooves; reflections take look.js's REFLECT). The low-fi dust (the palette's spot at 0.5)
+// read as flat grey discs trailing him: half as strong, in the road's grey.
+const PAINT = { clearcoat: 0.35, clearcoatRoughness: 0.4, metalness: 0, metalnessMap: null }; // Tripo's random metal reads as dark paint
+const DUST = { color: '#5f5c69', opacity: 0.25 };
 
 export default {
   kind: 'character', id: 'milkshake', assets: ['hifi/milkshake.glb'],
   createView(gfx) {
     return cowView(gfx, this, {
       load: async () => gfx.asset('hifi/milkshake.glb'),
-      skin: SKIN, bones: BONES, yaw: YAW, blob: false,
-      dress: (T, m) => gloss(T, m, { clearcoat: 1, clearcoatRoughness: 0.15, metalness: 0, metalnessMap: null }), // Tripo's random metal reads as dark paint
+      // the blob disc beside the look's cast shadow, which falls behind him with the sun ahead (Caedon, board 29 pick 3)
+      skin: SKIN, bones: BONES, yaw: YAW, blob: true, dust: DUST,
+      dress: (T, m) => gloss(T, m, PAINT),
     });
   },
 };

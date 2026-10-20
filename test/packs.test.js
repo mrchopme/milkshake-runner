@@ -92,7 +92,7 @@ test('every file the HiFi pack lists is in public/', async () => {
 test('the HiFi taxi fits the shipped taxi footprint, sits on the road, and every taxi shares one glossy paint', async () => {
   const T = gfx.three;
   // A stand-in for the generated GLB: 1.1 x 0.9 x 2.6 units, off-centre and below the origin, as generators leave them.
-  const raw = new T.Group(), body = new T.Mesh(new T.BoxGeometry(1.1, 0.9, 2.6), new T.MeshStandardMaterial());
+  const raw = new T.Group(), body = new T.Mesh(new T.BoxGeometry(1.1, 0.9, 2.6), new T.MeshStandardMaterial({ metalness: 1, metalnessMap: new T.Texture() })); // metallic, as Tripo leaves it
   body.position.set(0.3, -0.2, 0.5);
   raw.add(body);
   adopt('hifi/taxi.glb', raw);
@@ -108,6 +108,7 @@ test('the HiFi taxi fits the shipped taxi footprint, sits on the road, and every
   const paint = (o) => { let p; o.traverse((n) => { if (n.isMesh && n.material.isMeshPhysicalMaterial) p = n.material; }); return p; };
   assert.ok(paint(a)?.clearcoat > 0, 'glossy clearcoat paint');
   assert.equal(paint(a), paint(b), 'every taxi shares one paint material');
+  assert.ok(paint(a).metalness === 0 && paint(a).metalnessMap === null, 'Tripo\'s random metal dropped, as the pickups and the cow do');
 });
 
 test('the HiFi taxi lights its own red tail lamps instead of laying boxes over them', async () => {
@@ -123,7 +124,9 @@ test('the HiFi taxi\'s roof does not flare in the sun: a soft clearcoat and no l
   const o = hifiTaxi.createView(gfx).object;
   assert.equal(o.children.length, 1, 'the model alone: the teaser\'s roof sign is unlit, and a plate is a box laid over a light');
   let p; o.traverse((n) => { if (n.isMesh && n.material.isMeshPhysicalMaterial) p = n.material; });
-  assert.ok(p.clearcoat <= 0.5 && p.clearcoatRoughness >= 0.45, `clearcoat ${p.clearcoat}, roughness ${p.clearcoatRoughness}: a full, sharp clearcoat on the white sign caught the sun as a halo`);
+  // re-pinned from 0.5 / 0.45 (Caedon, board 29 pick 4): still haloed the roof and sign with any sun ahead
+  assert.ok(p.clearcoat === 0.2 && p.clearcoatRoughness === 0.6, `clearcoat ${p.clearcoat}, roughness ${p.clearcoatRoughness}: a full, sharp clearcoat on the white sign caught the sun as a halo`);
+  assert.equal(p.userData.reflect, 0.3, 'reflections below the look\'s shared knob');
 });
 
 test('gloss copies every standard field of a generated material, then adds the gloss', async () => {

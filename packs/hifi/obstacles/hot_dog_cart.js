@@ -6,7 +6,7 @@ import { gloss, painter } from '../lib/paint.js';
 const YAW = Math.PI / 2;  // ponytail: calibration knob — the model is longer along z (0.79) than x (0.67), its front +x; +π/2 turns its long side across the lane, broadside to the player (-z)
 const BODY_H = 0.531;     // ponytail: calibration knob — model units above the wheels where the body ends (the lid is at 0.530) and the umbrella pole starts; measured on the GLB
 // metalness 0: Tripo marks parts metallic at random, which reads as dark paint (Task 23 ruling); the roughness map stays
-const paint = painter((T, m) => gloss(T, m, { clearcoat: 0.6, clearcoatRoughness: 0.2, metalness: 0, metalnessMap: null }));
+const paint = painter((T, m) => gloss(T, m, { clearcoat: 0.3, clearcoatRoughness: 0.4, metalness: 0, metalnessMap: null }));
 
 let parts; // { scale, offset }, measured from the first copy
 
