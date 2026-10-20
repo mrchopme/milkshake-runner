@@ -5,7 +5,7 @@ import { material } from './materials.js';
 import { freeWith } from './paint.js';
 import { pickBy } from './rand.js';
 import { paint } from './buildings.js';
-import { CROSS, FACADE_X, WALK } from './street.js';
+import { CROSS, FACADE_X, WALK, SIDE, sideWalls } from './street.js';
 // Street furniture, one InstancedMesh per part per kind; x from the road's centre line. Across the 6 m sidewalk (kerb 4.5, facade
 // 10.5): lamps, hydrants, signals and the bus shelter at the kerb; trees on the back half; the subway mid-sidewalk; bins, benches,
 // newsstands and planters against the buildings.
@@ -99,6 +99,23 @@ export function furniture(gfx, { z0, length }, style, r, cross, blocks) {
       const k = RHYTHM.scale[0] + (RHYTHM.scale[1] - RHYTHM.scale[0]) * hash(z, s, 2), yaw = Math.floor(4 * hash(z, s, 3)) * Math.PI / 2 + (2 * hash(z, s, 4) - 1) * RHYTHM.jitter;
       if (place(tree, RHYTHM.trees[tree], z, s, k, yaw)) pits.push(new T.Matrix4().makeTranslation(s * RHYTHM.trees[tree], 0.18, z));
       if ((j % 2 === 0 || (s < 0 && j === n - 2)) && place('lamp', RHYTHM.lamp, z + P / 2, s)) pools.push(new T.Matrix4().makeRotationY(s < 0 ? Math.PI : 0).setPosition(s * (RHYTHM.lamp - POOL.in), 0, z + P / 2));
+    }
+  }
+  // the side street's walks (Task 33 pick 2, board 28; street.js SIDE): a tree in a pit every SIDE.tree.every m turned in quarter steps,
+  // a lamp halfway between every second pair as far off its kerb as the avenue's (so its pool fits), the two walks half a pitch apart;
+  // only kinds the avenue already draws (no new mesh), hashed from the place (no stream draw), off the avenue's footprints
+  if (cross) {
+    const [wa, wb] = sideWalls(cross.z), Tr = SIDE.tree, trees = kinds.filter((k) => byKind[k]), kerb = RHYTHM.lamp - (FACADE_X - WALK), up = new T.Vector3(0, 1, 0);
+    for (const s of [-1, 1]) for (const [zw, dir] of [[wa, 1], [wb, -1]]) { // dir: from the wall toward the road
+      const zt = zw + dir * Tr.in, zl = zw + dir * (SIDE.walk - kerb), key = (x, salt) => hash(3 * cross.z + x, 3 * s + dir, salt);
+      for (let j = 0, x = Tr.from + (dir < 0 ? Tr.every / 2 : 0); x < SIDE.far - 2; j++, x += Tr.every) {
+        const tree = trees[Math.floor(key(x, 9) * trees.length)], xl = x + Tr.every / 2;
+        if (tree) { byKind[tree].push(new T.Matrix4().compose(new T.Vector3(s * x, 0.18, zt), new T.Quaternion().setFromAxisAngle(up, Math.floor(4 * key(x, 10)) * Math.PI / 2), new T.Vector3(Tr.k, Tr.k, Tr.k))); pits.push(new T.Matrix4().makeTranslation(s * x, 0.18, zt)); }
+        if (j % 2 && byKind.lamp && xl < SIDE.far - 2) {
+          byKind.lamp.push(new T.Matrix4().makeRotationY(dir > 0 ? 0 : Math.PI).setPosition(s * xl, 0.18, zl));
+          pools.push(new T.Matrix4().makeRotationY(dir * Math.PI / 2).setPosition(s * xl, 0, zl + dir * POOL.in));
+        }
+      }
     }
   }
   for (const b of blocks ?? []) if (b.shop != null && hash(b.z0, b.side, 5) < PLANTER.chance) for (const d of [-PLANTER.dz, PLANTER.dz]) place('planter', PLANTER.x, (b.z0 + b.z1) / 2 + d, b.side);

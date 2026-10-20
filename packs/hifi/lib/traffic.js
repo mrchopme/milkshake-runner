@@ -2,12 +2,15 @@ import { KIT, kitParts, placeholder } from './kit.js';
 import { instanced } from './shapes.js';
 import { material } from './materials.js';
 import { freeWith } from './paint.js';
+import { SIDE } from './street.js';
 // Distant traffic on the cross street only: each car sits at a side-street lane centre at the avenue's edge and slides
 // outward in the vertex stage on the run clock, wrapping, so it never enters the avenue.
-// ponytail: calibration knobs: m/s; |x| where a car starts (1.5 m behind the corner building line) and where it wraps (the paving ends at
-// CROSS.reach 20.5 m, the back of the blocks, less half the longest car, 2.5 m, so a whole car stays on it); lanes from cross.z;
-// the chance of a car on each side (one at most: the 6 m loop has no room for a second 4.5 m car).
-export const DRIVE = { speed: 6, from: 12, to: 18, lanes: [3, 9], chance: 0.75 };
+// ponytail: calibration knobs: m/s; |x| where a car starts (1.5 m behind the corner building line) and where it wraps: the side
+// street's far end (street.js SIDE.far 70 m, the end block's front) less half the longest car, 2.5 m, so a whole car stays on the
+// paving and goes at the street's end, not 20 m down it in plain view (Task 34 L-B review; was 18, when the paving ended at 20.5 m);
+// lanes from cross.z; the chance of a car on each side (one at most, the count as it was on the old 6 m loop). lanes 4.15 and 7.35,
+// not 3 and 9 (Task 33 pick 2, board 28): the side street's 3 m walks leave its road cross.z + 2.5..9, and the old lanes rode its kerbs.
+export const DRIVE = { speed: 6, from: 12, to: SIDE.far - 2.5, lanes: [4.15, 7.35], chance: 0.75 };
 const SPAN = (DRIVE.to - DRIVE.from).toFixed(1), KINDS = ['sedan', 'van', 'taxi'];
 // The drive: vertices slide along +z (ahead) before the instance matrix, the phase a uniform so every material with this
 // hook shares one program (three keys it by the hook's source).
@@ -52,6 +55,11 @@ export function traffic(gfx, args, style, r, cross) {
   for (const [kind, mats] of Object.entries(byKind)) for (const p of kitParts(gfx, KIT[kind], placeholder(kind))) {
     const phase = KINDS.indexOf(kind) / KINDS.length, m = instanced(T, fitted(T, p), driving(gfx, p.material, phase), mats);
     m.customDepthMaterial = shadow(gfx, phase);
+    // the drive is in the vertex stage, so the instances' bounds miss most of it: add each car's far end, or a car down the side street
+    // is culled whenever its start (by the avenue) is out of view
+    const geo = fitted(T, p), ahead = new T.Matrix4().makeTranslation(0, 0, DRIVE.to - DRIVE.from);
+    if (!geo.boundingSphere) geo.computeBoundingSphere();
+    for (const x of mats) m.boundingSphere.union(geo.boundingSphere.clone().applyMatrix4(x.clone().multiply(ahead)));
     m.userData.traffic = kind;
     g.add(m);
   }

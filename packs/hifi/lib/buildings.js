@@ -14,12 +14,16 @@
 //     awning }       true when the shop image has an awning: it spans z0..z1, 0.4-1.5 m out, lip 3.1 m, top 3.8 m
 // Fixed geometry a consumer can rely on: the fascia board 3.8 m to SHOP_H, 0.4 m out; cornices CORNICE.h under each roof and
 // setback, CORNICE.out out.
+// Beyond the avenue (Task 33, Caedon board 28, picks 2 and 7), out of the block list (signs and furniture anchor on the avenue's
+// alone): the side street's lots facing it and an end block across it (street.js SIDE), and the shore's back rows behind the
+// avenue's blocks, so from the bridge and down the side street the land is a built city, not a bare slab. Every footprint the part
+// stands, the avenue's included, is on its group's userData.lots: { kind: 'block' | 'side' | 'end' | 'back', x: [lo, hi] signed, z: [lo, hi] }.
 // three/addons is safe to import in a pack helper: it does not register anything, and Vite bundles it with the pack chunk.
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { wall, instanced } from './shapes.js';
 import { material } from './materials.js';
 import { facadeMaterial, shopMaterial, TILE, SHOP_H, tintFor, tinted } from './facade.js';
-import { FACADE_X } from './street.js';
+import { FACADE_X, SIDE, sideWalls } from './street.js';
 import { rng } from '../../../src/generator.js';
 // ponytail: calibration knobs, metres (board 15; Task 32, board 23). Overhang bands: above 4.5 m up to 0.9 out (cornices), 3.0-4.5 m
 // only the awnings (1.6) over the fascia (0.4), below 3.0 m nothing past 0.4, never past x 4.5 (the road).
@@ -58,6 +62,12 @@ function heightModel(H, look) {
     return { h: snap(clamp(h, st.range)), tall: st.tall };
   };
 }
+// ponytail: calibration knobs, metres (the prototype P3's backRow; Caedon's pick 7 on board 28, "the floating street was the bare slab
+// behind the city"): `rows` rows `w` deep with an `alley` between, the first
+// `x` behind the facade line (past the deepest avenue body, 16, and a service lane), lots `lot` long, an empty lot at `empty`, roofs
+// snapped from `h` (+3.5 a row out). A lot that would touch a downtown tower, the side street or its lots is left out (P3's
+// `skip` 10-11 m round the cross street did that by hand).
+export const BACK = { rows: 2, w: 12, alley: 6, x: 18, lot: [10, 18], empty: 0.15, h: [10, 20] };
 const ALL = [0, 1, 2, 3, 4], NO_AWNING = [[0.18, null, 0.18]];
 const merge = (T, geos) => { const g = mergeGeometries(geos.map((x) => (x.index ? x.toNonIndexed() : x)), false); geos.forEach((x) => x.dispose()); return g; };
 
@@ -67,7 +77,8 @@ const merge = (T, geos) => { const g = mergeGeometries(geos.map((x) => (x.index 
 // trim (cornices, fascia, ledges), facadeTint, shopBands (per shop image: [sign bottom, awning top or null, lip], fractions from its top).
 export function buildings(gfx, args, style, r, cross, blocks = []) {
   const { z0, length } = args, seed = Math.floor(r() * 2 ** 32); // the chunk stream's one draw here: the walls' sub-streams' seed
-  const T = gfx.three, groups = new Map(), roofs = { tower: [], ac: [] }, C = CORNICE;
+  const T = gfx.three, groups = new Map(), roofs = { tower: [], ac: [] }, C = CORNICE, lotsOut = [];
+  const signed = (s, a, b) => (s > 0 ? [a, b] : [-b, -a]), stand = (kind, s, xa, xb, za, zb) => lotsOut.push({ kind, x: signed(s, xa, xb), z: [za, zb] });
   const put = (mat, geo) => { if (!groups.has(mat)) groups.set(mat, []); groups.get(mat).push(geo); };
   const body = material(`${style.id}/body`, () => new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }));
   const { minH, maxH, colors } = style.buildings;
@@ -128,13 +139,16 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
         else for (let u = DRESS.pier.every; u < d - 0.3; u += DRESS.pier.every) { const zp = face > 0 ? z + d - u : z + u; box(inn - DRESS.pier.out, inn + 0.05, y0, y1 - C.h, zp - DRESS.pier.w / 2, zp + DRESS.pier.w / 2); }
       });
       // a tower behind a walk-up (downtown's second row): its own tall tile on the road face and the end, its own body colour, a cornice
+      let reach = deep;
       if (H.back && !tall && look() < H.back.share) {
         const off = H.back.x[0] + look() * (H.back.x[1] - H.back.x[0]), w = H.back.w[0] + look() * (H.back.w[1] - H.back.w[0]), bh = snap(H.tall[0] + look() * (H.tall[1] - H.tall[0])), bt = pick(H.tallTiles, -1), bm = facadeMaterial(gfx, style, bt);
         along(bm, off, SHOP_H, bh, TILE.w, TILE.h);
         across(bm, off, off + w, SHOP_H, bh, TILE.w, TILE.h);
         box(off + 0.02, off + w, 0, bh, z, z + d, bodyColor(bt) ?? color);
         box(off - C.out, off + 0.3, bh - C.h, bh, z - C.ret, z + d, trim);
+        reach = off + w;
       }
+      stand('block', side, FACADE_X, FACADE_X + reach, z - C.ret, z + d);
       // roofs: a water tower on a low roof deep enough for it, AC units on the top tier
       const top = insets[tops.length - 1];
       if (h < ROOF.maxH && depth > 4 && look() < ROOF.tower) roofs.tower.push(new T.Matrix4().makeTranslation(side * (FACADE_X + 6), h, zc));
@@ -143,7 +157,65 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       z += depth;
     }
   }
+  // The side street's lots and end blocks, then the back rows: bodies and cornices in the body mesh, facades and storefronts only on
+  // tiles this chunk already draws (no new mesh), from their own sub-stream of the walls' seed (nothing else reshuffles).
+  // ponytail: flat storefront and facade planes and a cornice, no fascia, awning or relief (seen from 20 m and more); walk-up heights
+  // (the theme's short range; the back rows BACK.h), so the skyline still shows over them
+  function beyond() {
+    const sr = rng((seed ^ 0x51de57) >>> 0), span = ([a, b]) => a + sr() * (b - a), drawn = (f) => groups.has(facadeMaterial(gfx, style, f));
+    const tiles = [(H.kind === 'walk' ? H.tiles ?? ALL : H.shortTiles).filter(drawn), ALL.filter(drawn)].find((l) => l.length) ?? [], shops = shopIds.filter((i) => groups.has(shopMaterial(gfx, style, i)));
+    if (!tiles.length || !shops.length) return;
+    const tile = () => tiles[Math.floor(sr() * tiles.length)], colour = (f) => bodyColor(f) ?? new T.Color(colors[Math.floor(sr() * colors.length)]);
+    const solid = (x0, x1, y0, y1, za, zb, c) => { const b = new T.BoxGeometry(x1 - x0, y1 - y0, zb - za, 1, 1, Math.max(1, Math.ceil((zb - za) / 4))).translate((x0 + x1) / 2, (y0 + y1) / 2, (za + zb) / 2); paint(T, b, c); put(body, b); };
+    // a block over |x| xa..xb on avenue side s, z za..zb, its front (storefront, facade, cornice) facing +z or -z (fz), or the avenue (fz 0)
+    const lot = (kind, s, xa, xb, za, zb, fz) => {
+      const h = snap(span(H.short ?? H.range)), f = tile(), fm = facadeMaterial(gfx, style, f), sm = shopMaterial(gfx, style, shops[Math.floor(sr() * shops.length)]);
+      const [x0, x1] = signed(s, xa, xb), xc = (x0 + x1) / 2, w = fz ? x1 - x0 : zb - za;
+      solid(x0, x1, 0, h, za, zb, colour(f));
+      const at = fz ? (geo) => (fz > 0 ? geo.rotateY(Math.PI) : geo).translate(xc, 0, fz > 0 ? zb + 0.02 : za - 0.02) : (geo) => geo.translate(s > 0 ? x0 - 0.02 : x1 + 0.02, 0, (za + zb) / 2);
+      const face = (mat, y0, y1, tw, th) => put(mat, at(wall(T, w, y1 - y0, -s, tw, th, 0, fz ? 'z' : 'x')).translate(0, (y0 + y1) / 2, 0));
+      face(sm, 0, SHOP_H, w / Math.max(1, Math.round(w / DRESS.shopW)), SHOP_H); // the whole storefront image, as the -z ends wear it
+      face(fm, SHOP_H, h, TILE.w, TILE.h);
+      if (fz > 0) solid(x0, x1, h - C.h, h, zb - 0.3, zb + C.out, trim);
+      else if (fz < 0) solid(x0, x1, h - C.h, h, za - C.out, za + 0.3, trim);
+      else solid(s > 0 ? x0 - C.out : x1 - 0.3, s > 0 ? x0 + 0.3 : x1 + C.out, h - C.h, h, za, zb, trim);
+      stand(kind, s, xa, xb, za, zb);
+    };
+    const [wa, wb] = cross ? sideWalls(cross.z) : [];
+    if (cross) {
+      for (const s of [-1, 1]) for (const [zw, dir] of [[wa, -1], [wb, 1]]) { // dir: the way a row runs into z from its wall
+        const D = span(SIDE.deep), za = dir < 0 ? zw - D : zw, zb = dir < 0 ? zw : zw + D;
+        // from behind whatever the avenue's blocks stand on here (a 16 m tower body, downtown's back towers)
+        let x = Math.max(FACADE_X + DRESS.body[0], ...lotsOut.filter((o) => Math.sign(o.x[0] + o.x[1]) === s && o.z[0] < zb && o.z[1] > za).map((o) => Math.max(...o.x.map(Math.abs)))) + GAP;
+        while (x < SIDE.far - SIDE.lot[0] / 2) {
+          let w = span(SIDE.lot);
+          if (SIDE.far - x - w < SIDE.lot[0]) w = SIDE.far - x; // the remainder joins this lot
+          lot('side', s, x, x + w - GAP, za, zb, -dir);
+          x += w;
+        }
+      }
+      for (const s of [-1, 1]) lot('end', s, SIDE.far, SIDE.far + SIDE.end, wa - SIDE.deep[1], wb + SIDE.deep[1], 0);
+    }
+    // the back rows: lots along z behind the avenue's, each a body with its tile on both ends and on the face toward the avenue
+    const free = (x, z) => !(cross && z[0] < wb + GAP && z[1] > wa - GAP) && lotsOut.every((o) => x[1] + GAP <= o.x[0] || o.x[1] + GAP <= x[0] || z[1] + GAP <= o.z[0] || o.z[1] + GAP <= z[0]);
+    for (const s of [-1, 1]) for (let k = 0; k < BACK.rows; k++) {
+      const xa = FACADE_X + BACK.x + k * (BACK.w + BACK.alley), xb = xa + BACK.w, xc = s * (xa + BACK.w / 2);
+      for (let z = z0 + C.ret; z < z0 + length - 3;) {
+        const len = Math.min(span(BACK.lot), z0 + length - C.ret - z), za = z, zb = z + len - GAP, f = tile(), h = snap(span(BACK.h)) + 3.5 * k, keep = sr() >= BACK.empty;
+        z += len;
+        if (!keep || zb - za < 3 || !free(signed(s, xa, xb), [za, zb])) continue;
+        const fm = facadeMaterial(gfx, style, f);
+        solid(...signed(s, xa, xb), 0, h, za, zb, colour(f));
+        put(fm, wall(T, BACK.w, h, 0, TILE.w, TILE.h, 0, 'z').translate(xc, h / 2, za - 0.02));
+        put(fm, wall(T, BACK.w, h, 0, TILE.w, TILE.h, 0, 'z').rotateY(Math.PI).translate(xc, h / 2, zb + 0.02));
+        put(fm, wall(T, zb - za, h, -s, TILE.w, TILE.h).translate(s * (xa - 0.02), h / 2, (za + zb) / 2));
+        stand('back', s, xa, xb, za, zb);
+      }
+    }
+  }
+  beyond();
   const g = gfx.group();
+  g.userData.lots = lotsOut;
   for (const [mat, geos] of groups) {
     const m = new T.Mesh(merge(T, geos), mat);
     m.userData.building = true;

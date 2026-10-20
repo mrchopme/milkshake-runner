@@ -9,7 +9,7 @@ import { KIT, KIT_FILES, kitParts, placeholder, GUARD } from '../packs/hifi/lib/
 import { furniture, FOOT, PITS, RHYTHM } from '../packs/hifi/lib/furniture.js';
 import { traffic } from '../packs/hifi/lib/traffic.js';
 import { material } from '../packs/hifi/lib/materials.js';
-import { FACADE_X } from '../packs/hifi/lib/street.js';
+import { FACADE_X, SIDE, sideWalls } from '../packs/hifi/lib/street.js';
 import { BLADE, ASPECT } from '../packs/hifi/lib/signs.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import midtown from '../packs/hifi/themes/midtown.js';
@@ -120,19 +120,28 @@ test('at their real proportions no placed piece reaches into the buildings or th
   // a canopy leans over the kerb but stays out of the outer lane (3 lanes of 2.5 m: its edge at 3.75)
   const KERB = 4.5, WALL = 0.2, LANE = 3.75, BLADES = FACADE_X - BLADE.wall - BLADE.w, UNDER = BLADE.y - BLADE.w / ASPECT.blade / 2, seen = new Set(), m = new THREE.Matrix4();
   for (const [kind, entry] of Object.entries(KIT)) if (REAL[kind] || kind in RHYTHM.trees) adopt(entry.path, model(kind));
-  for (let seed = 1; seed <= 40; seed++) furniture(gfx, { z0: 120 * (seed % 5), length: 120 }, null, rng(seed), { z: 120 * (seed % 5) + 60 }, LOTS.map((b) => ({ ...b, z0: b.z0 + 120 * (seed % 5), z1: b.z1 + 120 * (seed % 5) }))).traverse((n) => {
+  let side = 0;
+  for (let seed = 1; seed <= 40; seed++) { const cz = 120 * (seed % 5) + 60, [wa, wb] = sideWalls(cz); furniture(gfx, { z0: 120 * (seed % 5), length: 120 }, null, rng(seed), { z: cz }, LOTS.map((b) => ({ ...b, z0: b.z0 + 120 * (seed % 5), z1: b.z1 + 120 * (seed % 5) }))).traverse((n) => {
     const kind = n.userData.furniture ?? (n.userData.pit && 'tree');
     if (!kind) return;
     for (let i = 0; i < n.count; i++) {
       n.getMatrixAt(i, m);
       const b = n.userData.pit ? footBox(n, m) : new THREE.Box3().setFromBufferAttribute(n.geometry.attributes.position.clone().applyMatrix4(m)), [near, far] = [Math.abs(b.min.x), Math.abs(b.max.x)].sort((p, q) => p - q);
+      if (Math.abs(m.elements[12]) > FACADE_X) { // the side street's walks (Task 33 pick 2): WALL off its wall, a footprint or canopy no further out than the walk, short of SIDE.far
+        const dir = m.elements[14] < (wa + wb) / 2 ? 1 : -1, off = dir > 0 ? [b.min.z - wa, b.max.z - wa] : [wb - b.max.z, wb - b.min.z];
+        side++;
+        assert.ok(off[0] >= WALL - 1e-6 && far <= SIDE.far + 1e-6, `seed ${seed}: a side-street ${kind} ${off[0].toFixed(2)} m off its wall, out to x ${far.toFixed(2)}`);
+        if (n.geometry.userData.foot || n.userData.pit || kind in RHYTHM.trees) assert.ok(off[1] <= SIDE.walk + 1e-6, `seed ${seed}: a side-street ${kind}'s ${n.userData.pit || n.geometry.userData.foot ? 'footprint' : 'canopy'} reaches ${off[1].toFixed(2)} m from its wall, past the ${SIDE.walk} m walk`);
+        continue;
+      }
       assert.ok(far <= FACADE_X - WALL + 1e-6, `seed ${seed}: ${kind} reaches x ${far.toFixed(2)}`);
       if (b.max.y > UNDER) assert.ok(far <= BLADES + 1e-6, `seed ${seed}: a ${kind} ${b.max.y.toFixed(2)} m tall reaches x ${far.toFixed(2)}, the blade signs ${BLADES.toFixed(2)} from ${UNDER.toFixed(2)} m up`);
       if (kind in RHYTHM.trees && !n.userData.pit) assert.ok(near >= LANE - 1e-6, `seed ${seed}: a canopy over the lane at x ${near.toFixed(2)}`);
       if (n.geometry.userData.foot || n.userData.pit) { seen.add(kind); assert.ok(near >= KERB - 1e-6, `seed ${seed}: ${kind}'s footprint reaches x ${near.toFixed(2)}`); }
     }
-  });
+  }); }
   assert.deepEqual([...seen].sort(), [...Object.keys(REAL), 'tree'].sort(), 'every placed kind\'s footprint was checked');
+  assert.ok(side > 0, 'the side streets\' pieces were checked');
 });
 
 test('the footprints furniture spaces pieces by (FOOT) are the pieces\' own at KIT\'s sizes: the tree\'s its trunk, the guard cut', () => {

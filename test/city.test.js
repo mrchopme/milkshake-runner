@@ -5,8 +5,8 @@ import * as gfx from '../src/gfx.js';
 import { rng } from '../src/generator.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import shipped from '../content/themes/downtown.js';
-import { street, CROSS, WALK, FACADE_X, DASH, KERB, PAVE, EDGE, KERB_TONE, pavingTexture, asphaltTexture } from '../packs/hifi/lib/street.js';
-import { buildings, CORNICE, GAP } from '../packs/hifi/lib/buildings.js';
+import { street, CROSS, WALK, FACADE_X, DASH, KERB, PAVE, EDGE, KERB_TONE, SIDE, sideWalls, pavingTexture, asphaltTexture } from '../packs/hifi/lib/street.js';
+import { buildings, CORNICE, GAP, BACK } from '../packs/hifi/lib/buildings.js';
 import { cityChunk } from '../packs/hifi/lib/city.js';
 import { SHOP_H, tintFor, tinted } from '../packs/hifi/lib/facade.js';
 import { furniture, FOOT, SEAM, CLEAR, RHYTHM, PITS, PLANTER, TINT } from '../packs/hifi/lib/furniture.js';
@@ -151,8 +151,8 @@ test('a block\'s body is its facade tile\'s colour, tinted as the tile, and its 
       for (let i = 0; i < pos.count; i++) {
         v.fromBufferAttribute(pos, i);
         if (Math.sign(v.x) !== b.side || v.z < b.z0 + 0.5 || v.z > b.z1) continue;
-        const out = FACADE_X - Math.abs(v.x);
-        if (out < -9 && v.y < b.setAt - CORNICE.h - 1e-3) { back++; c.fromBufferAttribute(col, i); assert.equal(c.getHexString(), want(b.tile).getHexString(), `seed ${seed}: block ${b.lot} (tile ${b.tile})`); }
+        const out = FACADE_X - Math.abs(v.x), deep = b.h > 40 ? 16 : 10; // the block's own body depth (buildings.js DRESS.body): the side street's lots and the back rows stand behind it (Task 33 picks 2 and 7)
+        if (out < -9 && out >= -deep - 1e-3 && v.y < b.setAt - CORNICE.h - 1e-3) { back++; c.fromBufferAttribute(col, i); assert.equal(c.getHexString(), want(b.tile).getHexString(), `seed ${seed}: block ${b.lot} (tile ${b.tile})`); }
         if (Math.abs(out - CORNICE.out) < 1e-6 && (Math.abs(v.y - b.setAt) < 1e-6 || Math.abs(v.y - b.setAt + CORNICE.h) < 1e-6)) corn = true;
       }
       assert.ok(back > 0 && corn, `seed ${seed}: block ${b.lot}: ${back} body vertices at its back, its cornice ${corn}`);
@@ -212,6 +212,92 @@ test('the walls seed their sub-streams from one draw of the chunk stream: the sa
   }
 });
 
+const streetTheme = async (id) => { const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }; return (seed, z0 = 0, length = 120) => hifi.createChunk.call(theme, gfx, { z0, length, lanes, rng: rng(seed), theme }); };
+// the side street's ground and furniture stay in the chunk and the land block, out to the end block's back (the review of Task 34 L-B)
+test('the side street\'s paving, walks and furniture stay inside [z0, z0 + length] and |x| <= SIDE.far + SIDE.end', async () => {
+  for (const id of ['downtown', 'midtown', 'uptown']) {
+    const make = await streetTheme(id);
+    for (let seed = 1; seed <= 20; seed++) {
+      const z0 = 120 * seed, g = make(seed, z0), at = `${id}, seed ${seed}`;
+      const b = bounds(g, (n) => n.userData.crossing || n.userData.sideWalk);
+      assert.ok(b.min.z >= z0 - 1e-6 && b.max.z <= z0 + 120 + 1e-6 && Math.max(-b.min.x, b.max.x) <= SIDE.far + SIDE.end + 1e-6, `${at}: the side street's ground ${b.min.x.toFixed(2)}..${b.max.x.toFixed(2)}, z ${b.min.z.toFixed(2)}..${b.max.z.toFixed(2)}`);
+      g.traverse((n) => {
+        if (!n.userData.furniture && !n.userData.pit && !n.userData.pool) return;
+        const m = new THREE.Matrix4();
+        for (let i = 0; i < n.count; i++) {
+          n.getMatrixAt(i, m);
+          if (Math.abs(m.elements[12]) <= FACADE_X) continue; // the avenue's, the tests above
+          const box = new THREE.Box3().setFromBufferAttribute(n.geometry.attributes.position).applyMatrix4(m);
+          assert.ok(box.min.z >= z0 - 1e-6 && box.max.z <= z0 + 120 + 1e-6 && Math.max(-box.min.x, box.max.x) <= SIDE.far + SIDE.end + 1e-6, `${at}: a side-street ${n.userData.furniture ?? 'pit or pool'} at x ${box.min.x.toFixed(2)}..${box.max.x.toFixed(2)}, z ${box.min.z.toFixed(2)}..${box.max.z.toFixed(2)}`);
+        }
+      });
+    }
+  }
+});
+
+// The side street's blocks (Task 33 pick 2, Caedon board 28 "ON"): rows of lots on the city facade kit, their fronts on its two walls,
+// out to an end block across it at SIDE.far; and the shore's back rows behind the avenue's blocks (pick 7: "the floating street was
+// the bare slab behind the city"), off the side street and its lots. The buildings part lists every footprint on its group's
+// userData.lots ({ kind: 'block' | 'side' | 'end' | 'back', x: [lo, hi], z: [lo, hi] }, x signed) for these tests.
+const lotsOf = (g) => { let out; g.traverse((n) => { out ??= n.userData.lots; }); return out; };
+test('the side street\'s blocks face it: storefronts and facades on its two walls looking ±z, lots end to end out to an end block at SIDE.far, on the mesh budget', async () => {
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
+  for (const id of ['downtown', 'midtown', 'uptown']) {
+    const make = await streetTheme(id);
+    for (let seed = 1; seed <= 20; seed++) {
+      const g = make(seed, 120 * seed), cz = g.userData.cross.z, [wa, wb] = sideWalls(cz), at = `${id}, seed ${seed}`, walls = {}, ends = { [-1]: 0, 1: 0 };
+      let meshes = 0; g.traverse((m) => { if (m.isMesh) meshes++; });
+      assert.ok(meshes <= 45, `${at}: ${meshes} meshes`);
+      g.traverse((m) => {
+        if (!m.userData.building || m.material.vertexColors) return; // the walls: facade tiles and storefronts (the body mesh is the vertex-coloured one)
+        const p = m.geometry.attributes.position;
+        for (let i = 0; i < p.count; i += 3) {
+          a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
+          n.crossVectors(b.clone().sub(a), c.clone().sub(a)).normalize();
+          const x = (a.x + b.x + c.x) / 3, z = (a.z + b.z + c.z) / 3, s = Math.sign(x), w = Math.abs(z - wa - 0.02) < 1e-3 ? 1 : Math.abs(z - wb + 0.02) < 1e-3 ? -1 : 0;
+          if (Math.abs(x) > FACADE_X && w) {
+            assert.ok(n.z * w > 0.99, `${at}: a wall on the side street's ${w > 0 ? 'before' : 'after'} wall at x ${x.toFixed(2)} looks ${n.toArray().map((v) => v.toFixed(2))}, not into the street`);
+            (walls[`${s},${w}`] ??= []).push([Math.min(a.x, b.x, c.x), Math.max(a.x, b.x, c.x)].map(Math.abs).sort((p, q) => p - q));
+          }
+          if (Math.abs(Math.abs(x) - SIDE.far + 0.02) < 1e-3 && n.x * s < -0.99 && z > wa && z < wb) ends[s]++; // the end block's front, toward the avenue
+        }
+      });
+      for (const s of [-1, 1]) {
+        assert.ok(ends[s] > 0, `${at}: no end block at x ${s * SIDE.far}`);
+        for (const w of [1, -1]) {
+          const mine = lotsOf(g).filter((o) => o.kind === 'side' && Math.sign(o.x[0] + o.x[1]) === s && (w > 0 ? o.z[1] <= wa + 1e-6 : o.z[0] >= wb - 1e-6));
+          assert.ok(mine.length >= 1 && mine.length <= 4, `${at}, side ${s}: ${mine.length} lots on a wall`);
+          const from = Math.min(...mine.map((o) => Math.min(Math.abs(o.x[0]), Math.abs(o.x[1])))), runs = []; // from the first lot (behind the avenue's blocks): the walls' x spans merged, a GAP between, out to SIDE.far
+          for (const [lo, hi] of (walls[`${s},${w}`] ?? []).filter(([lo]) => lo >= from - 1e-3).sort((p, q) => p[0] - q[0])) if (runs.length && lo <= runs.at(-1)[1] + GAP + 1e-3) runs.at(-1)[1] = Math.max(runs.at(-1)[1], hi); else runs.push([lo, hi]);
+          assert.ok(runs.length === 1 && Math.abs(runs[0][0] - from) < 1e-3 && runs[0][1] >= SIDE.far - GAP - 1e-3, `${at}, side ${s}, ${w > 0 ? 'before' : 'after'} wall from x ${from.toFixed(2)}: walls ${JSON.stringify(runs.map((r) => r.map((v) => +v.toFixed(2))))}`);
+        }
+      }
+    }
+  }
+});
+
+test('the shore\'s back rows stand behind the avenue\'s blocks, off the side street and its lots, inside the chunk, every body piece coloured', async () => {
+  for (const id of ['downtown', 'midtown', 'uptown']) {
+    const make = await streetTheme(id);
+    let backs = 0;
+    for (let seed = 1; seed <= 20; seed++) for (const length of [120, 80]) {
+      const z0 = 120 * seed, g = make(seed, z0, length), lots = lotsOf(g), cross = g.userData.cross, at = `${id}, seed ${seed}, ${length} m`;
+      const [wa, wb] = cross ? sideWalls(cross.z) : [Infinity, -Infinity];
+      for (const o of lots) {
+        assert.ok(o.z[0] >= z0 - 1e-6 && o.z[1] <= z0 + length + 1e-6 && Math.abs(o.x[0]) <= 300 && Math.abs(o.x[1]) <= 300, `${at}: a ${o.kind} lot at ${JSON.stringify(o)} leaves the chunk or the land`);
+        if (o.kind !== 'back') continue;
+        backs++;
+        assert.ok(Math.min(Math.abs(o.x[0]), Math.abs(o.x[1])) >= FACADE_X + BACK.x - 1e-6, `${at}: a back lot at x ${o.x}`);
+        assert.ok(o.z[1] + GAP <= wa + 1e-6 || o.z[0] - GAP >= wb - 1e-6, `${at}: a back lot at z ${o.z} in the side street ${wa}..${wb}`);
+      }
+      lots.forEach((o, i) => lots.slice(i + 1).forEach((q) => assert.ok(o.x[1] <= q.x[0] + 1e-6 || q.x[1] <= o.x[0] + 1e-6 || o.z[1] <= q.z[0] + 1e-6 || q.z[1] <= o.z[0] + 1e-6, `${at}: a ${o.kind} lot ${JSON.stringify(o)} and a ${q.kind} lot ${JSON.stringify(q)} overlap`)));
+      let body; g.traverse((m) => { if (m.userData.building && m.material.vertexColors) body = m.geometry; });
+      assert.ok(body.attributes.color?.count === body.attributes.position.count, `${at}: the body mesh merged with a colour on every piece`);
+    }
+    assert.ok(backs > 40 * 4, `${id}: ${backs} back lots in 40 chunks`);
+  }
+});
+
 test('a block squeezed under 7.5 m of frontage never stands as a full-height slab', () => {
   const style = { id: 't32-slab', buildings: shipped.buildings, facades: [], heights: { kind: 'runs', short: [14, 24], tall: [60, 140], tallShare: 1, shortTiles: [0], tallTiles: [1] } };
   for (let seed = 1; seed <= 20; seed++) {
@@ -247,6 +333,25 @@ test('the cross street has ground under it from the road out to the back of the 
   g.updateMatrixWorld(true);
   const covered = (x, z) => { let hit = false; g.traverse((n) => { if (!n.isMesh || n.isInstancedMesh) return; n.geometry.computeBoundingBox(); const b = n.geometry.boundingBox.clone().applyMatrix4(n.matrixWorld); if (x >= b.min.x && x <= b.max.x && z >= b.min.z && z <= b.max.z && b.max.y <= 0.2) hit = true; }); return hit; };
   for (const x of [-20, -14, -7, 0, 7, 14, 20]) for (const z of [cross.z + 0.5, cross.z + 6, cross.z + CROSS.width - 0.5]) assert.ok(covered(x, z), `no ground at x ${x}, z ${z}`);
+});
+
+// The side street (Task 33 pick 2, Caedon board 28 "ON"): a street, not a gap: paved out to SIDE.far, a walk with its kerb band
+// along each wall (the before wall at the avenue lots' GAP, the after wall where the next lots start), a zebra across its mouth.
+const surface = (g, x, z) => new THREE.Raycaster(new THREE.Vector3(x, 10, z), new THREE.Vector3(0, -1, 0)).intersectObject(g, true).find((h) => !h.object.isInstancedMesh)?.point.y; // the ground's top there, paint aside
+test('the side street runs out to SIDE.far: paved, a walk along each wall, its road between, a zebra across its mouth', () => {
+  const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, flat, cross), [wa, wb] = sideWalls(cross.z);
+  g.updateMatrixWorld(true);
+  assert.deepEqual([wa, wb], [cross.z - GAP, cross.z + CROSS.width]);
+  for (const s of [-1, 1]) for (const x of [12, 21, 40, SIDE.far - 0.5].map((v) => s * v)) {
+    for (const z of [wa + 0.2, wa + SIDE.walk - 0.2, wb - SIDE.walk + 0.2, wb - 0.2]) assert.ok(Math.abs(surface(g, x, z) - KERB) < 1e-6, `no walk at x ${x}, z ${z}`);
+    for (const z of [wa + SIDE.walk + 0.2, (wa + wb) / 2, wb - SIDE.walk - 0.2]) assert.ok(Math.abs(surface(g, x, z)) < 0.01, `no road at x ${x}, z ${z}: ${surface(g, x, z)}`);
+  }
+  assert.equal(surface(g, SIDE.far + 1, (wa + wb) / 2), undefined, 'the paving ends at SIDE.far');
+  let zebra; g.traverse((n) => { if (n.isInstancedMesh && n.geometry.parameters.width === CROSS.stripe) zebra = n; });
+  const m = new THREE.Matrix4(), mouth = [];
+  for (let i = 0; i < zebra.count; i++) { zebra.getMatrixAt(i, m); if (Math.abs(m.elements[12]) > lanes.roadHalf) mouth.push([m.elements[12], m.elements[14]]); }
+  assert.equal(mouth.length, 10, 'five stripes across each mouth');
+  for (const [x, z] of mouth) assert.ok(Math.abs(x) < FACADE_X && z > wa + SIDE.walk && z < wb - SIDE.walk, `a mouth stripe at ${x}, ${z}`);
 });
 
 test('the facade line is the road\'s edge plus the sidewalk, and the sidewalk runs from the kerb up to it', () => {
@@ -312,13 +417,24 @@ test('solid white edge lines 0.5 m in from each kerb, the chunk\'s length but ac
   let lines, zebra; g.traverse((n) => { if (n.isInstancedMesh && n.geometry.parameters.width === DASH.w) lines = n; if (n.isInstancedMesh && n.geometry.parameters.width === CROSS.stripe) zebra = n; });
   const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3(), edges = [];
   for (let i = 0; i < lines.count; i++) { lines.getMatrixAt(i, m); m.decompose(p, q, s); if (Math.abs(Math.abs(p.x) - (lanes.roadHalf - EDGE.in)) < 1e-6) edges.push([p.x, p.z - s.z * DASH.len / 2, p.z + s.z * DASH.len / 2, s.x * DASH.w]); }
-  for (const x of [1, -1]) {
-    const mine = edges.filter((e) => Math.sign(e[0]) === x).sort((a, b) => a[1] - b[1]);
-    assert.deepEqual(mine.map((e) => [e[1], e[2]].map((v) => +v.toFixed(3))), [[0, cross.z], [cross.z + CROSS.width, 120]], `side ${x}`);
+  for (const x of [1, -1]) { // in DASH.len pieces end to end (Caedon, board 29 item 3): the runs they make
+    const mine = edges.filter((e) => Math.sign(e[0]) === x).sort((a, b) => a[1] - b[1]), runs = [];
+    for (const [, a, b] of mine) if (runs.length && Math.abs(a - runs.at(-1)[1]) < 1e-4) runs.at(-1)[1] = b; else runs.push([a, b]);
+    assert.deepEqual(runs.map((r) => r.map((v) => +v.toFixed(3))), [[0, cross.z], [cross.z + CROSS.width, 120]], `side ${x}`);
     for (const e of mine) assert.ok(Math.abs(e[3] - EDGE.w) < 1e-5, `${e[3]} wide`);
   }
   const xs = []; for (let i = 0; i < zebra.count; i++) { zebra.getMatrixAt(i, m); p.setFromMatrixPosition(m); xs.push(p.x); }
   assert.ok(Math.abs(Math.min(...xs) + Math.max(...xs)) < 1e-6, `zebra ${Math.min(...xs)}..${Math.max(...xs)}`);
+});
+
+// The edge lines bent as straight chords 1.4-4.7 m off the kerb on a bend, one instance scaled to each 30-78 m span (Caedon, board 29
+// item 3; task-34-map § 3): every lane-paint piece is DASH.len at most, so it bends with the street as the lane dashes do.
+test('no lane-paint piece is longer than DASH.len along z: the edge lines lie in DASH.len pieces, 72 a chunk with a crossing', () => {
+  const g = street(gfx, { z0: 0, length: 120, lanes }, flat, { z: 50 });
+  let lines; g.traverse((n) => { if (n.isInstancedMesh && n.geometry.parameters.width === DASH.w) lines = n; });
+  const m = new THREE.Matrix4(), p = new THREE.Vector3(), q = new THREE.Quaternion(), s = new THREE.Vector3();
+  for (let i = 0; i < lines.count; i++) { lines.getMatrixAt(i, m); m.decompose(p, q, s); assert.ok(s.z * DASH.len <= DASH.len + 1e-6, `a ${(s.z * DASH.len).toFixed(2)} m piece at x ${p.x}, z ${p.z}`); }
+  assert.equal(lines.count, 72, 'the 34 lane dashes and 38 edge pieces, 9 + 10 a side (were 4 lines, each scaled to its span)');
 });
 
 test('a facade tile that loads after a chunk was built still shows on the next chunk', () => {
@@ -331,18 +447,24 @@ test('a facade tile that loads after a chunk was built still shows on the next c
   assert.ok(maps(buildings(gfx, { z0: 0, length: 120 }, style, rng(4), null)).includes(late), 'the loaded tile replaces the placeholder');
 });
 
+// the side street's walks are sidewalk band too (Task 33 pick 2): past the facade line a piece stands on one of them
+const onSideWalk = (p, cz) => { const [wa, wb] = sideWalls(cz); return Math.abs(p.x) <= SIDE.far && ((p.z >= wa && p.z <= wa + SIDE.walk) || (p.z >= wb - SIDE.walk && p.z <= wb)); };
 test('furniture stands only on the sidewalk band, never in a lane', () => {
-  let seen = 0;
-  for (const seed of [1, 2, 3, 4]) chunk(seed).traverse((n) => {
+  let seen = 0, side = 0;
+  for (const seed of [1, 2, 3, 4]) { const g = chunk(seed), cz = g.userData.cross.z; g.traverse((n) => {
     if (!n.userData.furniture) return;
     seen++;
     const m = new THREE.Matrix4(), p = new THREE.Vector3();
-    for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(Math.abs(p.x) >= 4.8 - 1e-6 && Math.abs(p.x) <= FACADE_X - 0.2 + 1e-6, `seed ${seed}: x = ${p.x.toFixed(2)}`); }
-  });
-  assert.ok(seen > 0, 'furniture was built');
+    for (let i = 0; i < n.count; i++) {
+      n.getMatrixAt(i, m); p.setFromMatrixPosition(m);
+      if (Math.abs(p.x) > FACADE_X) { side++; assert.ok(onSideWalk(p, cz), `seed ${seed}: a ${n.userData.furniture} at ${p.x.toFixed(2)}, ${p.z.toFixed(2)} off the side street's walks`); continue; }
+      assert.ok(Math.abs(p.x) >= 4.8 - 1e-6 && Math.abs(p.x) <= FACADE_X - 0.2 + 1e-6, `seed ${seed}: x = ${p.x.toFixed(2)}`);
+    }
+  }); }
+  assert.ok(seen > 0 && side > 0, `furniture was built, ${side} pieces down the side streets`);
 });
 
-test('at most one car drives each side of the cross street: the 6 m loop has no room for two', () => {
+test('at most one car drives each side of the cross street (the count kept when the loop ran on down the side street, Task 34 L-B)', () => {
   let cars = 0;
   for (let seed = 1; seed <= 100; seed++) {
     const sides = [];
@@ -366,7 +488,7 @@ test('nothing but the traffic lights within 2 m of the side street, at most one 
       const kind = n.userData.furniture;
       if (!kind || kind === 'traffic_light') return;
       const m = new THREE.Matrix4(), p = new THREE.Vector3();
-      for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(p.z <= cz - 2 || p.z >= cz + CROSS.width + 2, `seed ${seed}: ${kind} at z ${p.z.toFixed(2)}, side street at ${cz}`); if (kind === 'bus_shelter' || kind === 'subway') rare.add(`${p.x},${p.z}`); }
+      for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, m); p.setFromMatrixPosition(m); if (Math.abs(p.x) > FACADE_X) continue; /* the side street's own, on its walks (above) */ assert.ok(p.z <= cz - 2 || p.z >= cz + CROSS.width + 2, `seed ${seed}: ${kind} at z ${p.z.toFixed(2)}, side street at ${cz}`); if (kind === 'bus_shelter' || kind === 'subway') rare.add(`${p.x},${p.z}`); }
     });
     assert.ok(rare.size <= 1, `seed ${seed}: ${rare.size} shelters or subways`);
   }
@@ -394,7 +516,9 @@ test('a crossing\'s two traffic lights stand on the far corners, one each side, 
 // The kerb's rhythm (Task 32; Caedon, 2026-10-15: "Regular rhythm like the frames", board 24 "Ship as prototyped"; it reverses board 18's
 // random stretches): per side a tree every 11-14 m in a pit (Task 33 pick 3, board 28: the small trees, 8-10 m before), a lamp halfway
 // between every second pair, planters at shop doors.
-const pieces = (g) => { let n = 0; const first = new Set(); g.traverse((m) => { const k = m.userData.furniture; if (k && !first.has(k)) { first.add(k); n += m.count; } }); return n; }; // one instance a piece in each of its kind's part meshes
+// the avenue's alone: the side street's walks (past the facade line, Task 33 pick 2) keep a rhythm of their own (its test below)
+const avenue = (n, i) => { const m = new THREE.Matrix4(); n.getMatrixAt(i, m); return Math.abs(m.elements[12]) <= FACADE_X ? m : null; };
+const pieces = (g) => { let n = 0; const first = new Set(); g.traverse((m) => { const k = m.userData.furniture; if (k && !first.has(k)) { first.add(k); for (let i = 0; i < m.count; i++) n += !!avenue(m, i); } }); return n; }; // one instance a piece in each of its kind's part meshes
 const THEMES = ['downtown', 'midtown', 'uptown'];
 const themeChunk = async (id) => { const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }; return (seed, z0 = 0) => hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }); };
 const placed = (g) => { // per side: each kind's instances (the first of its part meshes) and the pits, as { x, z, m, kind }; both tree models under `tree`
@@ -403,7 +527,7 @@ const placed = (g) => { // per side: each kind's instances (the first of its par
     const kind = n.userData.furniture ?? (n.userData.pit && 'pit'), k = kind in RHYTHM.trees ? 'tree' : kind;
     if (!kind || seen.has(kind)) return;
     seen.add(kind);
-    for (let i = 0; i < n.count; i++) { const m = new THREE.Matrix4(); n.getMatrixAt(i, m); const x = m.elements[12], z = m.elements[14]; (out[Math.sign(x)][k] ??= []).push({ x, z, m, kind }); }
+    for (let i = 0; i < n.count; i++) { const m = avenue(n, i); if (!m) continue; const x = m.elements[12], z = m.elements[14]; (out[Math.sign(x)][k] ??= []).push({ x, z, m, kind }); }
   });
   for (const s of [-1, 1]) for (const l of Object.values(out[s])) l.sort((a, b) => a.z - b.z);
   return out;
@@ -548,6 +672,7 @@ test('planter pairs stand at shop doors from the block list, on about half the l
 });
 
 test('uptown\'s lamps throw a light pool, one instanced mesh, on the road and the sidewalk at their own heights, inside the chunk; the day themes none', async () => {
+  let sidePools = 0;
   for (const id of THEMES) {
     const make = await themeChunk(id);
     for (let seed = 1; seed <= 10; seed++) {
@@ -555,18 +680,22 @@ test('uptown\'s lamps throw a light pool, one instanced mesh, on the road and th
       let pool, lamps = 0, meshes = 0; g.traverse((n) => { if (n.userData.pool) { pool = n; meshes++; } if (n.userData.furniture === 'lamp') lamps = n.count; });
       if (id !== 'uptown') { assert.equal(meshes, 0, `${id}: no pools by day`); continue; }
       assert.ok(meshes === 1 && pool.count === lamps && pool.material.blending === THREE.AdditiveBlending && !pool.material.depthWrite, `seed ${seed}: ${meshes} pool meshes, ${pool?.count} pools for ${lamps} lamps`);
-      const v = new THREE.Vector3(), m = new THREE.Matrix4(), p = pool.geometry.attributes.position;
+      const v = new THREE.Vector3(), m = new THREE.Matrix4(), p = pool.geometry.attributes.position, [wa, wb] = sideWalls(g.userData.cross.z), [ka, kb] = [wa + SIDE.walk, wb - SIDE.walk];
       for (let i = 0; i < pool.count; i++) {
         pool.getMatrixAt(i, m);
+        const side = Math.abs(m.elements[12]) > FACADE_X; // a side-street lamp's (Task 33 pick 2): its kerbs run along x, at ka and kb
+        sidePools += side;
         for (let k = 0; k < p.count; k++) {
           v.fromBufferAttribute(p, k).applyMatrix4(m);
           assert.ok(v.z >= z0 - 1e-6 && v.z <= z0 + 120 + 1e-6, `seed ${seed}: a pool reaches z ${v.z.toFixed(2)}`);
           const road = v.y > 0.021 && v.y < 0.05, walk = v.y > KERB + 0.015 && v.y < KERB + 0.05, x = Math.abs(v.x); // the two meet at the kerb
-          assert.ok(x < ROAD_HALF - 1e-4 ? road : x > ROAD_HALF + 1e-4 ? walk : road || walk, `seed ${seed}: a pool's corner at x ${v.x.toFixed(2)}, y ${v.y.toFixed(3)}`);
+          const inRoad = side ? v.z > ka + 1e-4 && v.z < kb - 1e-4 : x < ROAD_HALF - 1e-4, onWalk = side ? v.z < ka - 1e-4 || v.z > kb + 1e-4 : x > ROAD_HALF + 1e-4;
+          assert.ok(inRoad ? road : onWalk ? walk : road || walk, `seed ${seed}: a pool's corner at x ${v.x.toFixed(2)}, z ${v.z.toFixed(2)}, y ${v.y.toFixed(3)}`);
         }
       }
     }
   }
+  assert.ok(sidePools > 0, 'the side streets\' lamps throw theirs too');
 });
 
 test('each tree\'s canopy is tinted on its own (instanceColor), toward its theme\'s green', async () => {
@@ -614,13 +743,17 @@ test('a loaded car model drives along the cross street whatever its own frame, a
     n.geometry.computeBoundingBox();
     const b = n.geometry.boundingBox, m = new THREE.Matrix4(), p = new THREE.Vector3(), ahead = new THREE.Vector3(), half = Math.max(-b.min.x, b.max.x);
     assert.ok(b.max.z - b.min.z > b.max.x - b.min.x, `${n.userData.traffic}: its length lies along the drive axis (+z)`);
-    // the paving runs from the kerb out to CROSS.reach, the back of the blocks: the whole car stays on it, out of the avenue
-    assert.ok(DRIVE.to + b.max.z <= CROSS.reach + 1e-6, `${n.userData.traffic}: its nose leaves the paving at ${(DRIVE.to + b.max.z).toFixed(2)}`);
+    // the side street's paving runs out to SIDE.far, the end block's front: the whole car stays on it and wraps there, at the street's
+    // far end, not 20 m down it in plain view (the review of Task 34 L-B)
+    assert.ok(DRIVE.to + b.max.z <= SIDE.far + 1e-6 && DRIVE.to + b.max.z >= SIDE.far - 1, `${n.userData.traffic}: its nose wraps at ${(DRIVE.to + b.max.z).toFixed(2)}, the side street ends at ${SIDE.far}`);
+    const far = new THREE.Vector3(), mat = new THREE.Matrix4(); // and frustum culling sees it all the way (the drive is in the vertex stage)
+    for (let i = 0; i < n.count; i++) { n.getMatrixAt(i, mat); far.set(0, 0, DRIVE.to - DRIVE.from).applyMatrix4(mat); assert.ok(n.boundingSphere.containsPoint(far), `${n.userData.traffic}: its bounds miss the drive's far end at x ${far.x.toFixed(2)}`); }
     assert.ok(DRIVE.from + b.min.z >= ROAD_HALF, `${n.userData.traffic}: its tail starts in the avenue at ${(DRIVE.from + b.min.z).toFixed(2)}`);
     for (let i = 0; i < n.count; i++) {
       n.getMatrixAt(i, m); p.setFromMatrixPosition(m); ahead.set(0, 0, 1).applyMatrix4(m).sub(p); // the drive's +z in the world, unscaled
       assert.ok(Math.abs(ahead.x - Math.sign(p.x)) < 1e-6 && Math.abs(ahead.y) < 1e-6 && Math.abs(ahead.z) < 1e-6, `${n.userData.traffic}: drives along ${ahead.toArray().map((v) => v.toFixed(2))} from x ${p.x}`);
-      assert.ok(p.z - half >= cz && p.z + half <= cz + CROSS.width, `seed ${seed}: ${n.userData.traffic} at z ${p.z}, its sides in the blocks beside the cross street at ${cz}`);
+      const [wa, wb] = sideWalls(cz); // and off the side street's walks (Task 33 pick 2): on its road between them
+      assert.ok(p.z - half >= wa + SIDE.walk && p.z + half <= wb - SIDE.walk, `seed ${seed}: ${n.userData.traffic} at z ${p.z}, its sides on the side street's walks (${wa + SIDE.walk}..${wb - SIDE.walk})`);
     }
   }); }
   assert.ok(kinds.has('taxi'), 'the loaded taxi drove');
@@ -716,11 +849,13 @@ test('the road is a cool grey per scene over asphalt grain, its lane lines solid
   const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, flat, cross);
   let lines; g.traverse((n) => { if (n.isInstancedMesh && n.geometry.parameters.width === DASH.w) lines = n; });
   const spans = [], m = new THREE.Matrix4(), p = new THREE.Vector3();
-  for (let i = 0; i < lines.count; i++) { lines.getMatrixAt(i, m); p.setFromMatrixPosition(m); if (p.x > 0) spans.push([p.z - DASH.len / 2, p.z + DASH.len / 2]); }
+  const q = new THREE.Quaternion(), k = new THREE.Vector3();
+  for (let i = 0; i < lines.count; i++) { lines.getMatrixAt(i, m); m.decompose(p, q, k); if (p.x > 0) spans.push([p.z - k.z * DASH.len / 2, p.z + k.z * DASH.len / 2]); } // a remainder piece is scaled short
   spans.sort((a, b) => a[0] - b[0]);
   const gaps = spans.slice(1).map((x, i) => [spans[i][1], x[0]]).filter(([a, b]) => b - a > 1e-6);
   assert.ok(spans[0][0] < 1e-6 && spans.at(-1)[1] > 120 - 1e-6, 'from one end of the chunk to the other');
-  assert.ok(gaps.length === 1 && gaps[0][0] <= cross.z && gaps[0][1] >= cross.z + CROSS.width, `breaks at ${gaps.map(([a, b]) => `${a}..${b}`).join(', ')}`);
+  // 1e-4: instance matrices are float32
+  assert.ok(gaps.length === 1 && gaps[0][0] <= cross.z + 1e-4 && gaps[0][1] >= cross.z + CROSS.width - 1e-4, `breaks at ${gaps.map(([a, b]) => `${a}..${b}`).join(', ')}`);
 });
 
 // re-pinned (Task 34 L-C, Task 33 P3): two scales, the 7 m tile scrolled by the run clock and a 23 m one turned 17 degrees drifting
