@@ -6,8 +6,9 @@ import { freeWith } from './paint.js';
 // outward in the vertex stage on the run clock, wrapping, so it never enters the avenue.
 // ponytail: calibration knobs: m/s; |x| where a car starts (1.5 m behind the corner building line) and where it wraps (the paving ends at
 // CROSS.reach 20.5 m, the back of the blocks, less half the longest car, 2.5 m, so a whole car stays on it); lanes from cross.z;
-// the chance of a car on each side (one at most: the 6 m loop has no room for a second 4.5 m car).
-export const DRIVE = { speed: 6, from: 12, to: 18, lanes: [3, 9], chance: 0.75 };
+// the chance of a car on each side (one at most: the 6 m loop has no room for a second 4.5 m car). lanes 4.15 and 7.35, not 3 and 9
+// (Task 33 pick 2, board 28): the side street's 3 m walks (street.js SIDE) leave its road cross.z + 2.5..9, and the old lanes rode its kerbs.
+export const DRIVE = { speed: 6, from: 12, to: 18, lanes: [4.15, 7.35], chance: 0.75 };
 const SPAN = (DRIVE.to - DRIVE.from).toFixed(1), KINDS = ['sedan', 'van', 'taxi'];
 // The drive: vertices slide along +z (ahead) before the instance matrix, the phase a uniform so every material with this
 // hook shares one program (three keys it by the hook's source).

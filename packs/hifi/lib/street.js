@@ -1,3 +1,4 @@
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { box, instanced, metreUV } from './shapes.js';
 import { material } from './materials.js';
 // The ground (Task 32, Caedon board 24 "Ship as prototyped", 2026-10-15): a procedural paving tile the walk colour tints and an
@@ -62,7 +63,19 @@ export const tintedMaterial = (T, style, key, hex, rough, map, extra) => materia
 // the teaser's road; was 0.12 wide, 3 long every 6)
 export const KERB = 0.18, WALK = 6, DASH = { w: 0.16, len: 6, every: 6 };
 export const FACADE_X = 4.5 + WALK; // the facade line: the road's edge (ROAD_HALF in src/world.js, which a pack cannot import; a test holds the two together) plus the sidewalk
-export const CROSS = { width: 12, stripe: 0.6, reach: FACADE_X + 10 }; // reach: the cross street's paving runs out to the back of the blocks (10 m deep)
+export const CROSS = { width: 12, stripe: 0.6, reach: FACADE_X + 10 }; // reach: the back of the avenue's blocks (10 m deep), where the cars wrap
+// The side street (Task 33 pick 2, Caedon board 28 "ON"; he saw "literally into space" at every T): paved out to `far` each side of the
+// avenue, a walk along each wall with its kerb band from the paving tile, lined with blocks facing it (buildings.js) and an end block
+// across it at `far`, trees and lamps on its walks (furniture.js), its cars on its road (traffic.js DRIVE.lanes). The walls stand
+// where the avenue's lots already end: the before wall at cross.z - 0.5 (their GAP), the after wall at cross.z + CROSS.width.
+// ponytail: calibration knobs, metres (the prototype P2's, board 28). far: fog at 70 m is 20 % downtown and 0 midtown and uptown, so
+// the end block closes the view, not the fog; walk: 3 + 6.5 road + 3 in the 12.5 m between the walls (6 m walks left no road); lot /
+// deep: a side block's frontage along x and depth into z; end: the end block's depth along x; tree: one every `every` m from x `from`,
+// `in` m off the wall at scale `k` (its 2.31 k m canopy clears the wall and stays over the walk), the two walks half a pitch apart, a
+// lamp halfway between every second pair (as far off its kerb as the avenue's, so its pool fits). every 24, not P2's 18: 10 trees a
+// chunk, not 12 (a tree GLB is ~7.3k triangles; the brief's trim)
+export const SIDE = { far: 70, walk: 3, lot: [12, 18], deep: [8, 10], end: 10, tree: { every: 24, in: 1.6, k: 0.6, from: 16 } };
+export const sideWalls = (cz) => [cz - 0.5, cz + CROSS.width];
 
 export function street(gfx, { z0, length, lanes }, style, cross) {
   const T = gfx.three, g = gfx.group(), half = lanes.roadHalf, zc = z0 + length / 2, G = style.ground;
@@ -71,9 +84,10 @@ export function street(gfx, { z0, length, lanes }, style, cross) {
   const road = metreUV(box(T, half * 2, 0.1, length, tinted('road', G.road, G.roadRough, asphaltTexture(T)), 0, -0.05, zc));
   road.userData.road = true;
   g.add(road);
-  // the sidewalks run up to the cross street and on from its far side (board 15); the cross street is paved between
-  if (cross) for (const side of [-1, 1]) {
-    const paving = metreUV(box(T, CROSS.reach - half, 0.1, CROSS.width, road.material, side * (half + CROSS.reach) / 2, -0.05, cross.z + CROSS.width / 2));
+  // the sidewalks run up to the cross street and on from its far side (board 15); the cross street is paved between, one slab out to
+  // SIDE.far both sides, 1 mm under the road (its material and metre UVs, so the overlap shows nothing)
+  if (cross) {
+    const paving = metreUV(box(T, SIDE.far * 2, 0.1, CROSS.width, road.material, 0, -0.051, cross.z + CROSS.width / 2));
     paving.userData.crossing = true;
     g.add(paving);
   }
@@ -90,18 +104,39 @@ export function street(gfx, { z0, length, lanes }, style, cross) {
     walk.userData.walk = true;
     g.add(kerb, walk);
   }
+  if (cross) { // the side street's walks, each turning the corner from the avenue's kerb, one mesh in the walk's material (the kerb band
+    // is the tile's, u metres from the side kerb's road edge, v along x)
+    const [wa, wb] = sideWalls(cross.z), W = SIDE.walk, slabs = [];
+    const slab = (x0, x1, za, zb, zk) => { const m = metreUV(box(T, x1 - x0, KERB, zb - za, walkMat, (x0 + x1) / 2, KERB / 2, (za + zb) / 2), (x, y, z, n) => [Math.abs(z - zk), Math.abs(n.x) > 0.5 ? y : Math.abs(x)]); slabs.push(m.geometry.translate(m.position.x, m.position.y, m.position.z)); };
+    for (const s of [-1, 1]) {
+      const at = (a, b) => (s > 0 ? [a, b] : [-b, -a]);
+      slab(...at(half, FACADE_X), cross.z, wa + W, wa + W);
+      slab(...at(FACADE_X, SIDE.far), wa, wa + W, wa + W);
+      slab(...at(half, SIDE.far), wb - W, wb, wb - W);
+    }
+    const walks = new T.Mesh(mergeGeometries(slabs), walkMat);
+    walks.userData.sideWalk = true;
+    g.add(walks);
+  }
   const dashes = [];
   for (let z = z0; z + DASH.len <= z0 + length; z += DASH.every) for (const x of [lanes.width / 2, -lanes.width / 2]) {
     if (cross && z + DASH.len > cross.z && z < cross.z + CROSS.width) continue; // no lane dashes across the crosswalk
     dashes.push(new T.Matrix4().makeTranslation(x, 0.011, z + DASH.len / 2));
   }
-  // solid white edge lines along each kerb, the chunk's length but across the crosswalk: the lane lines' own instances, scaled
-  for (const [a, b] of spans) for (const x of [half - EDGE.in, EDGE.in - half]) dashes.push(new T.Matrix4().makeTranslation(x, 0.011, (a + b) / 2).scale(new T.Vector3(EDGE.w / DASH.w, 1, (b - a) / DASH.len)));
+  // solid white edge lines along each kerb, the chunk's length but across the crosswalk: the lane lines' own instances in DASH.len
+  // pieces, the last scaled to what is left, so each bends with the kerb (Caedon, board 29 item 3: one piece a span bent as a chord)
+  for (const [a, b] of spans) for (const x of [half - EDGE.in, EDGE.in - half]) for (let z = a; z < b - 1e-6; z += DASH.len) {
+    const l = Math.min(DASH.len, b - z);
+    dashes.push(new T.Matrix4().makeTranslation(x, 0.011, z + l / 2).scale(new T.Vector3(EDGE.w / DASH.w, 1, l / DASH.len)));
+  }
   const paint = std('paint', style.paint, 0.6);
   g.add(instanced(T, new T.BoxGeometry(DASH.w, 0.02, DASH.len), paint, dashes));
   if (cross) { // zebra stripes across the road at both edges of the cross street, centred (Task 32: was -half + 0.4)
     const stripes = [];
     for (const zEdge of [cross.z + 1, cross.z + CROSS.width - 1]) for (let x = -half + 0.6; x < half - 0.3; x += CROSS.stripe * 2) stripes.push(new T.Matrix4().makeTranslation(x + CROSS.stripe / 2, 0.012, zEdge));
+    // and across each side street's mouth in line with the avenue's walks: the same stripe turned, five on its road, centred on it
+    const [wa, wb] = sideWalls(cross.z), mid = (wa + wb) / 2;
+    for (const s of [-1, 1]) for (let k = -2; k <= 2; k++) stripes.push(new T.Matrix4().makeRotationY(Math.PI / 2).setPosition(s * (half + PAVE.kerb + FACADE_X) / 2, 0.012, mid + k * CROSS.stripe * 2));
     g.add(instanced(T, new T.BoxGeometry(CROSS.stripe, 0.02, 2), paint, stripes));
   }
   return g;
