@@ -140,7 +140,7 @@ export default {
 ```
 
 A theme may also carry a `look`, used only in HiFi: `{ exposure, sun: { color, intensity, dir }, ambient, env, skyTop,
-skyBottom, hemi, fog, skylineHaze, disc, bloom: { strength, threshold, radius }, skyline, skylineHeight }`, every field
+skyBottom, hemi, fog, skylineHaze, disc, bloom: { strength, threshold, radius }, skyline, skylineHeight, hill }`, every field
 optional and range-checked like the rest. `skyTop` is the top of the sky gradient. `sun.dir` is the way the sunlight
 travels, `[x, y, z]` with y below 0 (z below 0 puts the sun ahead of the runner). `ambient` (0–6) is the fill's strength.
 `skyline` is one or two images from the theme's `assets` wrapped round the horizon (two: the
@@ -149,7 +149,7 @@ far ring's, then the near one's; one: the near ring), and `skylineHeight` their 
 ring may instead wear a list of 1 to 8 images, `skyline: [far, [near1, near2, …]]` (or `[[near1, …]]` with no far ring):
 they go round in order, each once and unmirrored, so each strip's own edges meet its neighbours; the whole sequence repeats
 as many whole times as fits at the target height, and `near1`'s middle faces the avenue. Both rings turn with the street
-through every turn. Low-fi ignores it. The rest:
+through every turn and slide with it, on turns and hills, while the sky dome holds. Low-fi ignores it. The rest:
 - `skyBottom`: the sky's horizon colour (hex); without it the horizon takes the fog's colour.
 - `hemi: { sky, ground }`: the fill's colours (hex); without it the engine's white over grey.
 - `fog: { color, near, pale, shade, y: [a, b] }`: the fog's colour (else `skyBottom`, else the level's sky), where it starts
@@ -160,6 +160,9 @@ through every turn. Low-fi ignores it. The rest:
   (−50–50) about eye level the ring turns solid in the fog's colour, so the street's fog meets it with no band.
 - `disc: { size, core, halo, spread, color }`: the sun drawn in the sky, `size` degrees (0–10) wide at `core` (0–20) times
   the sun's colour, in a halo `spread` degrees (0.1–90) wide in `color` at `halo` (0–5). No disc, no sun drawn.
+- `hill`: how much of its sections' hill the HiFi street shows (0–1, 1 by default). It scales the whole section's bend, deck
+  included: 0 keeps a bridge section level, with its deck, water and far shore at one height. Turns are untouched. Low-fi
+  always shows the level's own hill, and play never sees the bend.
 
 A switch between two themes with looks crossfades their light, fog and sky over about a second.
 
