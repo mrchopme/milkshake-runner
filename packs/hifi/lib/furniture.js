@@ -57,7 +57,10 @@ export const CLEAR = 2, SEAM = 2; // m kept clear of the side street; m kept fro
 // on its side, so nothing stands inside anything else: a corner's traffic light goes first, then the rhythm, then a piece tries up
 // to TRIES spots in its stretch before it is left out. A tree spaces by its pit.
 export const FOOT = { lamp: [0.54, 0.55], traffic_light: [0.72, 0.72], hydrant: [0.19, 0.2], bin: [0.2, 0.2], tree: [0.45, 0.45], tree2: [0.32, 0.32], bench: [0.3, 0.58], newsstand: [0.81, 1.09], bus_shelter: [0.87, 1.42], subway: [1.49, 1.25], planter: [0.35, 0.43] };
-const GAP = 0.2, TRIES = 10, PIT = PITS.size / 2;
+const GAP = 0.2, TRIES = 10, PIT = PITS.size / 2, KINDS = Object.keys(FOOT);
+// ponytail: calibration knob (main session, Task 34 fix round 1; the P1 report's measure): a signal's pole 1.22 m past the cross
+// street's paving, the 1.44 m base's half (FOOT) plus 0.5, so the base clears the 12 m paving (at board 19's 0.5 it reached 0.22 m onto it)
+const SIGNAL_DZ = FOOT.traffic_light[1] + 0.5;
 const hash = (z, side, salt) => pickBy(z * 7.31 + side * 1000 + salt * 104729, 1e4) / 1e4; // a stable [0, 1) from a place, no stream
 
 export function furniture(gfx, { z0, length }, style, r, cross, blocks) {
@@ -68,9 +71,11 @@ export function furniture(gfx, { z0, length }, style, r, cross, blocks) {
   const clear = (z) => !cross || z <= cross.z - CLEAR || z >= cross.z + CROSS.width + CLEAR;
   const fits = (kind, x, z, side) => clear(z) && free(foot(kind, x, z), side);
   const at = (kind, x, z, side, k = 1, yaw = 0) => { feet[side].push(foot(kind, x, z)); (byKind[kind] ??= []).push(new T.Matrix4().compose(new T.Vector3(x, 0.18, z), new T.Quaternion().setFromAxisAngle(new T.Vector3(0, 1, 0), (side > 0 ? -Math.PI / 2 : Math.PI / 2) + yaw), new T.Vector3(k, k, k))); };
-  const put = ({ kind, x }, a, b, s) => { // a random spot whose footprint stays in [a, b]
-    const hz = half(kind)[1];
-    for (let t = 0; t < TRIES && b - a >= 2 * hz; t++) { const z = a + hz + r() * (b - a - 2 * hz); if (fits(kind, x, z, s)) return at(kind, s * x, z, s); }
+  // a spot whose footprint stays in [a, b], each try hashed from the stretch, the side, the kind and the try (main session, Task 34 fix
+  // round 1, rules § Invariants): no draw from the stream, so how many tries a piece needs moves no later part (traffic) nor the stills
+  const put = ({ kind, x }, a, b, s) => {
+    const hz = half(kind)[1], salt = 20 + TRIES * KINDS.indexOf(kind);
+    for (let t = 0; t < TRIES && b - a >= 2 * hz; t++) { const z = a + hz + hash(a, s, salt + t) * (b - a - 2 * hz); if (fits(kind, x, z, s)) return at(kind, s * x, z, s); }
   };
   const place = (kind, x, z, s, k, yaw) => { // the rhythm's spot, if its footprint stays off the seams and fits
     const hz = half(kind)[1], ok = z - hz >= z0 + SEAM && z + hz <= z0 + length - SEAM && fits(kind, x, z, s);
@@ -79,10 +84,10 @@ export function furniture(gfx, { z0, length }, style, r, cross, blocks) {
   };
   // the signals on the far corners, one each side, both heads at the oncoming runner (Caedon, board 29, 2026-10-20; it replaces
   // board 19's diagonal pair, whose lenses faced each other across the avenue): the model's lenses face its front (+x, the way its
-  // head hangs), which the kit turns +z and at() toward the road; yaw -side * pi/2 turns it -z. Each base on its sidewalk 0.5 m past
-  // the paving. A crossing sits 30 m or more from either end of its chunk (lib/city.js), so no pole leaves it.
+  // head hangs), which the kit turns +z and at() toward the road; yaw -side * pi/2 turns it -z. Each base on its sidewalk, the pole
+  // SIGNAL_DZ past the paving. A crossing sits 30 m or more from either end of its chunk (lib/city.js), so no pole leaves it.
   // ponytail: r() kept: the draw that picked board 19's side, so the stream (the stretches, traffic) and the stills don't reshuffle
-  if (cross) { r(); for (const s of [-1, 1]) at('traffic_light', s * 5.28, cross.z + CROSS.width + 0.5, s, 1, -s * Math.PI / 2); }
+  if (cross) { r(); for (const s of [-1, 1]) at('traffic_light', s * 5.28, cross.z + CROSS.width + SIGNAL_DZ, s, 1, -s * Math.PI / 2); }
   const kinds = Object.keys(RHYTHM.trees), [lo, hi] = RHYTHM.pitch, odd = [];
   for (let k = Math.ceil(length / hi); k <= Math.floor(length / lo); k++) if (k % 2) odd.push(k);
   const n = odd[Math.floor(hash(z0, 0, 1) * odd.length)] ?? (Math.round(length / lo) | 1), P = length / n;

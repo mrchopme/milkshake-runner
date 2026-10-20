@@ -378,12 +378,13 @@ test('a crossing\'s two traffic lights stand on the far corners, one each side, 
     const length = seed % 2 ? 120 : 100, g = chunk(seed, 0, length), cz = g.userData.cross.z; // 100 m: the shortest chunk with a crossing, nearest its end
     let mesh; g.traverse((n) => { if (n.userData.furniture === 'traffic_light') mesh ??= n; }); // the stand-in: one part, so one mesh
     const lights = [];
+    // z: 1.22 m past the paving, the 1.44 m base's half plus 0.5 (main session, fix round 1: at 0.5 the base reached 0.22 m onto it)
     // the lens: the piece's front, local +z after the kit's FRONT (the stand-in's matrix is the identity), through at()'s turn
     for (let i = 0; i < mesh.count; i++) { mesh.getMatrixAt(i, m); lights.push({ x: m.elements[12], z: m.elements[14], face: new THREE.Vector3(0, 0, 1).transformDirection(m) }); }
     assert.equal(lights.length, 2, `seed ${seed}: ${lights.length} signals`);
     assert.deepEqual(lights.map((l) => Math.sign(l.x)).sort(), [-1, 1], `seed ${seed}: both on one side`);
     for (const l of lights) {
-      assert.ok(Math.abs(Math.abs(l.x) - 5.28) < 1e-6 && Math.abs(l.z - (cz + CROSS.width + 0.5)) < 1e-4, `seed ${seed}: a signal at ${l.x}, ${l.z}, the side street ${cz} to ${cz + CROSS.width}`);
+      assert.ok(Math.abs(Math.abs(l.x) - 5.28) < 1e-6 && Math.abs(l.z - (cz + CROSS.width + 1.22)) < 1e-4, `seed ${seed}: a signal at ${l.x}, ${l.z}, the side street ${cz} to ${cz + CROSS.width}`);
       assert.ok(l.face.z < -0.99, `seed ${seed}: the signal at x ${l.x} faces ${l.face.toArray().map((v) => v.toFixed(2))}, not -z`);
       assert.ok(l.z + FOOT.traffic_light[1] <= length - SEAM, `seed ${seed}: a signal past the chunk's seam`);
     }
@@ -407,6 +408,18 @@ const placed = (g) => { // per side: each kind's instances (the first of its par
   for (const s of [-1, 1]) for (const l of Object.values(out[s])) l.sort((a, b) => a.z - b.z);
   return out;
 };
+
+// rules § Invariants: the chunk's stream leaves furniture at the same point whatever fits where (put()'s tries hash from their place),
+// so moving a piece (Task 33's trees, x 6.0 -> 7.6) reshuffles no later part (traffic) nor the stills
+test('the furniture draws as much of the chunk\'s stream whatever fits: the same next draw with the trees moved and planters added', () => {
+  const after = (seed, x, blocks) => { const r = rng(seed), was = RHYTHM.trees; RHYTHM.trees = { tree: x, tree2: x }; try { furniture(gfx, { z0: 120, length: 120 }, null, r, seed % 2 ? { z: 170 } : null, blocks); } finally { RHYTHM.trees = was; } return r(); };
+  const shops = [-1, 1].flatMap((side) => [0, 1, 2, 3].map((i) => ({ side, z0: 125 + 28 * i, z1: 150 + 28 * i, shop: 0 })));
+  for (let seed = 1; seed <= 200; seed++) {
+    const want = after(seed, RHYTHM.trees.tree);
+    assert.equal(after(seed, 6.0), want, `seed ${seed}: the trees at x 6.0 moved the stream`);
+    assert.equal(after(seed, RHYTHM.trees.tree, shops), want, `seed ${seed}: the planters moved the stream`);
+  }
+});
 
 test('the same seed places the same furniture, and another seed different extras', () => {
   const at = (seed) => { const out = []; furniture(gfx, { z0: 0, length: 120 }, null, rng(seed), { z: 50 }).traverse((n) => { if (n.isInstancedMesh) out.push(n.userData.furniture, ...n.instanceMatrix.array); }); return out.join(); };
