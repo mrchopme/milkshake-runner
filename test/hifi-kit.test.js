@@ -311,6 +311,7 @@ test('the trees\' tint lands on their leaf texels only: the hook masks the insta
     const weight = (r, g, b) => Function('smoothstep', 'sg', `return ${mask};`)(step, { r, g, b });
     for (const leaf of [[112, 160, 64], [118, 162, 68], [31, 72, 6]]) assert.ok(KIT.tree.matte.leaf(...leaf) && weight(...leaf) === 1, `the leaf ${leaf} tinted ${weight(...leaf)}`);
     for (const bark of [[92, 70, 52], [138, 94, 49], [137, 134, 133]]) assert.equal(weight(...bark), 0, `the bark ${bark} tinted`);
+    assert.ok(!KIT.tree.matte.leaf(100, 135, 115) && weight(100, 135, 115) === 0, 'a grey-green texel (g past r, not past b) tinted: the g - b term'); // bark-ish lichen, stone
     shader.uniforms.envMapIntensity.value = 0.4;
     assert.ok(Math.abs(shader.uniforms.envMapIntensity.value - 0.08) < 1e-9, 'the env dimmer kept');
   });

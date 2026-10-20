@@ -130,7 +130,7 @@ function dress(T, mesh, { glow, repaint, texels, bright = GLOW, matte }) {
 // three r186 writes scene.environmentIntensity over a material's envMapIntensity whenever it has no envMap of its own
 // (WebGLRenderer.js:2737), so a per-material dimmer wraps the shader's uniform: whatever the look writes, the shader reads k times it.
 // Named: gfx.bendable keys the program cache by the material's own onBeforeCompile source.
-// It also masks the instance colour (lib/furniture.js's per-theme tint) to the leaves (Task 33 pick 3, board 28: the whole-mesh tint
+// It also masks the instance colour (lib/furniture.js's per-theme tint) to the leaves (Caedon, Task 33, board 28 pick 3: the whole-mesh tint
 // turned midtown's trunks red): the `leaf` test on the sampled texel back in sRGB 0-255. ponytail: softened +/-10 round leaf()'s
 // thresholds so a mip blending leaf and bark fades instead of fringing; in the shader, not a baked leaf-only map per tree per theme
 // (the P5 report: 1024² each, and the per-tree variation lost). vColor is a vec4 in r186.

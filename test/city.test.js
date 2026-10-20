@@ -496,7 +496,7 @@ test('the kerb draws both tree models, about half each, slot by slot from its pl
 
 test('a flush pit stands under every tree, one instanced mesh a chunk; trees come in sizes 0.55-0.68 on the back half of the sidewalk, turned in 90 degree steps', async () => {
   assert.deepEqual(RHYTHM.scale, [0.55, 0.68], 'Task 33 pick 3 (board 28): the small trees, 3.3-4.1 m');
-  for (const x of Object.values(RHYTHM.trees)) assert.ok(x > (4.5 + FACADE_X) / 2, `trees at x ${x}, on the kerb half`);
+  for (const x of Object.values(RHYTHM.trees)) assert.ok(x > (lanes.roadHalf + FACADE_X) / 2, `trees at x ${x}, not on the sidewalk's back half`);
   const make = await themeChunk('downtown'), sizes = new Set(), turns = new Set(), p = new THREE.Vector3(), q = new THREE.Quaternion(), k = new THREE.Vector3(), e = new THREE.Euler();
   for (let seed = 1; seed <= 20; seed++) {
     const g = make(seed, 120 * seed), by = placed(g);

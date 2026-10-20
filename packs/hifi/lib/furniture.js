@@ -56,6 +56,7 @@ export const CLEAR = 2, SEAM = 2; // m kept clear of the side street; m kept fro
 // generated models at KIT's heights; a tree's is its trunk, its guard or slab cut). Every piece keeps GAP m from the footprints already
 // on its side, so nothing stands inside anything else: a corner's traffic light goes first, then the rhythm, then a piece tries up
 // to TRIES spots in its stretch before it is left out. A tree spaces by its pit.
+// append new kinds at the end: the put() salts depend on FOOT's key order
 export const FOOT = { lamp: [0.54, 0.55], traffic_light: [0.72, 0.72], hydrant: [0.19, 0.2], bin: [0.2, 0.2], tree: [0.45, 0.45], tree2: [0.32, 0.32], bench: [0.3, 0.58], newsstand: [0.81, 1.09], bus_shelter: [0.87, 1.42], subway: [1.49, 1.25], planter: [0.35, 0.43] };
 const GAP = 0.2, TRIES = 10, PIT = PITS.size / 2, KINDS = Object.keys(FOOT);
 // ponytail: calibration knob (main session, Task 34 fix round 1; the P1 report's measure): a signal's pole 1.22 m past the cross
@@ -86,8 +87,8 @@ export function furniture(gfx, { z0, length }, style, r, cross, blocks) {
   // board 19's diagonal pair, whose lenses faced each other across the avenue): the model's lenses face its front (+x, the way its
   // head hangs), which the kit turns +z and at() toward the road; yaw -side * pi/2 turns it -z. Each base on its sidewalk, the pole
   // SIGNAL_DZ past the paving. A crossing sits 30 m or more from either end of its chunk (lib/city.js), so no pole leaves it.
-  // ponytail: r() kept: the draw that picked board 19's side, so the stream (the stretches, traffic) and the stills don't reshuffle
-  if (cross) { r(); for (const s of [-1, 1]) at('traffic_light', s * 5.28, cross.z + CROSS.width + SIGNAL_DZ, s, 1, -s * Math.PI / 2); }
+  // The signals take no draw: from here on the furniture's stream is position-hashed but for the stretches' own draws.
+  if (cross) for (const s of [-1, 1]) at('traffic_light', s * 5.28, cross.z + CROSS.width + SIGNAL_DZ, s, 1, -s * Math.PI / 2);
   const kinds = Object.keys(RHYTHM.trees), [lo, hi] = RHYTHM.pitch, odd = [];
   for (let k = Math.ceil(length / hi); k <= Math.floor(length / lo); k++) if (k % 2) odd.push(k);
   const n = odd[Math.floor(hash(z0, 0, 1) * odd.length)] ?? (Math.round(length / lo) | 1), P = length / n;
