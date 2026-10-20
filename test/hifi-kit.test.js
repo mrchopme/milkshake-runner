@@ -294,6 +294,28 @@ test('the tree is matte: specular down, its leaves rough from their own texels, 
   });
 });
 
+// Task 33 pick 3 (board 28): the theme's tint (instanceColor, lib/furniture.js) lands on the leaves only, so the bark stays as generated
+// (the whole-mesh tint turned midtown's trunks red). Node compiles no GLSL: the hook's mask is read from the shader it writes and
+// evaluated here on the texels the kit's own leaf test sorts, the sampled texel in sRGB 0-255 as the shader sees it.
+test('the trees\' tint lands on their leaf texels only: the hook masks the instance colour by the leaf test, the bark untinted', () => {
+  withCanvas(() => {
+    const tree = TREE();
+    tree.children[0].material.map = new THREE.Texture({ px: new Uint8ClampedArray([112, 160, 64, 255]) });
+    adopt(KIT.tree.path, tree);
+    const m = kitParts(gfx, KIT.tree, placeholder('tree'))[0].material, shader = { uniforms: { envMapIntensity: { value: 1 } }, fragmentShader: THREE.ShaderLib.physical.fragmentShader };
+    m.onBeforeCompile(shader);
+    const fs = shader.fragmentShader, mask = fs.match(/mix\( vec4\( 1\.0 \), vColor, (.+) \);/)?.[1];
+    assert.ok(mask, 'the hook masks the instance colour');
+    assert.ok(fs.indexOf('sampledDiffuseColor = texture2D') < fs.indexOf('mix( vec4( 1.0 ), vColor'), 'the mask reads the texel map_fragment sampled');
+    const step = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+    const weight = (r, g, b) => Function('smoothstep', 'sg', `return ${mask};`)(step, { r, g, b });
+    for (const leaf of [[112, 160, 64], [118, 162, 68], [31, 72, 6]]) assert.ok(KIT.tree.matte.leaf(...leaf) && weight(...leaf) === 1, `the leaf ${leaf} tinted ${weight(...leaf)}`);
+    for (const bark of [[92, 70, 52], [138, 94, 49], [137, 134, 133]]) assert.equal(weight(...bark), 0, `the bark ${bark} tinted`);
+    shader.uniforms.envMapIntensity.value = 0.4;
+    assert.ok(Math.abs(shader.uniforms.envMapIntensity.value - 0.08) < 1e-9, 'the env dimmer kept');
+  });
+});
+
 // The new tree (Task 32 C7; Caedon's T3 from page 26, Tripo, "Download it" 2026-10-16) comes in its own flat pit: the kit cuts the slab
 // so it stands in the kit's pit as the first tree does, one pit size and colour on every sidewalk (the tint and the scale would recolour
 // and resize a model pit).
@@ -313,7 +335,7 @@ test('tree2 stands on its own slim trunk, its model pit cut away: below 1.1 m no
   const kept = new Set(used), src = loaded.attributes.position;
   for (let i = 0; i < src.count; i++) { v.fromBufferAttribute(src, i).applyMatrix4(p.matrix); if (v.y < 0.2 && Math.hypot(v.x, v.z) > 1) assert.ok(!kept.has(i), `the slab's vertex ${i} kept`); }
   assert.ok(Math.abs(low) < 1e-6 && Math.abs(top - KIT.tree2.h) < 1e-6 && Math.abs(reach - 2.26) < 0.01 && Math.abs(under - 2.1) < 0.01, `the trunk from ${low.toFixed(3)} m, the canopy from ${under.toFixed(2)} to ${top.toFixed(2)}, its reach ${reach.toFixed(2)}`);
-  assert.equal(KIT.tree2.h, 6, 'tree.glb\'s 6 m: at the rhythm\'s scale 0.75-0.9 it tops out 4.5-5.4 m, about 5, the canopy from 1.6-1.9 m');
+  assert.equal(KIT.tree2.h, 6, 'tree.glb\'s 6 m: at the rhythm\'s scale 0.55-0.68 (Task 33 pick 3, no trunk lift) it tops out 3.3-4.1 m, the canopy from 1.2-1.4 m');
 });
 
 test('tree2 is matte as the first tree, its leaves lifted to tree.glb\'s green on a copy of its map and its bark kept, so one tint serves both', () => {

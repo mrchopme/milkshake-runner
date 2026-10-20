@@ -47,7 +47,7 @@ export const KIT = {
   bin_box: { path: 'hifi/furniture/bin_box.glb', h: 1.0, yaw: FRONT, glow: null },
   planter: { path: 'hifi/furniture/planter.glb', h: 1.0, yaw: FRONT, glow: null },
   tree: { path: 'hifi/furniture/tree.glb', h: 6.0, yaw: FRONT, glow: null, cut: GUARD, matte: MATTE }, // board 15's: on the 6 m sidewalk its 4 m canopy clears the facades and the blade signs
-  // tree.glb's 6 m, so the two models stand alike in the rhythm (4.5-5.4 m at its scale); a third of it clear trunk, as prompted.
+  // tree.glb's 6 m, so the two models stand alike in the rhythm (3.3-4.1 m at its scale, Task 33 pick 3); a third of it clear trunk, as prompted.
   // Its file optimised at --texture-size 1024 like tree.glb's (at 2048 its nearly flat normal map alone cost 22.4 MB of GPU)
   tree2: { path: 'hifi/furniture/tree2.glb', h: 6.0, yaw: FRONT, glow: null, cut: SLAB, texels: lift, matte: MATTE },
   newsstand: { path: 'hifi/furniture/newsstand.glb', h: 2.6, yaw: FRONT, glow: null },
@@ -130,7 +130,21 @@ function dress(T, mesh, { glow, repaint, texels, bright = GLOW, matte }) {
 // three r186 writes scene.environmentIntensity over a material's envMapIntensity whenever it has no envMap of its own
 // (WebGLRenderer.js:2737), so a per-material dimmer wraps the shader's uniform: whatever the look writes, the shader reads k times it.
 // Named: gfx.bendable keys the program cache by the material's own onBeforeCompile source.
-const dimEnv = (k) => function dimEnv(shader) { let v = shader.uniforms.envMapIntensity.value; shader.uniforms.envMapIntensity = { get value() { return v * k; }, set value(x) { v = x; } }; };
+// It also masks the instance colour (lib/furniture.js's per-theme tint) to the leaves (Task 33 pick 3, board 28: the whole-mesh tint
+// turned midtown's trunks red): the `leaf` test on the sampled texel back in sRGB 0-255. ponytail: softened +/-10 round leaf()'s
+// thresholds so a mip blending leaf and bark fades instead of fringing; in the shader, not a baked leaf-only map per tree per theme
+// (the P5 report: 1024² each, and the per-tree variation lost). vColor is a vec4 in r186.
+const LEAF_ONLY = `#if ( defined( USE_COLOR ) || defined( USE_COLOR_ALPHA ) ) && defined( USE_MAP )
+  vec3 sg = sRGBTransferOETF( sampledDiffuseColor ).rgb * 255.0;
+  diffuseColor *= mix( vec4( 1.0 ), vColor, smoothstep( 10.0, 30.0, sg.g - sg.r ) * smoothstep( 30.0, 50.0, sg.g - sg.b ) );
+#else
+  #include <color_fragment>
+#endif`;
+const dimEnv = (k) => function dimEnv(shader) {
+  let v = shader.uniforms.envMapIntensity.value;
+  shader.uniforms.envMapIntensity = { get value() { return v * k; }, set value(x) { v = x; } };
+  shader.fragmentShader = shader.fragmentShader?.replace('#include <color_fragment>', LEAF_ONLY); // ?.: the env test's stub has none
+};
 // A clone of the mesh's geometry without the tree's guard (GUARD) or slab (SLAB), flagged shared and freed with the loaded geometry (the
 // scaffold_beam.js widen() pattern); the loaded one stays untouched. Vertices no kept triangle uses collapse onto the trunk's foot, so
 // the bounds and the footprint are the trunk's. axis: the uncut footprint's centre (the guard's, within 2 cm of the trunk's); y0 its
