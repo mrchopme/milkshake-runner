@@ -84,6 +84,20 @@ test('the world hands the shader the bending stretches in view, 20 m ahead of Mi
   assert.deepEqual(gfx.bendSegments.value.map((v) => v.length()), [0, 0, 0, 0]);
 });
 
+test('a theme whose look sets hill: 0 levels its sections\' hill under a HiFi look only (Task 33 pick 6, level water), and low-fi bends as before', () => {
+  const registry = { obstacle: {}, pickup: {}, theme: { t: theme, b: { ...theme, id: 'b', look: { hill: 0 } } }, character: {}, ending: {} };
+  const lvl = { ...level, obstacles: {}, sections: [{ from_m: 100, to_m: 400, curve: { turn: 0.5, hill: 0.7 }, theme: { id: 'b' } }] };
+  const run = createRun(rules, { height: 1.9, width: 1 });
+  const bentBy = () => { const world = createWorld(new THREE.Scene(), lvl, { registry, rules, seed: 1, end: 600 }); world.update(run, 0); const v = gfx.bendSegments.value[0].toArray(); world.dispose(); return v; };
+  assert.deepEqual(bentBy(), [100, 400, -0.5 * gfx.TURN_K, 0.7 * gfx.HILL_K], 'no look pipeline (low-fi): the theme\'s look is ignored');
+  gfx.hook.cutFog = true; // what createLook sets, once, before anything compiles
+  try {
+    assert.deepEqual(bentBy(), [100, 400, -0.5 * gfx.TURN_K, 0], 'under the look the section is level: deck, water and shore keep their height; the turn stays');
+    registry.theme.b = { ...theme, id: 'b', look: {} };
+    assert.deepEqual(bentBy(), [100, 400, -0.5 * gfx.TURN_K, 0.7 * gfx.HILL_K], 'a look without hill keeps the whole hill');
+  } finally { gfx.hook.cutFog = false; }
+});
+
 test('a stretch that starts past 200 m but inside the built street is in the uniforms too, so nothing pops when it enters view', () => {
   const rock = { kind: 'obstacle', id: 'rock', avoid: 'lane', box: { w: 1, h: 1, d: 1 }, createView(gfx) { return { object: gfx.box(1, 1, 1, '#ffffff') }; } };
   const registry = { obstacle: { rock }, pickup: {}, theme: { t: theme }, character: {}, ending: {} };

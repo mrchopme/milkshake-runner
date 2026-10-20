@@ -72,7 +72,9 @@ export const FINISH_STRAIGHT_M = 120; // a finite level's last metres are straig
 
 // The stretches of street in [fromZ, toZ) that bend, { from, to, turn, hill } ordered by from, each with its real start and end lines.
 // A section's curve is one stretch; "random" is one stretch per RANDOM_CURVE_M with a seeded pick; nothing runs into the finish straight.
-export function curveSegments(norm, fromZ, toZ, seed = 0) {
+// hillOf(section) scales a section's hill (world.js: its theme's look.hill, HiFi only; 0 is level water on a bridge); 1, the
+// default, is the level's own numbers exactly. The bend is visual only, so this never touches what plays.
+export function curveSegments(norm, fromZ, toZ, seed = 0, hillOf = () => 1) {
   const end = norm.length == null ? Infinity : norm.length - FINISH_STRAIGHT_M;
   const out = [];
   const push = (from, to, turn, hill) => {
@@ -87,9 +89,9 @@ export function curveSegments(norm, fromZ, toZ, seed = 0) {
     if (s.curve === 'random') {
       for (let k = Math.floor(Math.max(s.from, fromZ) / RANDOM_CURVE_M); k * RANDOM_CURVE_M < Math.min(s.to, toZ, end); k++) {
         const pick = rng((seed + 0x9e3779b9 * (k + 1)) >>> 0);
-        push(Math.max(s.from, k * RANDOM_CURVE_M), Math.min(s.to, (k + 1) * RANDOM_CURVE_M), [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], [-0.6, 0, 0.6][Math.floor(pick() * 3)]);
+        push(Math.max(s.from, k * RANDOM_CURVE_M), Math.min(s.to, (k + 1) * RANDOM_CURVE_M), [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], [-0.6, 0, 0.6][Math.floor(pick() * 3)] * hillOf(s));
       }
-    } else push(s.from, s.to, s.curve.turn ?? 0, s.curve.hill ?? 0);
+    } else push(s.from, s.to, s.curve.turn ?? 0, (s.curve.hill ?? 0) * hillOf(s));
   }
   return out;
 }

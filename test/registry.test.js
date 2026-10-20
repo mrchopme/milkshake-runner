@@ -57,6 +57,14 @@ test('metadata is checked per kind', () => {
   assert.equal(checkModule(ok).length, 0);
 });
 
+test('a look may set hill, the share of its sections\' hill the HiFi street shows, 0 to 1', () => {
+  const sea = { kind: 'theme', id: 'ari/sea', sky: '#9fd3f5', fog: 0.2, buildings: { colors: ['#ffffff'], minH: 5, maxH: 10 } };
+  assert.equal(checkModule({ ...sea, look: { hill: 0 } }).length, 0, 'level water');
+  assert.equal(checkModule({ ...sea, look: { hill: 1 } }).length, 0);
+  assert.match(checkModule({ ...sea, look: { hill: 1.5 } }).join(), /look.hill must be 0 to 1/);
+  assert.match(checkModule({ ...sea, look: { hill: -1 } }).join(), /look.hill must be 0 to 1/);
+});
+
 test('safeCall contains a throwing hook', () => {
   assert.equal(safeCall('test hook', () => { throw new Error('boom'); }, 42), 42);
   assert.equal(safeCall('test hook', () => 7, 42), 7);

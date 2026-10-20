@@ -413,6 +413,17 @@ test('curveSegments lists the bending stretches of street: sections, the inherit
   assert.deepEqual(curveSegments(normalizeLevel(lvl({ length_m: 480, curve: 'random' })), 0, 480, 7).filter((s) => s.to > 360), [], 'random stops 120 m before a finite finish too');
 });
 
+test('curveSegments scales each section\'s hill by hillOf(section), 1 by default (today\'s numbers exactly); turns and random picks never move', () => {
+  const norm = normalizeLevel(lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 300, to_m: 600, curve: { turn: 0.3, hill: 0.7 }, theme: { id: 'bridge' } }, { from_m: 600, to_m: 900, curve: 'random' }] }));
+  const today = curveSegments(norm, 0, 1500, 7);
+  assert.deepEqual(curveSegments(norm, 0, 1500, 7, () => 1), today, 'a factor of 1 is no change');
+  const level = curveSegments(norm, 0, 1500, 7, (s) => (s.theme?.id === 'bridge' ? 0 : 1));
+  assert.deepEqual(level[1], { from: 300, to: 600, turn: 0.3, hill: 0 }, 'a level section keeps its turn and drops its hill');
+  assert.deepEqual(level.filter((s) => s.from !== 300), today.filter((s) => s.from !== 300), 'every other section is as before');
+  const half = curveSegments(norm, 0, 1500, 7, () => 0.5);
+  assert.deepEqual(half.map((s) => [s.from, s.to, s.turn, s.hill]), today.map((s) => [s.from, s.to, s.turn, s.hill * 0.5]), 'random hills scale too, from the same picks');
+});
+
 test('curveSegments merges touching stretches with the same bend, so a level-wide curve over many sections is one stretch and never fills the slots', () => {
   const norm = normalizeLevel(lvl({ length_m: 1500, curve: { turn: 1 }, sections: [{ from_m: 100, to_m: 200, density: { start: 1, end: 1 } }, { from_m: 200, to_m: 300, jugs: { per_100m: 0, powerups: [] } }] }));
   assert.deepEqual(curveSegments(norm, 0, 1500), [{ from: 0, to: 1500 - FINISH_STRAIGHT_M, turn: 1, hill: 0 }], 'four sections under the inherited curve are one stretch');
