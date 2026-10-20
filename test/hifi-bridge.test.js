@@ -189,3 +189,7 @@ test('a bridge chunk takes one draw from the scenery stream, as at 15f00b7, so t
 test('the deck chunk stays under the mesh cap with railings loaded', () => {
   for (const seed of [1, 2, 3]) { let meshes = 0; chunk(1200, seed).traverse((n) => { if (n.isMesh) meshes++; }); assert.ok(meshes <= 45, `${meshes} meshes`); }
 });
+
+test('the bridge look levels its sections: hill 0 (Caedon, board 28 pick 6), a key the registry allows', () => {
+  assert.equal(bridge.look.hill, 0, 'level water on bridge sections: the look draws none of the section hill');
+});
