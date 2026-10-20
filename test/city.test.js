@@ -653,21 +653,36 @@ test('stone piers carry the bridge deck every 30 m, seam to seam, from its under
   }
 });
 
-test('every waterfront block stands in the water, its body reaching under the surface', () => {
-  for (const seed of [1, 2, 3]) for (const z0 of [1080, 1200]) {
-    const g = bridgeChunk(z0, seed), sides = { '-1': [], 1: [] }; // each side's triangles as [z from, z to, lowest y]
-    g.updateMatrixWorld(true);
-    g.traverse((n) => {
-      if (!n.userData.building) return;
-      const p = n.geometry.attributes.position, idx = n.geometry.index, at = (k) => new THREE.Vector3().fromBufferAttribute(p, idx ? idx.getX(k) : k).applyMatrix4(n.matrixWorld);
-      for (let t = 0; t < (idx ?? p).count; t += 3) { const v = [at(t), at(t + 1), at(t + 2)]; sides[Math.sign(v[0].x)].push([Math.min(...v.map((q) => q.z)), Math.max(...v.map((q) => q.z)), Math.min(...v.map((q) => q.y))]); }
-    });
-    for (const tris of Object.values(sides)) { // a block's facade and body share its z span; blocks stand 1 m apart along z
-      const blocks = [];
-      for (const [lo, hi, y] of tris.sort((a, b) => a[0] - b[0])) { const b = blocks.at(-1); if (b && lo - b.hi < 0.5) Object.assign(b, { hi: Math.max(b.hi, hi), foot: Math.min(b.foot, y) }); else blocks.push({ lo, hi, foot: y }); }
-      assert.ok(blocks.length >= 8, `seed ${seed}, chunk ${z0}: ${blocks.length} blocks on a side`);
-      for (const b of blocks) assert.ok(b.foot < WATER.y, `seed ${seed}, chunk ${z0}: the block at z ${b.lo.toFixed(2)}..${b.hi.toFixed(2)} stands at ${b.foot}, the water at ${WATER.y}`);
+// Task 34 L-C (Task 33 item 3b, "the floating street" was the bare shore): the land's top is paved like the sidewalks, in the
+// sidewalk's own material, on the flags only (no kerb band, no facade foot), the quay wall under it lighter stone with ashlar courses
+test('the land wears the sidewalk\'s paving on its top and light ashlar stone on its walls, the piers\' stone', async () => {
+  const near = (a, b, tol = 1e-6) => Math.abs(a - b) < tol;
+  let pierMat; bridgeChunk(1200).traverse((n) => { if (n.userData.pier) pierMat = n.material; });
+  for (const id of ['downtown', 'midtown', 'uptown']) {
+    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
+    const g = hifi.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: rng(1), theme });
+    let land, walk; g.traverse((n) => { if (n.userData.land) land = n; if (n.userData.walk) walk = n.material; });
+    assert.ok(Array.isArray(land.material) && land.material.length === 2, `${id}: the land's stone and its paving`);
+    const [stoneMat, paved] = land.material, geo = land.geometry, p = geo.attributes.position, nor = geo.attributes.normal, uv = geo.attributes.uv, c = geo.attributes.color, idx = geo.index;
+    assert.equal(paved, walk, `${id}: the sidewalk's own material`);
+    assert.equal(stoneMat, pierMat, `${id}: one stone for the land and the piers`);
+    assert.ok(stoneMat.map?.userData.shared && stoneMat.map.wrapS === THREE.RepeatWrapping, `${id}: the stone's shared ashlar tile`);
+    const zp = PAVE.len * Math.floor(1200 / PAVE.len);
+    let up = 0;
+    for (const grp of geo.groups) for (let k = grp.start; k < grp.start + grp.count; k++) {
+      const i = idx.getX(k);
+      if (nor.getY(i) < 0.5) continue;
+      assert.equal(grp.materialIndex, 1, `${id}: an up face of bare stone at y ${p.getY(i)}`);
+      up++;
+      assert.ok(near(p.getY(i), -0.12), `${id}: the paving at ${p.getY(i)}`);
+      assert.ok(uv.getX(i) >= PAVE.kerb - 1e-6 && uv.getX(i) <= 6 - PAVE.foot + 1e-6, `${id}: u ${uv.getX(i)}, off the flags`);
+      assert.ok(near(uv.getY(i), p.getZ(i) + land.position.z - zp, 1e-3), `${id}: v ${uv.getY(i)} at z ${p.getZ(i) + land.position.z}, the sidewalk's 12 m period`);
     }
+    assert.ok(up > 0, `${id}: no paved top`);
+    // the stone 1.0 x the theme's darkest building colour (Task 33 P3; was 0.7: the quay face read as near-black, a floating street)
+    const dark = theme.buildings.colors.map((x) => new THREE.Color(x)).sort((a, b) => a.getHSL({}).l - b.getHSL({}).l)[0];
+    let top = 0; const [walls] = geo.groups; for (let k = walls.start; k < walls.start + walls.count; k++) { const i = idx.getX(k); top = Math.max(top, c.getX(i) + c.getY(i) + c.getZ(i)); }
+    assert.ok(near(top, dark.r + dark.g + dark.b, 1e-4), `${id}: the dry stone at ${top}, want the darkest colour ${dark.getHexString()}`);
   }
 });
 
@@ -689,9 +704,17 @@ test('the road is a cool grey per scene over asphalt grain, its lane lines solid
   assert.ok(gaps.length === 1 && gaps[0][0] <= cross.z && gaps[0][1] >= cross.z + CROSS.width, `breaks at ${gaps.map(([a, b]) => `${a}..${b}`).join(', ')}`);
 });
 
-test('the bridge water ripples through its own normal map, scrolled by the run clock', () => {
+// re-pinned (Task 34 L-C, Task 33 P3): two scales, the 7 m tile scrolled by the run clock and a 23 m one turned 17 degrees drifting
+// on its own, averaged, so the single tile no longer repeats as a checker
+test('the bridge water ripples through its own normal map at two scales, scrolled by the run clock', () => {
   const m = waterMaterial(gfx), s = { uniforms: {}, fragmentShader: THREE.ShaderLib.standard.fragmentShader };
   m.onBeforeCompile(s);
   assert.equal(s.uniforms.uTime, gfx.time);
-  assert.ok(!s.fragmentShader.includes('#include <normal_fragment_maps>') && s.fragmentShader.includes('vNormalMapUv + vec2( 0.0, uTime * 0.03 )'));
+  const f = s.fragmentShader, decl = f.indexOf('vec4 waterN( vec2 uv )');
+  assert.ok(!f.includes('#include <normal_fragment_maps>') && !f.includes('texture2D( normalMap, vNormalMapUv )') && f.includes('waterN( vNormalMapUv )'), 'every ripple read goes through waterN');
+  assert.ok(decl > f.indexOf('uniform sampler2D normalMap') && decl < f.indexOf('void main() {') && decl < f.indexOf('waterN( vNormalMapUv )'), 'waterN declared after normalMap, before main and its use');
+  assert.deepEqual(WATER.drift, [0.011, 0.017]);
+  assert.ok(f.includes('vec2( uTime * 0.0110, uTime * 0.0170 )'), 'the 23 m sample drifts on its own');
+  assert.ok(f.includes('uv + vec2( 0.0, uTime * 0.03 )') && f.includes(`uv * ${(WATER.tile / 23).toFixed(4)}`) && f.includes(`${Math.cos((17 * Math.PI) / 180).toFixed(4)}`), 'the 7 m tile scrolled, the 23 m one turned 17 degrees');
+  assert.equal(f.split('texture2D( normalMap,').length - 1, 2, 'two samples');
 });

@@ -1,5 +1,6 @@
 // The HiFi bridge (Task 32, Caedon's board 25 pick "Ship, water retuned in the clean build", 2026-10-15): a 16 m deck with two
-// walkways and steel railings, round main cables on hangers, a 45 m portal every 120 m, waterfront blocks with finished ends.
+// walkways and steel railings, round main cables on hangers, a 45 m portal every 120 m; since Task 34 (Caedon, board 29, 2026-10-20) no
+// waterfront blocks, stone abutments under the deck ends instead.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -9,7 +10,7 @@ import { adopt } from '../src/assets.js';
 import bridge from '../packs/hifi/themes/bridge.js';
 import shippedBridge from '../content/themes/bridge.js';
 import { waterMaterial, WATER } from '../packs/hifi/lib/bridge.js';
-import { pavingTexture, asphaltTexture, PAVE } from '../packs/hifi/lib/street.js';
+import { pavingTexture, asphaltTexture, PAVE, KERB } from '../packs/hifi/lib/street.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 // a stand-in for railings.glb, off-centre and below the origin as generators leave it (as test/hifi-railings.test.js)
@@ -50,9 +51,11 @@ test('solid edge lines at ±(roadHalf + 0.3), 0.15 m wide, the chunk\'s whole le
   }
 });
 
-test('two 3 m walkways 0.25 m high outside the road, wearing the paving with metre UVs', () => {
+// re-pinned (Task 34 L-C): 0.18 m, the street's kerb, so the walkway meets the sidewalk at a seam with no 7 cm step (was 0.25)
+test('two 3 m walkways as high as the street\'s kerb outside the road, wearing the paving with metre UVs', () => {
   const g = chunk(1200), [walk] = find(g, 'walkway'), [b] = worldBoxes(walk);
-  assert.ok(near(b.min.x, -8) && near(b.max.x, 8) && near(b.min.y, 0) && near(b.max.y, 0.25), `walkways ${b.min.x}..${b.max.x}, ${b.min.y}..${b.max.y}`);
+  assert.equal(KERB, 0.18);
+  assert.ok(near(b.min.x, -8) && near(b.max.x, 8) && near(b.min.y, 0) && near(b.max.y, KERB), `walkways ${b.min.x}..${b.max.x}, ${b.min.y}..${b.max.y}`);
   assert.equal(walk.material.map, pavingTexture(THREE, {}));
   const pos = walk.geometry.attributes.position, nor = walk.geometry.attributes.normal, uv = walk.geometry.attributes.uv;
   for (let i = 0; i < pos.count; i++) {
@@ -73,7 +76,7 @@ test('steel railings along both walkway edges, one section every 4 m, 1.1 m tall
       const boxes = worldBoxes(r), side = Math.sign(boxes[0].max.x);
       assert.equal(r.count, Math.floor(length / 4), `side ${side}: ${r.count} sections`);
       for (const b of boxes) {
-        assert.ok(near(b.min.y, 0.25) && near(b.max.y - b.min.y, 1.1), `from ${b.min.y} to ${b.max.y}`);
+        assert.ok(near(b.min.y, KERB) && near(b.max.y - b.min.y, 1.1), `from ${b.min.y} to ${b.max.y}`); // on the walkway (Task 34: 0.18, was 0.25)
         assert.ok(b.min.z >= 1200 - 1e-6 && b.max.z <= 1200 + length + 1e-6, `z ${b.min.z}..${b.max.z}`);
         assert.ok(Math.sign(b.min.x) === side && Math.abs(b.min.x) > 5 && Math.abs(b.max.x) <= 8 + 1e-6, `x ${b.min.x}..${b.max.x}, off the walkway`);
       }
@@ -123,20 +126,32 @@ test('a portal every 120 m, 45 m up, its legs 3.2 m wide, standing on a pier siz
   }
 });
 
-test('every waterfront block finishes its -z end in its facade', () => {
-  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
-  for (const seed of [1, 2, 3]) {
-    const ends = { body: [], facade: [] };
-    find(chunk(1200, seed), 'building').forEach((n) => {
-      const p = n.geometry.attributes.position, idx = n.geometry.index, at = (k, v) => v.fromBufferAttribute(p, idx ? idx.getX(k) : k);
-      for (let t = 0; t < (idx ?? p).count; t += 3) {
-        at(t, a); at(t + 1, b); at(t + 2, c);
-        if (new THREE.Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a)).normalize().z < -0.99) ends[n.material.map ? 'facade' : 'body'].push([Math.sign(a.x), a.z]); // float32 at z 1200: compare to 1e-3
-      }
-    });
-    assert.ok(ends.body.length >= 16);
-    for (const [side, z] of ends.body) assert.ok(ends.facade.some(([s, f]) => s === side && near(f, z - 0.02, 1e-3)), `seed ${seed}: the block end at z ${z} on side ${side} is bare`);
+// Task 34 L-C (Task 33 plan): leaving the bridge you never see under the street. Every bridge chunk has both (a chunk cannot know
+// it is its stretch's first or last), so a bridge-to-bridge seam stands on a 16 m stone pier.
+test('a stone abutment under each deck end, the deck\'s width, from its underside down into the water, inside the chunk', () => {
+  for (const [z0, length] of [[1080, 120], [1200, 80]]) {
+    const g = chunk(z0, 1, length), [deck] = worldBoxes(find(g, 'road')[0]), abut = find(g, 'abutment');
+    assert.equal(abut.length, 1, 'both ends in one mesh');
+    const p = abut[0].geometry.attributes.position, v = new THREE.Vector3(), ends = { lo: [], hi: [] };
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(abut[0].matrixWorld); (v.z < z0 + length / 2 ? ends.lo : ends.hi).push(v.clone()); }
+    for (const [key, pts] of Object.entries(ends)) {
+      const b = new THREE.Box3().setFromPoints(pts), at = `chunk ${z0}, ${key} end`;
+      assert.ok(near(b.min.x, -8) && near(b.max.x, 8), `${at}: x ${b.min.x}..${b.max.x}`);
+      assert.ok(b.min.y < WATER.y && b.max.y >= deck.min.y && b.max.y < 0, `${at}: from ${b.min.y} to ${b.max.y}, the deck's underside at ${deck.min.y}`);
+      assert.ok(near(b.max.z - b.min.z, 8, 1e-3) && (key === 'lo' ? near(b.min.z, z0, 1e-3) : near(b.max.z, z0 + length, 1e-3)), `${at}: z ${b.min.z}..${b.max.z}`);
+    }
   }
+});
+
+// Task 34 L-C (Caedon, board 29 pick 2, 2026-10-20: "there are still buildings floating in the water"): the river has banks at the
+// bridge's ends, not houses beside the deck; the water, the deck and its steel stay.
+test('no buildings on a bridge chunk, and nothing else of it missing', () => {
+  for (const seed of [1, 2, 3]) {
+    const g = chunk(1200, seed);
+    assert.equal(find(g, 'building').length, 0, `seed ${seed}: a building on the bridge`);
+    for (const key of ['water', 'road', 'walkway', 'marks', 'pier', 'abutment', 'portal', 'cable', 'hanger', 'railing']) assert.ok(find(g, key).length, `seed ${seed}: no ${key}`);
+  }
+  assert.ok(!theme.assets.some((p) => p.includes('/facades/')), 'the bridge loads no facade tiles');
 });
 
 test('nothing new stands over the road below the portal beams', () => {
@@ -161,6 +176,14 @@ test('the water, retuned: a steel blue, faint reflections, finer ripples, facets
   const s = { uniforms: {}, vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader }; // the material may be bent by now (gfx.bend above)
   m.onBeforeCompile(s);
   assert.ok(s.fragmentShader.includes('#define fogNear 40.0\n#define uFogShade fogColor\n#include <fog_fragment>'), 'the water fogs from 40 m, in the fog colour at any height');
+  // Task 34 L-C (Task 33 P3): a DataTexture defaults to nearest with no mipmaps, so the far ripples aliased into a checker
+  const n = m.normalMap;
+  assert.ok(n.magFilter === THREE.LinearFilter && n.minFilter === THREE.LinearMipmapLinearFilter && n.generateMipmaps, 'the ripple map filtered and mipmapped');
+});
+
+test('a bridge chunk takes one draw from the scenery stream, as at 15f00b7, so the cities after it keep their seeds', () => {
+  const r = rng(7); bridge.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: r, theme }); const base = rng(7); base();
+  assert.equal(r(), base(), 'the next draw after a bridge chunk is the one after a single draw');
 });
 
 test('the deck chunk stays under the mesh cap with railings loaded', () => {
