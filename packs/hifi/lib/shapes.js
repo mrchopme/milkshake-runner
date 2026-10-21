@@ -11,11 +11,11 @@ export function box(T, w, h, d, material, x = 0, y = h / 2, z = 0) {
 export function wall(T, d, h, side, tw, th, v0 = 0, axis = 'x') {
   return plane(T, d, h, tw, th, v0).rotateY(axis === 'z' ? Math.PI : side > 0 ? Math.PI / 2 : -Math.PI / 2);
 }
-// The same plane unturned, facing +z; u0: where u starts, in tiles (a piece cut from a wider wall keeps that wall's pattern).
-export function plane(T, d, h, tw, th, v0 = 0, u0 = 0) {
+// The same plane unturned, facing +z (a block's +z end, the side street's lots turn it their own way).
+export function plane(T, d, h, tw, th, v0 = 0) {
   const g = new T.PlaneGeometry(d, h, Math.max(1, Math.ceil(d / SEG)), 1);
   const uv = g.attributes.uv;
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, u0 + uv.getX(i) * d / tw, v0 + uv.getY(i) * h / th);
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * d / tw, v0 + uv.getY(i) * h / th);
   return g;
 }
 // One InstancedMesh for many copies; matrices are world matrices (the chunk group stays at the origin).

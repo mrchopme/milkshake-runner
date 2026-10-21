@@ -102,8 +102,8 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
   };
   // A lot's two z ends (x their centre, w wide, for za..zb), the -z one first: the tile alone up to what its neighbour 0.5 m away
   // hides (hide, [-z, +z]: a height, 0 for nothing), the relief above it. ponytail: a neighbour hides up to its street wall's top
-  // whatever its depth, so a 16 m deep end's back 6 m beside a 10 m deep neighbour stay flat (Task 34 L-E: the ends' relief from
-  // ~15k triangles a chunk to ~5k; seen down a 0.5 m gap they never read)
+  // whatever its depth, so a 16 m deep end's back 6 m beside a 10 m deep neighbour stay flat (Task 34 L-E, for the triangle
+  // budget: seen down a 0.5 m gap they never read)
   const zEnds = (f, fm, c, x, w, za, zb, y0, y1, base, top, hide = [0, 0]) => [-1, 1].forEach((e, i) => {
     const ze = e < 0 ? za - 0.02 : zb + 0.02, rot = e < 0 ? Math.PI : 0, cut = Math.min(y1, Math.max(y0, hide[i]));
     if (cut > y0) stamp(f, fm, c, rot, x, ze, w, y0, cut, base, top, true);

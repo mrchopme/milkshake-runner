@@ -102,7 +102,7 @@ test('both ends of every block wear a storefront and facade from the ground to i
         if (Math.abs(nz) > 0.99) faces.push({ nz: Math.sign(nz), z: a.z, x: a.x, y: [Math.min(a.y, b.y, c.y), Math.max(a.y, b.y, c.y)] });
       }
     });
-    assert.ok(blocks.length >= 6, `${id} seed ${seed}: ${blocks.length} blocks`);
+    assert.ok(blocks.length >= 6, `${id} seed ${seed}: ${blocks.length} blocks`); // was 8 on downtown alone: midtown's 14-40 m frontages build fewer
     for (const k of blocks) for (const [nz, at] of [[-1, k.z0 - 0.02], [1, k.z1 + 0.02]]) {
       const ys = faces.filter((f) => f.nz === nz && Math.abs(f.z - at) < 1e-4 && Math.sign(f.x) === k.side).map((f) => f.y).sort((p, q) => p[0] - q[0]);
       let top = 0; for (const [lo, hi] of ys) if (lo <= top + 1e-4) top = Math.max(top, hi);
@@ -207,7 +207,7 @@ test('a block\'s body is its facade tile\'s colour, tinted as the tile, and its 
   assert.deepEqual(want(0).getHexString(THREE.SRGBColorSpace), '404020', 'the tint halves the red');
   for (const seed of [1, 2, 3, 4]) {
     const blocks = [], g = buildings(gfx, { z0: 0, length: 120 }, style, rng(seed), { z: 50 }, blocks), c = new THREE.Color(), v = new THREE.Vector3();
-    let body; g.traverse((m) => { if (m.userData.building && m.material.vertexColors) body = m.geometry; });
+    let body; g.traverse((m) => { if (m.userData.building && m.material.vertexColors) { body = m.geometry; assert.equal(m.material.roughness, 0.45, 'the satin trim and reveals (Task 33 pick 4, board 28: was 0.8)'); } });
     const pos = body.attributes.position, col = body.attributes.color;
     for (const b of blocks) {
       let back = 0, corn = false;
