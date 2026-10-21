@@ -4,7 +4,6 @@
 // texels), stand as the frame; reveals in the body colour close each opening, AO-darkened toward the glass; proud heads and sills in
 // the trim (a curtain wall: one transom a floor instead); caps close the frame's edges. Above RELIEF.cap the wall stays a plane.
 // Built in the wall's own frame, facing +z, centred on x = 0 (w wide), y in metres: the caller turns and places it as wall() is.
-import { plane } from './shapes.js';
 import { TILE } from './facade.js';
 
 // The window opening in each tile's 2.5 x 3.5 m cell, data measured once per image by Task 33's P6 prototype (the glow's pane test,
@@ -26,11 +25,29 @@ export const RELIEF = { jamb: 0.1, head: { h: 0.14, out: 0.08 }, sill: { h: 0.08
 const CW = TILE.w / 2, CH = TILE.h / 2, SEG = 4; // a window cell; SEG: along x (z on the street walls) every 4 m, so it bends
 
 // o: { w, y0, y1, base (where the tile's v is 0: its cells stand on base + 3.5 n), top (a cornice's underside: openings clip there),
-// open (OPENINGS' rect or null), glass (a curtain wall), color, trim (THREE.Color) } -> { face: tile-material geometries, body: one
+// open (OPENINGS' rect or null), glass (a curtain wall), color, trim (THREE.Color) } -> { face: one tile-material geometry, body: one
 // vertex-coloured geometry for the body mesh, or null when the wall stays flat }
 export function relief(T, { w, y0, y1, base = y0, top = y1, open, glass, color, trim }) {
-  const R = RELIEF, J = R.jamb, face = [], pos = [], nor = [], col = [];
-  const tile = (x0, x1, ya, yb, z) => { if (x1 - x0 > 1e-3 && yb - ya > 1e-3) face.push(plane(T, x1 - x0, yb - ya, TILE.w, TILE.h, (ya - base) / TILE.h, x0 / TILE.w).translate((x0 + x1) / 2 - w / 2, (ya + yb) / 2, z)); };
+  const R = RELIEF, J = R.jamb, fo = { pos: [], nor: [], uv: [] }, bo = { pos: [], nor: [], uv: [], col: [] };
+  const geo = (o) => { const g = new T.BufferGeometry(); for (const [k, a, n] of [['position', o.pos, 3], ['normal', o.nor, 3], ['uv', o.uv, 2], ['color', o.col, 3]]) if (a) g.setAttribute(k, new T.Float32BufferAttribute(a, n)); return g; };
+  // an axis-aligned rectangle facing axis n (0 x, 1 y, 2 z) on side s at c, over a on axis n + 1 and b on n + 2 (mod 3), cut every
+  // SEG along x: with a `tint` into the body (darkened to R.ao where `dark(vertex)`), without one into the face, uv on the tile's grid
+  const v = [0, 0, 0]; // ponytail: rect writes straight into the arrays, no per-vertex objects (it was a fifth of a chunk's build)
+  const rect = (n, s, c, [a0, a1], [b0, b1], tint, dark) => {
+    if (n === 1 && s > 0 && c > R.eye) return; // a face looking up, above every camera: a back face from the street
+    const o = tint ? bo : fo, e1 = (n + 1) % 3, e2 = (n + 2) % 3, ka = e1 ? 1 : Math.max(1, Math.ceil((a1 - a0) / SEG)), kb = e2 ? 1 : Math.max(1, Math.ceil((b1 - b0) / SEG));
+    const at = (p, q) => {
+      v[n] = c; v[e1] = p; v[e2] = q;
+      o.pos.push(v[0] - w / 2, v[1], v[2]); o.nor.push(n === 0 ? s : 0, n === 1 ? s : 0, n === 2 ? s : 0);
+      if (!tint) return o.uv.push(v[0] / TILE.w, (v[1] - base) / TILE.h);
+      const k = dark?.(v) ? R.ao : 1; o.uv.push(0, 0); o.col.push(tint.r * k, tint.g * k, tint.b * k); // the body mesh's boxes carry uvs
+    };
+    for (let i = 0; i < ka; i++) for (let j = 0; j < kb; j++) {
+      const p0 = a0 + (a1 - a0) * i / ka, p1 = a0 + (a1 - a0) * (i + 1) / ka, q0 = b0 + (b1 - b0) * j / kb, q1 = b0 + (b1 - b0) * (j + 1) / kb;
+      if (s > 0) { at(p0, q0); at(p1, q0); at(p1, q1); at(p0, q0); at(p1, q1); at(p0, q1); } else { at(p0, q1); at(p1, q1); at(p0, q0); at(p1, q1); at(p1, q0); at(p0, q0); }
+    }
+  };
+  const tile = (x0, x1, ya, yb, z) => { if (x1 - x0 > 1e-3 && yb - ya > 1e-3) rect(2, 1, z, [x0, x1], [ya, yb]); };
   const yc = !open ? y0 : y1 <= R.cap ? y1 : Math.max(y0, base + CH * Math.floor((R.cap - base) / CH)); // the relief's top
   const cols = [], rows = [];
   if (open) for (let s = 0; s + open.u[1] * CW <= w - 0.05; s += CW) cols.push([s + open.u[0] * CW, s + open.u[1] * CW]); // whole windows only
@@ -38,18 +55,7 @@ export function relief(T, { w, y0, y1, base = y0, top = y1, open, glass, color, 
     const a = yb + (1 - open.v[1]) * CH, b = Math.min(yb + (1 - open.v[0]) * CH, top);
     if (b - a >= R.minH) rows.push([a, b]);
   }
-  if (!cols.length || !rows.length) { tile(0, w, y0, y1, 0); return { face, body: null }; }
-  // an axis-aligned rectangle facing axis n (0 x, 1 y, 2 z) on side s at c, over a on axis n + 1 and b on n + 2 (mod 3), in `tint`
-  // darkened to R.ao where `dark(vertex)`; cut every SEG along x
-  const rect = (n, s, c, [a0, a1], [b0, b1], tint, dark = () => false) => {
-    if (n === 1 && s > 0 && c > R.eye) return; // a face looking up, above every camera: a back face from the street
-    const e1 = (n + 1) % 3, e2 = (n + 2) % 3, cut = (lo, hi, e) => { const k = e === 0 ? Math.max(1, Math.ceil((hi - lo) / SEG)) : 1; return Array.from({ length: k }, (_, i) => [lo + (hi - lo) * i / k, lo + (hi - lo) * (i + 1) / k]); };
-    for (const [p0, p1] of cut(a0, a1, e1)) for (const [q0, q1] of cut(b0, b1, e2)) {
-      const at = (p, q) => { const v = [0, 0, 0]; v[n] = c; v[e1] = p; v[e2] = q; return v; }, quad = [at(p0, q0), at(p1, q0), at(p1, q1), at(p0, q0), at(p1, q1), at(p0, q1)];
-      if (s < 0) quad.reverse();
-      for (const v of quad) { const k = dark(v) ? R.ao : 1; pos.push(v[0] - w / 2, v[1], v[2]); nor.push(n === 0 ? s : 0, n === 1 ? s : 0, n === 2 ? s : 0); col.push(tint.r * k, tint.g * k, tint.b * k); }
-    }
-  };
+  if (!cols.length || !rows.length) { tile(0, w, y0, y1, 0); return { face: geo(fo), body: null }; }
   const proud = (x0, x1, ya, yb, out) => { // a trim bar on the frame: its front, top and shaded underside (its 8 cm ends left out)
     rect(2, 1, J + out, [Math.max(0, x0), Math.min(w, x1)], [ya, yb], trim);
     rect(1, 1, yb, [J, J + out], [Math.max(0, x0), Math.min(w, x1)], trim);
@@ -70,10 +76,5 @@ export function relief(T, { w, y0, y1, base = y0, top = y1, open, glass, color, 
   for (let k = 0; k < ys.length; k += 2) tile(0, w, ys[k], ys[k + 1], J); // the spandrels
   tile(0, w, y0, yc, 0); // the glass, after the frame (early z drops what the frame covers)
   tile(0, w, yc, y1, 0); // above the cap
-  const body = new T.BufferGeometry();
-  body.setAttribute('position', new T.Float32BufferAttribute(pos, 3));
-  body.setAttribute('normal', new T.Float32BufferAttribute(nor, 3));
-  body.setAttribute('uv', new T.Float32BufferAttribute(new Float32Array(pos.length / 3 * 2), 2)); // the body mesh's boxes carry uvs
-  body.setAttribute('color', new T.Float32BufferAttribute(col, 3));
-  return { face, body };
+  return { face: geo(fo), body: geo(bo) };
 }

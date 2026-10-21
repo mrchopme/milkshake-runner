@@ -97,7 +97,7 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
   const J = RELIEF.jamb, TURN = (face) => (face > 0 ? Math.PI / 2 : -Math.PI / 2);
   const stamp = (f, fm, color, rot, x, z, w, y0, y1, base = SHOP_H, top = y1, flat = false) => {
     const r = relief(T, { w, y0, y1, base, top, open: flat ? null : OPENINGS[style.facades?.[f]] ?? null, glass: style.tileClass?.[f] === 'g', color, trim });
-    for (const g of r.face) put(fm, g.rotateY(rot).translate(x, 0, z));
+    put(fm, r.face.rotateY(rot).translate(x, 0, z));
     if (r.body) put(body, r.body.rotateY(rot).translate(x, 0, z));
   };
   // A lot's two z ends (x their centre, w wide, for za..zb), the -z one first: the tile alone up to what its neighbour 0.5 m away

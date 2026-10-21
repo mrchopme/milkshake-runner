@@ -12,7 +12,7 @@ const C = new THREE.Color('#808080'), TRIM = new THREE.Color('#ffffff');
 const stamp = (o) => relief(THREE, { w: 15, y0: 4.3, y1: 25.3, base: 4.3, open: OPENINGS['hifi/city/facades/downtown-03.webp'], glass: false, color: C, trim: TRIM, ...o });
 // positions are float32: the checks allow 1e-5
 const verts = (g) => { const p = g.attributes.position, out = []; for (let i = 0; i < p.count; i++) out.push(new THREE.Vector3().fromBufferAttribute(p, i)); return out; };
-const faceZ = (face) => [...new Set(face.flatMap((g) => verts(g).map((v) => +v.z.toFixed(6))))].sort((a, b) => a - b);
+const faceZ = (g) => [...new Set(verts(g).map((v) => +v.z.toFixed(6)))].sort((a, b) => a - b);
 
 test('every street theme\'s facade tile has its window opening in the table: a rect inside the 2.5 x 3.5 m cell, or null', () => {
   for (const theme of [downtown, midtown, uptown]) for (const path of theme.assets.filter((a) => a.includes('/facades/'))) {
@@ -36,7 +36,7 @@ test('the relief: the tile on the wall line as the glass, its frame faces RELIEF
     if (Math.abs(n.getX(i)) > 0.99) assert.ok(v.z <= RELIEF.jamb + 1e-5, `a jamb ${v.z.toFixed(3)} m deep`); // the jambs: the faces looking along the wall
   }
   assert.ok(vs.some((v) => v.z > RELIEF.jamb + 1e-3), 'heads and sills stand proud');
-  for (const g of face) for (const v of verts(g)) assert.ok(Math.abs(v.x) <= 7.5 + 1e-5 && v.y >= 4.3 - 1e-5 && v.y <= 25.3 + 1e-5, `a tile piece at ${v.toArray()}`);
+  for (const v of verts(face)) assert.ok(Math.abs(v.x) <= 7.5 + 1e-5 && v.y >= 4.3 - 1e-5 && v.y <= 25.3 + 1e-5, `a tile piece at ${v.toArray()}`);
 });
 
 test('the relief\'s body pieces carry a colour, darkened toward the glass and under the heads (the AO bake)', () => {
@@ -49,16 +49,15 @@ test('the relief\'s body pieces carry a colour, darkened toward the glass and un
 test('the relief stops at RELIEF.cap (30 m): plain tile above it', () => {
   const { face, body } = stamp({ y1: 60 });
   for (const v of verts(body)) assert.ok(v.y <= RELIEF.cap + 1e-5, `a body vertex at ${v.y.toFixed(2)} m`);
-  for (const g of face) for (const v of verts(g)) if (v.y > RELIEF.cap + 1e-5) assert.ok(Math.abs(v.z) < 1e-5, `a frame piece at ${v.y.toFixed(2)} m`);
-  assert.ok(face.some((g) => verts(g).some((v) => v.y > 59.9)), 'the plain tile reaches the top');
+  for (const v of verts(face)) if (v.y > RELIEF.cap + 1e-5) assert.ok(Math.abs(v.z) < 1e-5, `a frame piece at ${v.y.toFixed(2)} m`);
+  assert.ok(verts(face).some((v) => v.y > 59.9), 'the plain tile reaches the top');
 });
 
 test('a tile with no opening (uptown-02, the fire escape) stays one flat plane; a curtain wall gets transoms, no sills', () => {
   const flat = stamp({ open: null });
   assert.equal(flat.body, null);
-  assert.equal(flat.face.length, 1);
   assert.deepEqual(faceZ(flat.face), [0]);
-  const b = new THREE.Box3().setFromBufferAttribute(flat.face[0].attributes.position);
+  const b = new THREE.Box3().setFromBufferAttribute(flat.face.attributes.position);
   assert.ok(Math.abs(b.min.y - 4.3) < 1e-5 && Math.abs(b.max.y - 25.3) < 1e-5 && Math.abs(b.max.x - b.min.x - 15) < 1e-5);
   const glass = stamp({ open: OPENINGS['hifi/city/facades/downtown-01.webp'], glass: true }), proud = verts(glass.body).filter((v) => v.z > RELIEF.jamb + 1e-3);
   assert.ok(proud.length > 0, 'transoms stand proud');
@@ -67,13 +66,12 @@ test('a tile with no opening (uptown-02, the fire escape) stays one flat plane; 
 });
 
 test('the tile pieces keep the wall\'s pattern: u and v as one plane over the whole wall would have them', () => {
-  const { face } = stamp();
-  for (const g of face) {
-    const p = g.attributes.position, uv = g.attributes.uv;
-    for (let i = 0; i < p.count; i++) {
-      const u = (p.getX(i) + 7.5) / TILE.w, v = (p.getY(i) - 4.3) / TILE.h;
-      assert.ok(Math.abs(uv.getX(i) - u) < 1e-6 && Math.abs(uv.getY(i) - v) < 1e-6, `uv ${uv.getX(i)},${uv.getY(i)} at ${p.getX(i)},${p.getY(i)}`);
-    }
+  const { face } = stamp(), p = face.attributes.position, uv = face.attributes.uv, n = face.attributes.normal;
+  assert.deepEqual(Object.keys(face.attributes).sort(), ['normal', 'position', 'uv'], 'the facade meshes\' attributes, no colour');
+  for (let i = 0; i < p.count; i++) {
+    const u = (p.getX(i) + 7.5) / TILE.w, v = (p.getY(i) - 4.3) / TILE.h;
+    assert.ok(Math.abs(uv.getX(i) - u) < 1e-5 && Math.abs(uv.getY(i) - v) < 1e-5, `uv ${uv.getX(i)},${uv.getY(i)} at ${p.getX(i)},${p.getY(i)}`);
+    assert.ok(n.getZ(i) === 1, 'every tile piece faces out');
   }
 });
 
