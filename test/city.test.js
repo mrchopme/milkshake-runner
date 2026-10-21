@@ -120,9 +120,9 @@ const reliefChunks = async function* (seeds = 10) {
   for (const id of ['downtown', 'midtown', 'uptown']) {
     const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
     for (let seed = 1; seed <= seeds; seed++) {
-      const z0 = 120 * seed, g = hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }), tile = [], all = [];
-      let lots; g.traverse((m) => { lots ??= m.userData.lots; if (!m.userData.building) return; all.push(m.geometry.attributes.position); if (!m.material.vertexColors) tile.push(m.geometry.attributes.position); });
-      yield { z0, g, at: `${id}, seed ${seed}`, tile, all, lots, blocks: g.userData.blocks };
+      const z0 = 120 * seed, g = hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }), tile = [];
+      let lots; g.traverse((m) => { lots ??= m.userData.lots; if (m.userData.building && !m.material.vertexColors) tile.push(m.geometry.attributes.position); });
+      yield { z0, g, at: `${id}, seed ${seed}`, tile, lots, blocks: g.userData.blocks, cross: g.userData.cross };
     }
   }
 };
@@ -147,11 +147,12 @@ test('the relief\'s tile faces stand on the facade line, never past it, inside t
 
 // The relief stands where a runner sees it (Task 34 L-E, inside the prototype's triangle budget): an end wall's frame only above
 // a neighbour within 1 m (its street wall hides the rest), a back tower's ends too; the back rows (behind the avenue's blocks, the
-// cross street's gap kept clear of them) and the side street's end blocks (60 m down it) flat planes.
-test('the relief only where a runner sees it: an end above its neighbour, the back rows and the side street\'s end blocks flat', async () => {
+// cross street's gap kept clear of them), the side street's end blocks (60 m down it) and its lots looking +z (away from the
+// runner, as its -z wall's lots) flat planes.
+test('the relief only where a runner sees it: an end above its neighbour; the back rows, end blocks and lots looking away flat', async () => {
   const J = RELIEF.jamb;
-  let framed = 0;
-  for await (const { at, tile, all, lots, blocks } of reliefChunks(6)) {
+  let framed = 0, sides = 0;
+  for await (const { at, tile, lots, blocks, cross } of reliefChunks(6)) {
     for (const k of blocks) for (const e of [-1, 1]) {
       const n = blocks.find((q) => q.side === k.side && (e < 0 ? k.z0 - q.z1 : q.z0 - k.z1) > 0 && (e < 0 ? k.z0 - q.z1 : q.z0 - k.z1) < 1), hide = n ? n.setAt : 0, zf = e < 0 ? k.z0 - 0.02 - J : k.z1 + 0.02 + J;
       for (const p of tile) for (let i = 0; i < p.count; i++) {
@@ -160,15 +161,15 @@ test('the relief only where a runner sees it: an end above its neighbour, the ba
         if (p.getY(i) < hide - 1e-4) assert.fail(`${at}: block ${k.lot}'s ${e < 0 ? '-z' : '+z'} end framed at ${p.getY(i).toFixed(2)} m, under its neighbour's ${hide} m`);
       }
     }
-    for (const o of lots.filter((q) => q.kind === 'back' || q.kind === 'end')) {
+    for (const o of lots.filter((q) => q.kind === 'back' || q.kind === 'end' || (q.kind === 'side' && q.z[1] < cross.z && ++sides))) {
       const out = (v, [a, b]) => Math.max(a - v, v - b, 0); // how far outside the footprint along one axis
-      for (const p of all) for (let i = 0; i < p.count; i++) {
+      for (const p of tile) for (let i = 0; i < p.count; i++) { // a frame face stands J out of its wall (a cornice is the body's)
         const dx = out(p.getX(i), o.x), dz = out(p.getZ(i), o.z), inside = (dx === 0 || dx <= 0.25) && (dz === 0 || dz <= 0.25);
         if (inside && Math.max(dx, dz) > 0.03) assert.fail(`${at}: a ${o.kind} lot's relief ${Math.max(dx, dz).toFixed(2)} m out of its wall at ${p.getX(i).toFixed(2)}, ${p.getY(i).toFixed(2)}, ${p.getZ(i).toFixed(2)}`);
       }
     }
   }
-  assert.ok(framed > 0, 'some ends stand framed');
+  assert.ok(framed > 0 && sides > 0, `${framed} framed end vertices, ${sides} lots looking away`);
 });
 
 // The block list (Task 32): buildings publish what they built, so signs and furniture anchor on real blocks. A contract: C3 and

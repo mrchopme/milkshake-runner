@@ -200,11 +200,12 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       solid(x0, x1, 0, h, za, zb, c);
       // its walls, the front first, then its two ends (round-4 item 7: no bare body wall): [turn, centre x, centre z, width].
       // ponytail: the ends the plain tile, no relief: they face the next lot or the avenue's blocks across 0.5 m; the end block's
-      // front too, the vista 60 m down the side street, where a 0.1 m relief is under two pixels (Task 34 L-E: ~3k triangles a chunk)
+      // front too, the vista 60 m down the side street, where a 0.1 m relief is under two pixels (Task 34 L-E: ~3k triangles a chunk),
+      // and a front looking +z, away from the runner (seen only far off on a bend, as an avenue block's +z end: ~3.5k in midtown)
       const onX = [[-Math.PI / 2, x0 - 0.02, zc, zb - za], [Math.PI / 2, x1 + 0.02, zc, zb - za]], onZ = [[Math.PI, xc, za - 0.02, x1 - x0], [0, xc, zb + 0.02, x1 - x0]];
       (fz ? [onZ[fz > 0 ? 1 : 0], ...onX] : [onX[s > 0 ? 0 : 1], ...onZ]).forEach(([rot, x, z, w], k) => {
         put(sm, plane(T, w, SHOP_H, w / Math.max(1, Math.round(w / DRESS.shopW)), SHOP_H).rotateY(rot).translate(x, SHOP_H / 2, z)); // the whole storefront image, as the blocks' ends wear it
-        stamp(f, fm, c, rot, x, z, w, SHOP_H, h, SHOP_H, h - C.h, k > 0 || kind === 'end'); // the front's relief under its cornice
+        stamp(f, fm, c, rot, x, z, w, SHOP_H, h, SHOP_H, h - C.h, k > 0 || kind === 'end' || fz > 0); // the front's relief under its cornice
       });
       if (fz > 0) solid(x0, x1, h - C.h, h, zb - 0.3, zb + C.out, trim);
       else if (fz < 0) solid(x0, x1, h - C.h, h, za - C.out, za + 0.3, trim);
