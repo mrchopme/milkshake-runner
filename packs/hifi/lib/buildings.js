@@ -20,11 +20,12 @@
 // stands, the avenue's included, is on its group's userData.lots: { kind: 'block' | 'side' | 'end' | 'back', x: [lo, hi] signed, z: [lo, hi] }.
 // three/addons is safe to import in a pack helper: it does not register anything, and Vite bundles it with the pack chunk.
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { wall, instanced } from './shapes.js';
+import { wall, plane, instanced } from './shapes.js';
 import { material } from './materials.js';
 import { facadeMaterial, shopMaterial, TILE, SHOP_H, tintFor, tinted } from './facade.js';
 import { FACADE_X, SIDE, sideWalls } from './street.js';
 import { rng } from '../../../src/generator.js';
+import { relief, OPENINGS, RELIEF } from './windows.js';
 // ponytail: calibration knobs, metres (board 15; Task 32, board 23). Overhang bands: above 4.5 m up to 0.9 out (cornices), 3.0-4.5 m
 // only the awnings (1.6) over the fascia (0.4), below 3.0 m nothing past 0.4, never past x 4.5 (the road).
 const DEPTH = [8, 14];
@@ -80,7 +81,8 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
   const T = gfx.three, groups = new Map(), roofs = { tower: [], ac: [] }, C = CORNICE, lotsOut = [];
   const signed = (s, a, b) => (s > 0 ? [a, b] : [-b, -a]), stand = (kind, s, xa, xb, za, zb) => lotsOut.push({ kind, x: signed(s, xa, xb), z: [za, zb] });
   const put = (mat, geo) => { if (!groups.has(mat)) groups.set(mat, []); groups.get(mat).push(geo); };
-  const body = material(`${style.id}/body`, () => new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.8 }));
+  // ponytail: calibration knob, the body's roughness 0.45 (was 0.8; Task 33 map, board 28 pick 4: the teaser's satin trim and reveals)
+  const body = material(`${style.id}/body`, () => new T.MeshStandardMaterial({ vertexColors: true, roughness: 0.45 }));
   const { minH, maxH, colors } = style.buildings;
   const H = style.heights ?? { kind: 'runs', short: [minH, maxH], tall: [minH, maxH], tallShare: 0, shortTiles: ALL, tallTiles: ALL };
   const lots = H.depth ?? DEPTH, trim = new T.Color(style.trim ?? '#c9bda3'), bands = style.shopBands ?? NO_AWNING;
@@ -90,11 +92,30 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
     const n = parseInt(hex.slice(1), 16), c = tinted(tintFor(style, f), n >> 16, (n >> 8) & 255, n & 255);
     return new T.Color().setRGB(...c.map((v) => v / 255), T.SRGBColorSpace);
   };
+  // Every facade wall goes through the window relief (lib/windows.js): tile f's glass on the wall line, its centre (x, z), turned
+  // `rot` from facing +z (wall()'s turns: +x pi/2, -x -pi/2, -z pi), w wide over y0..y1, its cells from `base`, clipped under `top`
+  const J = RELIEF.jamb, TURN = (face) => (face > 0 ? Math.PI / 2 : -Math.PI / 2);
+  const stamp = (f, fm, color, rot, x, z, w, y0, y1, base = SHOP_H, top = y1, flat = false) => {
+    const r = relief(T, { w, y0, y1, base, top, open: flat ? null : OPENINGS[style.facades?.[f]] ?? null, glass: style.tileClass?.[f] === 'g', color, trim });
+    for (const g of r.face) put(fm, g.rotateY(rot).translate(x, 0, z));
+    if (r.body) put(body, r.body.rotateY(rot).translate(x, 0, z));
+  };
+  // A lot's two z ends (x their centre, w wide, for za..zb), the -z one first: the tile alone up to what its neighbour 0.5 m away
+  // hides (hide, [-z, +z]: a height, 0 for nothing), the relief above it. ponytail: a neighbour hides up to its street wall's top
+  // whatever its depth, so a 16 m deep end's back 6 m beside a 10 m deep neighbour stay flat (Task 34 L-E: the ends' relief from
+  // ~15k triangles a chunk to ~5k; seen down a 0.5 m gap they never read)
+  const zEnds = (f, fm, c, x, w, za, zb, y0, y1, base, top, hide = [0, 0]) => [-1, 1].forEach((e, i) => {
+    const ze = e < 0 ? za - 0.02 : zb + 0.02, rot = e < 0 ? Math.PI : 0, cut = Math.min(y1, Math.max(y0, hide[i]));
+    if (cut > y0) stamp(f, fm, c, rot, x, ze, w, y0, cut, base, top, true);
+    if (cut < y1) stamp(f, fm, c, rot, x, ze, w, cut, y1, base, top);
+  });
+  const hidden = (row) => row.map((o, i) => { const p = row[i - 1], n = row[i + 1]; return [p && o.za - p.zb < 1 ? p.top : 0, n && n.za - o.zb < 1 ? n.top : 0]; });
   for (const side of [-1, 1]) {
     // ponytail: two sub-streams per chunk side from the chunk's own seed (layout, look), so nothing here reshuffles the shared stream
     const key = (seed ^ (side > 0 ? 0x9e3779b9 : 0x3243f6a8)) >>> 0, lay = rng(key), look = rng(key + 1), next = heightModel(H, look);
     const pick = (list, not) => { const l = list.length > 1 ? list.filter((x) => x !== not) : list; return l[Math.floor(look() * l.length)]; };
     let z = z0 + C.ret, prevTile = -1, prevShop = -1; // the first block leaves room for its cornice return: nothing crosses the seam
+    const row = []; // the side's blocks' facade ends, stamped once their neighbours are known
     while (z < z0 + length) {
       if (cross && z >= cross.z && z < cross.z + 12) { z = cross.z + 12; continue; }
       const end = cross && z < cross.z ? cross.z : z0 + length;
@@ -109,7 +130,7 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       const fm = facadeMaterial(gfx, style, f), sm = shopMaterial(gfx, style, s), deep = DRESS.body[h > DRESS.over ? 1 : 0];
       const color = bodyColor(f) ?? new T.Color(colors[Math.floor(look() * colors.length)]), cls = style.tileClass?.[f] ?? 'm';
       const along = (mat, inn, y0, y1, tw, th, v0 = 0) => put(mat, wall(T, d, y1 - y0, face, tw, th, v0).translate(X(inn), (y0 + y1) / 2, zc));
-      const across = (mat, in0, in1, y0, y1, tw, th, v0 = 0) => put(mat, wall(T, in1 - in0, y1 - y0, 0, tw, th, v0, 'z').translate(X((in0 + in1) / 2), (y0 + y1) / 2, z - 0.02)); // the -z end
+      const across = (mat, in0, in1, y0, y1, tw, th, e) => put(mat, plane(T, in1 - in0, y1 - y0, tw, th).rotateY(e < 0 ? Math.PI : 0).translate(X((in0 + in1) / 2), (y0 + y1) / 2, e < 0 ? z - 0.02 : z + d + 0.02)); // an end: e -1 the -z one, 1 the +z
       const box = (in0, in1, y0, y1, za, zb, c = color) => { const b = new T.BoxGeometry(in1 - in0, y1 - y0, zb - za, 1, 1, Math.max(1, Math.ceil((zb - za) / 4))).translate(X((in0 + in1) / 2), (y0 + y1) / 2, (za + zb) / 2); paint(T, b, c); put(body, b); };
       // the shop band: storefront glass recessed under a fascia showing the image's own sign, an awning from its own awning rows;
       // the image repeats every ~8.5 m (tw), the storefront wears only the rows under the painted awning so it never shows twice
@@ -124,15 +145,17 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
         put(sm, wall(T, d, L, face, tw, L / (vT - vM), vM).translate(0, -L / 2, 0).rotateZ(face * (Math.PI / 2 - rad)).translate(X(-F.out), F.y, zc));
         along(sm, -A.out, F.y - drop - A.valance, F.y - drop, tw, A.valance / (vM - vL), vL);
       }
-      across(sm, DRESS.recess, deep, 0, SHOP_H, (deep - DRESS.recess) / Math.max(1, Math.round((deep - DRESS.recess) / DRESS.shopW)), SHOP_H); // the end wears the whole image
+      for (const e of [-1, 1]) across(sm, DRESS.recess, deep, 0, SHOP_H, (deep - DRESS.recess) / Math.max(1, Math.round((deep - DRESS.recess) / DRESS.shopW)), SHOP_H, e); // each end wears the whole image
       box(DRESS.recess + 0.02, deep, 0, SHOP_H, z, z + d);
-      // the facade bands: SHOP_H to the first setback, then each tier set back; each with its end wall, body, cornice and relief
-      const tops = [...tiers(h), h], insets = [0, ...DRESS.inset];
+      // the facade bands: SHOP_H to the first setback, then each tier set back; each with its end walls, body, cornice and relief;
+      // the street wall's glass J behind the facade line, so its frame faces stand on it
+      const tops = [...tiers(h), h], insets = [0, ...DRESS.inset], ends = [];
+      row.push({ za: z, zb: z + d, top: tops[0], ends });
       tops.forEach((y1, k) => {
-        const y0 = k ? tops[k - 1] : SHOP_H, inn = insets[k], v0 = (y0 - SHOP_H) / TILE.h;
-        along(fm, inn, y0, y1, TILE.w, TILE.h, v0);
-        across(fm, inn, deep, y0, y1, TILE.w, TILE.h, v0);
-        box(inn + 0.02, deep, y0, y1, z, z + d);
+        const y0 = k ? tops[k - 1] : SHOP_H, inn = insets[k];
+        stamp(f, fm, color, TURN(face), X(inn + J), zc, d, y0, y1, SHOP_H, y1 - C.h);
+        ends.push([f, fm, color, X((inn + deep) / 2), deep - inn, z, z + d, y0, y1, SHOP_H, y1 - C.h]);
+        box(inn + J + 0.02, deep, y0, y1, z, z + d);
         box(inn - C.out, inn + 0.3, y1 - C.h, y1, z - C.ret, z + d, trim); // the cornice's front
         box(inn - C.out, deep, y1 - C.h, y1, z - C.ret, z + 0.3, trim); // and its return round the end
         if (cls === 'm') for (let y = SHOP_H + 3.5 * Math.ceil((y0 - SHOP_H + 0.1) / 3.5); y < y1 - C.h - 0.3; y += 3.5) box(inn - DRESS.ledge.out, inn + 0.05, y - DRESS.ledge.h / 2, y + DRESS.ledge.h / 2, z, z + d, trim);
@@ -142,9 +165,11 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       let reach = deep;
       if (H.back && !tall && look() < H.back.share) {
         const off = H.back.x[0] + look() * (H.back.x[1] - H.back.x[0]), w = H.back.w[0] + look() * (H.back.w[1] - H.back.w[0]), bh = snap(H.tall[0] + look() * (H.tall[1] - H.tall[0])), bt = pick(H.tallTiles, -1), bm = facadeMaterial(gfx, style, bt);
-        along(bm, off, SHOP_H, bh, TILE.w, TILE.h);
-        across(bm, off, off + w, SHOP_H, bh, TILE.w, TILE.h);
-        box(off + 0.02, off + w, 0, bh, z, z + d, bodyColor(bt) ?? color);
+        const bc = bodyColor(bt) ?? color;
+        along(bm, off + J, SHOP_H, h, TILE.w, TILE.h); // flat where the walk-up hides it, the relief above its roof
+        stamp(bt, bm, bc, TURN(face), X(off + J), zc, d, h, bh, SHOP_H, bh - C.h);
+        zEnds(bt, bm, bc, X(off + w / 2), w, z, z + d, SHOP_H, bh, SHOP_H, bh - C.h);
+        box(off + J + 0.02, off + w, 0, bh, z, z + d, bc);
         box(off - C.out, off + 0.3, bh - C.h, bh, z - C.ret, z + d, trim);
         reach = off + w;
       }
@@ -156,10 +181,11 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       blocks.push({ side, z0: z, z1: z + d, h, setAt: tops[0], shop: s, tile: f, lot: blocks.length, awning: awnTop != null });
       z += depth;
     }
+    hidden(row).forEach((hide, i) => { for (const a of row[i].ends) zEnds(...a, hide); });
   }
   // The side street's lots and end blocks, then the back rows: bodies and cornices in the body mesh, facades and storefronts only on
   // tiles this chunk already draws (no new mesh), from their own sub-stream of the walls' seed (nothing else reshuffles).
-  // ponytail: flat storefront and facade planes and a cornice, no fascia, awning or relief (seen from 20 m and more); walk-up heights
+  // ponytail: a flat storefront, the facade through the window relief and a cornice, no fascia or awning (seen from 20 m and more); walk-up heights
   // (the theme's short range; the back rows BACK.h), so the skyline still shows over them
   function beyond() {
     const sr = rng((seed ^ 0x51de57) >>> 0), span = ([a, b]) => a + sr() * (b - a), drawn = (f) => groups.has(facadeMaterial(gfx, style, f));
@@ -170,12 +196,15 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
     // a block over |x| xa..xb on avenue side s, z za..zb, its front (storefront, facade, cornice) facing +z or -z (fz), or the avenue (fz 0)
     const lot = (kind, s, xa, xb, za, zb, fz) => {
       const h = snap(span(H.short ?? H.range)), f = tile(), fm = facadeMaterial(gfx, style, f), sm = shopMaterial(gfx, style, shops[Math.floor(sr() * shops.length)]);
-      const [x0, x1] = signed(s, xa, xb), xc = (x0 + x1) / 2, w = fz ? x1 - x0 : zb - za;
-      solid(x0, x1, 0, h, za, zb, colour(f));
-      const at = fz ? (geo) => (fz > 0 ? geo.rotateY(Math.PI) : geo).translate(xc, 0, fz > 0 ? zb + 0.02 : za - 0.02) : (geo) => geo.translate(s > 0 ? x0 - 0.02 : x1 + 0.02, 0, (za + zb) / 2);
-      const face = (mat, y0, y1, tw, th) => put(mat, at(wall(T, w, y1 - y0, -s, tw, th, 0, fz ? 'z' : 'x')).translate(0, (y0 + y1) / 2, 0));
-      face(sm, 0, SHOP_H, w / Math.max(1, Math.round(w / DRESS.shopW)), SHOP_H); // the whole storefront image, as the -z ends wear it
-      face(fm, SHOP_H, h, TILE.w, TILE.h);
+      const [x0, x1] = signed(s, xa, xb), xc = (x0 + x1) / 2, zc = (za + zb) / 2, c = colour(f);
+      solid(x0, x1, 0, h, za, zb, c);
+      // its walls, the front first, then its two ends (round-4 item 7: no bare body wall): [turn, centre x, centre z, width].
+      // ponytail: the ends the plain tile, no relief: they face the next lot or the avenue's blocks across 0.5 m
+      const onX = [[-Math.PI / 2, x0 - 0.02, zc, zb - za], [Math.PI / 2, x1 + 0.02, zc, zb - za]], onZ = [[Math.PI, xc, za - 0.02, x1 - x0], [0, xc, zb + 0.02, x1 - x0]];
+      (fz ? [onZ[fz > 0 ? 1 : 0], ...onX] : [onX[s > 0 ? 0 : 1], ...onZ]).forEach(([rot, x, z, w], k) => {
+        put(sm, plane(T, w, SHOP_H, w / Math.max(1, Math.round(w / DRESS.shopW)), SHOP_H).rotateY(rot).translate(x, SHOP_H / 2, z)); // the whole storefront image, as the blocks' ends wear it
+        stamp(f, fm, c, rot, x, z, w, SHOP_H, h, SHOP_H, h - C.h, k > 0); // the front's relief under its cornice
+      });
       if (fz > 0) solid(x0, x1, h - C.h, h, zb - 0.3, zb + C.out, trim);
       else if (fz < 0) solid(x0, x1, h - C.h, h, za - C.out, za + 0.3, trim);
       else solid(s > 0 ? x0 - C.out : x1 - 0.3, s > 0 ? x0 + 0.3 : x1 + C.out, h - C.h, h, za, zb, trim);
@@ -196,21 +225,22 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       }
       for (const s of [-1, 1]) lot('end', s, SIDE.far, SIDE.far + SIDE.end, wa - SIDE.deep[1], wb + SIDE.deep[1], 0);
     }
-    // the back rows: lots along z behind the avenue's, each a body with its tile on both ends and on the face toward the avenue
+    // the back rows: lots along z behind the avenue's, each a body with its tile on both ends (their relief above the neighbour, as the
+    // avenue's) and on the face toward the avenue
     const free = (x, z) => !(cross && z[0] < wb + GAP && z[1] > wa - GAP) && lotsOut.every((o) => x[1] + GAP <= o.x[0] || o.x[1] + GAP <= x[0] || z[1] + GAP <= o.z[0] || o.z[1] + GAP <= z[0]);
     for (const s of [-1, 1]) for (let k = 0; k < BACK.rows; k++) {
-      const xa = FACADE_X + BACK.x + k * (BACK.w + BACK.alley), xb = xa + BACK.w, xc = s * (xa + BACK.w / 2);
+      const xa = FACADE_X + BACK.x + k * (BACK.w + BACK.alley), xb = xa + BACK.w, xc = s * (xa + BACK.w / 2), row = [];
       for (let z = z0 + C.ret; z < z0 + length - 3;) {
         const len = Math.min(span(BACK.lot), z0 + length - C.ret - z), za = z, zb = z + len - GAP, f = tile(), h = snap(span(BACK.h)) + 3.5 * k, keep = sr() >= BACK.empty;
         z += len;
         if (!keep || zb - za < 3 || !free(signed(s, xa, xb), [za, zb])) continue;
-        const fm = facadeMaterial(gfx, style, f);
-        solid(...signed(s, xa, xb), 0, h, za, zb, colour(f));
-        put(fm, wall(T, BACK.w, h, 0, TILE.w, TILE.h, 0, 'z').translate(xc, h / 2, za - 0.02));
-        put(fm, wall(T, BACK.w, h, 0, TILE.w, TILE.h, 0, 'z').rotateY(Math.PI).translate(xc, h / 2, zb + 0.02));
-        put(fm, wall(T, zb - za, h, -s, TILE.w, TILE.h).translate(s * (xa - 0.02), h / 2, (za + zb) / 2));
+        const fm = facadeMaterial(gfx, style, f), c = colour(f);
+        solid(...signed(s, xa, xb), 0, h, za, zb, c);
+        stamp(f, fm, c, TURN(-s), s * (xa - 0.02), (za + zb) / 2, zb - za, 0, h, 0);
+        row.push({ za, zb, top: h, end: [f, fm, c, xc, BACK.w, za, zb, 0, h, 0, h] });
         stand('back', s, xa, xb, za, zb);
       }
+      hidden(row).forEach((hide, i) => zEnds(...row[i].end, hide));
     }
   }
   beyond();
