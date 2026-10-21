@@ -9,6 +9,7 @@ import { street, CROSS, WALK, FACADE_X, DASH, KERB, PAVE, EDGE, KERB_TONE, SIDE,
 import { buildings, CORNICE, GAP, BACK } from '../packs/hifi/lib/buildings.js';
 import { cityChunk } from '../packs/hifi/lib/city.js';
 import { SHOP_H, tintFor, tinted } from '../packs/hifi/lib/facade.js';
+import { RELIEF } from '../packs/hifi/lib/windows.js';
 import { furniture, FOOT, SEAM, CLEAR, RHYTHM, PITS, PLANTER, TINT } from '../packs/hifi/lib/furniture.js';
 import { ROAD_HALF } from '../src/world.js';
 import { DRIVE } from '../packs/hifi/lib/traffic.js';
@@ -114,30 +115,60 @@ test('both ends of every block wear a storefront and facade from the ground to i
 // The window relief (Task 33 pick 4, board 28; lib/windows.js) in every street theme: the tiles' frame faces on the facade line,
 // never past it (the heads and sills, 0.08 m, are the body's: the band test above), all of it inside the chunk; and the side
 // street's lots finished on both ends as the avenue's blocks are (round-4 item 7).
-test('the relief\'s tile faces stand on the facade line, never past it, inside the chunk; the side street\'s lots wear both ends', async () => {
-  const v = new THREE.Vector3(), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+// (the messages are built only on a failure: per vertex, a template string a pass made this test 40 s)
+const reliefChunks = async function* (seeds = 10) {
   for (const id of ['downtown', 'midtown', 'uptown']) {
     const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
-    for (let seed = 1; seed <= 10; seed++) {
-      const z0 = 120 * seed, g = hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }), at = `${id}, seed ${seed}`, ends = [];
-      let lots; g.traverse((n) => { lots ??= n.userData.lots; });
-      const [lo, hi] = zSpan(g);
-      assert.ok(lo >= z0 - 1e-6 && hi <= z0 + 120 + 1e-6, `${at}: ${lo.toFixed(2)}..${hi.toFixed(2)}`);
-      g.traverse((m) => {
-        if (!m.userData.building || m.material.vertexColors) return;
-        const p = m.geometry.attributes.position;
-        for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); if (v.y > SHOP_H + 1e-3) assert.ok(Math.abs(v.x) >= FACADE_X - 1e-6, `${at}: a tile ${(FACADE_X - Math.abs(v.x)).toFixed(3)} m past the facade line at y ${v.y.toFixed(2)}`); }
-        for (let i = 0; i < p.count; i += 3) {
-          a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
-          ends.push({ n: new THREE.Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a)).normalize(), p: a.clone().add(b).add(c).divideScalar(3) });
-        }
-      });
-      for (const o of lots.filter((q) => q.kind === 'side' || q.kind === 'end')) {
-        const [k, x] = o.kind === 'side' ? ['x', o.x] : ['z', o.z], other = k === 'x' ? 'z' : 'x', span = o[other];
-        for (const [s, w] of [[-1, x[0] - 0.02], [1, x[1] + 0.02]]) assert.ok(ends.some((e) => e.n[k] * s > 0.99 && Math.abs(e.p[k] - w) < 1e-3 && e.p[other] > span[0] && e.p[other] < span[1]), `${at}: a ${o.kind} lot ${JSON.stringify(o)} bare on its ${s < 0 ? '-' : '+'}${k} end`);
+    for (let seed = 1; seed <= seeds; seed++) {
+      const z0 = 120 * seed, g = hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }), tile = [], all = [];
+      let lots; g.traverse((m) => { lots ??= m.userData.lots; if (!m.userData.building) return; all.push(m.geometry.attributes.position); if (!m.material.vertexColors) tile.push(m.geometry.attributes.position); });
+      yield { z0, g, at: `${id}, seed ${seed}`, tile, all, lots, blocks: g.userData.blocks };
+    }
+  }
+};
+test('the relief\'s tile faces stand on the facade line, never past it, inside the chunk; the side street\'s lots wear both ends', async () => {
+  for await (const { z0, g, at, tile, lots } of reliefChunks()) {
+    const [lo, hi] = zSpan(g), axis = [];
+    assert.ok(lo >= z0 - 1e-6 && hi <= z0 + 120 + 1e-6, `${at}: ${lo.toFixed(2)}..${hi.toFixed(2)}`);
+    for (const p of tile) {
+      for (let i = 0; i < p.count; i++) if (p.getY(i) > SHOP_H + 1e-3 && Math.abs(p.getX(i)) < FACADE_X - 1e-6) assert.fail(`${at}: a tile ${(FACADE_X - Math.abs(p.getX(i))).toFixed(3)} m past the facade line at y ${p.getY(i).toFixed(2)}`);
+      for (let i = 0; i < p.count; i += 3) { // the triangles facing along x or z: [axis, sign, plane, centre on the other axis]
+        const ax = p.getX(i + 1) - p.getX(i), az = p.getZ(i + 1) - p.getZ(i), ay = p.getY(i + 1) - p.getY(i), bx = p.getX(i + 2) - p.getX(i), bz = p.getZ(i + 2) - p.getZ(i), by = p.getY(i + 2) - p.getY(i);
+        const nx = ay * bz - az * by, nz = ax * by - ay * bx, n = Math.hypot(nx, ay * bx - ax * bz, nz), cx = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, cz = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3;
+        if (Math.abs(nx) > 0.99 * n) axis.push(['x', Math.sign(nx), p.getX(i), cz]); else if (Math.abs(nz) > 0.99 * n) axis.push(['z', Math.sign(nz), p.getZ(i), cx]);
+      }
+    }
+    for (const o of lots.filter((q) => q.kind === 'side' || q.kind === 'end')) {
+      const [k, x] = o.kind === 'side' ? ['x', o.x] : ['z', o.z], span = o[k === 'x' ? 'z' : 'x'];
+      for (const [s, w] of [[-1, x[0] - 0.02], [1, x[1] + 0.02]]) assert.ok(axis.some(([a, sn, c, m]) => a === k && sn === s && Math.abs(c - w) < 1e-3 && m > span[0] && m < span[1]), `${at}: a ${o.kind} lot ${JSON.stringify(o)} bare on its ${s < 0 ? '-' : '+'}${k} end`);
+    }
+  }
+});
+
+// The relief stands where a runner sees it (Task 34 L-E, inside the prototype's triangle budget): an end wall's frame only above
+// a neighbour within 1 m (its street wall hides the rest), a back tower's ends too; the back rows (behind the avenue's blocks, the
+// cross street's gap kept clear of them) and the side street's end blocks (60 m down it) flat planes.
+test('the relief only where a runner sees it: an end above its neighbour, the back rows and the side street\'s end blocks flat', async () => {
+  const J = RELIEF.jamb;
+  let framed = 0;
+  for await (const { at, tile, all, lots, blocks } of reliefChunks(6)) {
+    for (const k of blocks) for (const e of [-1, 1]) {
+      const n = blocks.find((q) => q.side === k.side && (e < 0 ? k.z0 - q.z1 : q.z0 - k.z1) > 0 && (e < 0 ? k.z0 - q.z1 : q.z0 - k.z1) < 1), hide = n ? n.setAt : 0, zf = e < 0 ? k.z0 - 0.02 - J : k.z1 + 0.02 + J;
+      for (const p of tile) for (let i = 0; i < p.count; i++) {
+        if (Math.abs(p.getZ(i) - zf) > 1e-4 || Math.sign(p.getX(i)) !== k.side) continue;
+        framed++;
+        if (p.getY(i) < hide - 1e-4) assert.fail(`${at}: block ${k.lot}'s ${e < 0 ? '-z' : '+z'} end framed at ${p.getY(i).toFixed(2)} m, under its neighbour's ${hide} m`);
+      }
+    }
+    for (const o of lots.filter((q) => q.kind === 'back' || q.kind === 'end')) {
+      const out = (v, [a, b]) => Math.max(a - v, v - b, 0); // how far outside the footprint along one axis
+      for (const p of all) for (let i = 0; i < p.count; i++) {
+        const dx = out(p.getX(i), o.x), dz = out(p.getZ(i), o.z), inside = (dx === 0 || dx <= 0.25) && (dz === 0 || dz <= 0.25);
+        if (inside && Math.max(dx, dz) > 0.03) assert.fail(`${at}: a ${o.kind} lot's relief ${Math.max(dx, dz).toFixed(2)} m out of its wall at ${p.getX(i).toFixed(2)}, ${p.getY(i).toFixed(2)}, ${p.getZ(i).toFixed(2)}`);
       }
     }
   }
+  assert.ok(framed > 0, 'some ends stand framed');
 });
 
 // The block list (Task 32): buildings publish what they built, so signs and furniture anchor on real blocks. A contract: C3 and

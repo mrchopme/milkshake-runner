@@ -168,7 +168,7 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
         const bc = bodyColor(bt) ?? color;
         along(bm, off + J, SHOP_H, h, TILE.w, TILE.h); // flat where the walk-up hides it, the relief above its roof
         stamp(bt, bm, bc, TURN(face), X(off + J), zc, d, h, bh, SHOP_H, bh - C.h);
-        zEnds(bt, bm, bc, X(off + w / 2), w, z, z + d, SHOP_H, bh, SHOP_H, bh - C.h);
+        ends.push([bt, bm, bc, X(off + w / 2), w, z, z + d, SHOP_H, bh, SHOP_H, bh - C.h]); // its ends: flat as far up as the neighbour hides them
         box(off + J + 0.02, off + w, 0, bh, z, z + d, bc);
         box(off - C.out, off + 0.3, bh - C.h, bh, z - C.ret, z + d, trim);
         reach = off + w;
@@ -185,7 +185,7 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
   }
   // The side street's lots and end blocks, then the back rows: bodies and cornices in the body mesh, facades and storefronts only on
   // tiles this chunk already draws (no new mesh), from their own sub-stream of the walls' seed (nothing else reshuffles).
-  // ponytail: a flat storefront, the facade through the window relief and a cornice, no fascia or awning (seen from 20 m and more); walk-up heights
+  // ponytail: a flat storefront, the facade through the window stamp and a cornice, no fascia or awning (seen from 20 m and more); walk-up heights
   // (the theme's short range; the back rows BACK.h), so the skyline still shows over them
   function beyond() {
     const sr = rng((seed ^ 0x51de57) >>> 0), span = ([a, b]) => a + sr() * (b - a), drawn = (f) => groups.has(facadeMaterial(gfx, style, f));
@@ -199,11 +199,12 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       const [x0, x1] = signed(s, xa, xb), xc = (x0 + x1) / 2, zc = (za + zb) / 2, c = colour(f);
       solid(x0, x1, 0, h, za, zb, c);
       // its walls, the front first, then its two ends (round-4 item 7: no bare body wall): [turn, centre x, centre z, width].
-      // ponytail: the ends the plain tile, no relief: they face the next lot or the avenue's blocks across 0.5 m
+      // ponytail: the ends the plain tile, no relief: they face the next lot or the avenue's blocks across 0.5 m; the end block's
+      // front too, the vista 60 m down the side street, where a 0.1 m relief is under two pixels (Task 34 L-E: ~3k triangles a chunk)
       const onX = [[-Math.PI / 2, x0 - 0.02, zc, zb - za], [Math.PI / 2, x1 + 0.02, zc, zb - za]], onZ = [[Math.PI, xc, za - 0.02, x1 - x0], [0, xc, zb + 0.02, x1 - x0]];
       (fz ? [onZ[fz > 0 ? 1 : 0], ...onX] : [onX[s > 0 ? 0 : 1], ...onZ]).forEach(([rot, x, z, w], k) => {
         put(sm, plane(T, w, SHOP_H, w / Math.max(1, Math.round(w / DRESS.shopW)), SHOP_H).rotateY(rot).translate(x, SHOP_H / 2, z)); // the whole storefront image, as the blocks' ends wear it
-        stamp(f, fm, c, rot, x, z, w, SHOP_H, h, SHOP_H, h - C.h, k > 0); // the front's relief under its cornice
+        stamp(f, fm, c, rot, x, z, w, SHOP_H, h, SHOP_H, h - C.h, k > 0 || kind === 'end'); // the front's relief under its cornice
       });
       if (fz > 0) solid(x0, x1, h - C.h, h, zb - 0.3, zb + C.out, trim);
       else if (fz < 0) solid(x0, x1, h - C.h, h, za - C.out, za + 0.3, trim);
@@ -225,22 +226,22 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       }
       for (const s of [-1, 1]) lot('end', s, SIDE.far, SIDE.far + SIDE.end, wa - SIDE.deep[1], wb + SIDE.deep[1], 0);
     }
-    // the back rows: lots along z behind the avenue's, each a body with its tile on both ends (their relief above the neighbour, as the
-    // avenue's) and on the face toward the avenue
+    // the back rows: lots along z behind the avenue's, each a body with its tile on both ends and on the face toward the avenue.
+    // ponytail: flat (Task 34 L-E: ~10k triangles a chunk): the avenue's blocks hide them and the cross street's gap is kept clear
+    // of them (`free`); seen from the bridge at 50 m and more, a 0.1 m relief is under two pixels
     const free = (x, z) => !(cross && z[0] < wb + GAP && z[1] > wa - GAP) && lotsOut.every((o) => x[1] + GAP <= o.x[0] || o.x[1] + GAP <= x[0] || z[1] + GAP <= o.z[0] || o.z[1] + GAP <= z[0]);
     for (const s of [-1, 1]) for (let k = 0; k < BACK.rows; k++) {
-      const xa = FACADE_X + BACK.x + k * (BACK.w + BACK.alley), xb = xa + BACK.w, xc = s * (xa + BACK.w / 2), row = [];
+      const xa = FACADE_X + BACK.x + k * (BACK.w + BACK.alley), xb = xa + BACK.w, xc = s * (xa + BACK.w / 2);
       for (let z = z0 + C.ret; z < z0 + length - 3;) {
         const len = Math.min(span(BACK.lot), z0 + length - C.ret - z), za = z, zb = z + len - GAP, f = tile(), h = snap(span(BACK.h)) + 3.5 * k, keep = sr() >= BACK.empty;
         z += len;
         if (!keep || zb - za < 3 || !free(signed(s, xa, xb), [za, zb])) continue;
         const fm = facadeMaterial(gfx, style, f), c = colour(f);
         solid(...signed(s, xa, xb), 0, h, za, zb, c);
-        stamp(f, fm, c, TURN(-s), s * (xa - 0.02), (za + zb) / 2, zb - za, 0, h, 0);
-        row.push({ za, zb, top: h, end: [f, fm, c, xc, BACK.w, za, zb, 0, h, 0, h] });
+        stamp(f, fm, c, TURN(-s), s * (xa - 0.02), (za + zb) / 2, zb - za, 0, h, 0, h, true);
+        zEnds(f, fm, c, xc, BACK.w, za, zb, 0, h, 0, h, [h, h]); // hidden whole: flat
         stand('back', s, xa, xb, za, zb);
       }
-      hidden(row).forEach((hide, i) => zEnds(...row[i].end, hide));
     }
   }
   beyond();

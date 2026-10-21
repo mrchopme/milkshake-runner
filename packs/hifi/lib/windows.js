@@ -20,8 +20,9 @@ export const OPENINGS = {
 // ponytail: calibration knobs, metres (the Task 33 map's skeptic, board 28): jambs at most 0.1 (a 0.18 m one hides 42% of a pane
 // 30 m down the canyon, and the dusk glow with it); heads and sills 0.08 proud, `over` past the opening each side; the AO bake's
 // shade (0.55-0.65 x); the 30 m cap (frames pop there, above it the eye does not read them); a row clipped under a cornice to less
-// than `minH` stays solid.
-export const RELIEF = { jamb: 0.1, head: { h: 0.14, out: 0.08 }, sill: { h: 0.08, out: 0.08 }, over: 0.06, transom: { h: 0.1, out: 0.06 }, ao: 0.6, cap: 30, minH: 1 };
+// than `minH` stays solid; no face looking up above `eye` (the highest a section's camera rides, src/validate.js CAMERA_RANGES:
+// Task 34 L-E, a third of the stamp's triangles, inside the prototype's budget).
+export const RELIEF = { jamb: 0.1, head: { h: 0.14, out: 0.08 }, sill: { h: 0.08, out: 0.08 }, over: 0.06, transom: { h: 0.1, out: 0.06 }, ao: 0.6, cap: 30, minH: 1, eye: 8 };
 const CW = TILE.w / 2, CH = TILE.h / 2, SEG = 4; // a window cell; SEG: along x (z on the street walls) every 4 m, so it bends
 
 // o: { w, y0, y1, base (where the tile's v is 0: its cells stand on base + 3.5 n), top (a cornice's underside: openings clip there),
@@ -41,6 +42,7 @@ export function relief(T, { w, y0, y1, base = y0, top = y1, open, glass, color, 
   // an axis-aligned rectangle facing axis n (0 x, 1 y, 2 z) on side s at c, over a on axis n + 1 and b on n + 2 (mod 3), in `tint`
   // darkened to R.ao where `dark(vertex)`; cut every SEG along x
   const rect = (n, s, c, [a0, a1], [b0, b1], tint, dark = () => false) => {
+    if (n === 1 && s > 0 && c > R.eye) return; // a face looking up, above every camera: a back face from the street
     const e1 = (n + 1) % 3, e2 = (n + 2) % 3, cut = (lo, hi, e) => { const k = e === 0 ? Math.max(1, Math.ceil((hi - lo) / SEG)) : 1; return Array.from({ length: k }, (_, i) => [lo + (hi - lo) * i / k, lo + (hi - lo) * (i + 1) / k]); };
     for (const [p0, p1] of cut(a0, a1, e1)) for (const [q0, q1] of cut(b0, b1, e2)) {
       const at = (p, q) => { const v = [0, 0, 0]; v[n] = c; v[e1] = p; v[e2] = q; return v; }, quad = [at(p0, q0), at(p1, q0), at(p1, q1), at(p0, q0), at(p1, q1), at(p0, q1)];

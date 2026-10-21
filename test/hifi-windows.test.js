@@ -76,3 +76,15 @@ test('the tile pieces keep the wall\'s pattern: u and v as one plane over the wh
     }
   }
 });
+
+// The triangle budget (the prototype's +9-17k a chunk): a face the camera can only see from above is left out above the highest
+// a section's camera rides (src/validate.js CAMERA_RANGES height 8); seen from the street it is a back face.
+test('no face looking up above RELIEF.eye (8 m): the bars\' tops and the sills\' reveals stop there', () => {
+  assert.equal(RELIEF.eye, 8);
+  for (const o of [{}, { open: OPENINGS['hifi/city/facades/downtown-01.webp'], glass: true }]) {
+    const { body } = stamp(o), n = body.attributes.normal, p = body.attributes.position;
+    let up = 0;
+    for (let i = 0; i < n.count; i++) if (n.getY(i) > 0.99) { up++; if (p.getY(i) > RELIEF.eye + 1e-5) assert.fail(`a face looking up at ${p.getY(i).toFixed(2)} m`); }
+    if (!o.glass) assert.ok(up > 0, 'the low sills keep their tops');
+  }
+});
