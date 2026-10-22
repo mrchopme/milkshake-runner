@@ -75,3 +75,19 @@ test('the HiFi overpass is a looks-only overlay that keeps the shipped length', 
     assert.equal(registry.prop.overpass.length, shipped.prop.overpass.length);
   });
 });
+
+test('the stone\'s ashlar is projected per face, so a curved generated surface never stretches it (Task 34 L-I fix round)', async () => {
+  const { dress } = await import('../packs/hifi/props/overpass.js');
+  // a smooth half cylinder along z, scaled as a fitted model is: its vertex normals sweep through every angle, so a per-vertex
+  // projection gives one triangle's corners different axes and smears the texture across it
+  const m = new T.Mesh(new T.CylinderGeometry(3, 3, 1, 24, 1, true, 0, Math.PI).rotateX(Math.PI / 2), new T.MeshStandardMaterial());
+  m.scale.set(1.5, 2, 20); m.updateMatrixWorld(true);
+  dress(gfx, m, Infinity);
+  const g = m.geometry, p = g.attributes.position, uv = g.attributes.uv, idx = g.index, n = idx ? idx.count : p.count, at = (i) => new T.Vector3().fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld);
+  let worst = 0;
+  for (let t = 0; t < n; t += 3) {
+    const k = [0, 1, 2].map((j) => (idx ? idx.getX(t + j) : t + j));
+    for (const [a, b] of [[0, 1], [1, 2], [2, 0]]) worst = Math.max(worst, Math.hypot(uv.getX(k[a]) - uv.getX(k[b]), uv.getY(k[a]) - uv.getY(k[b])) / at(k[a]).distanceTo(at(k[b])));
+  }
+  assert.ok(worst <= 1 + 1e-6, `a planar projection never lengthens an edge: worst ${worst.toFixed(2)}x`);
+});

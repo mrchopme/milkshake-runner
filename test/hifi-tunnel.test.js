@@ -65,7 +65,7 @@ test('the HiFi tunnel is one mesh in the city\'s stone (Task 34 L-I, board 29 pi
   const paint = (o) => { const p = new Set(); o.traverse((n) => { if (n.isMesh) p.add(n.material); }); return [...p]; };
   const view = hifi.createView(gfx, { z: 0, length: 60, lanes }).object, a = paint(view), b = paint(hifi.createView(gfx, { z: 0, length: 60, lanes }).object);
   assert.equal(a.length, 1);
-  // assert.ok(a === b), never assert.equal(a, b), on THREE objects: a failing strict diff inspects their typed arrays one element a line and Myers-diffs the lines (a 256 x 128 texture is 131k of them: tens of GB, the Mac freezes; 2026-10-21)
+  // assert.ok(a === b) on THREE objects, never assert.equal: see hifi-overpass.test.js (a failing diff froze the Mac, 2026-10-21)
   assert.ok(a[0] === b[0], 'one material for every copy');
   assert.ok(a[0] === stone(gfx, ['#888888'], 1, 0, 1).material, 'the bridge piers\' stone material, its ashlar map');
   assert.ok(a[0].map && a[0].metalness === 0 && a[0].metalnessMap === null && a[0].vertexColors, 'the stone map, metalness 0, no metal map, tinted by vertex colour');
