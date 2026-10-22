@@ -155,14 +155,20 @@ through every turn and slide with it, on turns and hills, while the sky dome hol
 - `fog: { color, near, pale, shade, y: [a, b] }`: the fog's colour (else `skyBottom`, else the level's sky), where it starts
   (0–400 m, 120 by default), how far it pales toward white (0–1, 0.45 by default), and a deeper `shade` low down that gives
   way to `color` between `a` and `b` metres up (−50–300, a < b; [0, 40] by default).
+  Far off, over the last of the fog (factor 0.6 to 0.95, before the cut), the fog gives way to the dome's colour at the sight
+  line's elevation, and the height fog reads the bent height, so a far block lifted over a crest fades into the sky it rises into.
 - `skylineHaze: { color, mul, mix: [foot, top], flatten, foot }`: the skyline images times `mul`, their brightness pulled
   `flatten` (0–1) of the way to `color`'s (else the fog's), mixed toward it by `mix` (0–1) from foot to top; below `foot` m
-  (−50–50) about eye level the ring turns solid in the fog's colour, so the street's fog meets it with no band.
+  (−50–50) about eye level the ring turns solid in the dome's colour along its sight line, which is what the fogged street has
+  turned to by the cut, so the two meet with no band.
 - `disc: { size, core, halo, spread, color }`: the sun drawn in the sky, `size` degrees (0–10) wide at `core` (0–20) times
   the sun's colour, in a halo `spread` degrees (0.1–90) wide in `color` at `halo` (0–5). No disc, no sun drawn.
 - `hill`: how much of its sections' hill the HiFi street shows (0–1, 1 by default). It scales the whole section's bend, deck
   included: 0 keeps a bridge section level, with its deck, water and far shore at one height. Turns are untouched. Low-fi
   always shows the level's own hill, and play never sees the bend.
+
+Under a look the engine also draws every bent object without frustum culling (the bend moves it off the bounds three culls
+by), so a module's own `frustumCulled` does not survive `gfx.bend`; low-fi culls as three does.
 
 A switch between two themes with looks crossfades their light, fog and sky over about a second.
 
