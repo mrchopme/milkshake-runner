@@ -6,7 +6,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CSM } from 'three/addons/csm/CSM.js';
 import { texture } from './assets.js';
-import { fogCut, fogShade, fogHeight, heading, hook, bendOffset, bendStart } from './gfx.js';
+import { fogCut, fogShade, fogHeight, fogSkyTop, fogSkyBottom, fogSky, SKY_EDGE, heading, hook, bendOffset, bendStart } from './gfx.js';
 
 // The HiFi look (spec §4): tone mapping, sun shadows, studio reflections, a gradient sky and bloom, from a theme's `look`.
 // main.js loads this file only in HiFi sessions; without a look the engine renders exactly as before.
@@ -22,7 +22,6 @@ import { fogCut, fogShade, fogHeight, heading, hook, bendOffset, bendStart } fro
 // put the rings at 76–108 m. ponytail: calibration knob.
 const SKYLINE_HEIGHT = [90, 80];
 // Task 32 (Caedon's board 22 pick, "Sun B + sky fill + height fog", 2026-10-15). ponytail: calibration knobs.
-const SKY_EDGE = 0.3; // the dome reaches skyTop at this dir.y (0.45 before): a narrower pale band over the horizon
 const SHADOW_RADIUS = 2.5; // PCF blur in shadow-map texels: three 0.186 dropped PCFSoft (it fell back to plain PCF, hard edged)
 // The env strength glossy materials keep when a look's env drops to 0.4; userData.reflect overrides it. 0.4 (was 0.85; Caedon,
 // board 29 pick 4, 2026-10-20): with every sun ahead of the runner, 0.85 mirrored it off the head, the jug and the taxi's roof.
@@ -100,16 +99,18 @@ export const blendRig = (a, b, t) => typeof b === 'number' ? a * (1 - t) + b * t
 
 // The skyline ring's texel, as its shader computes it (RING_FRAG) over the same rig: what the tests exercise; the GLSL is checked
 // by eye. rgba is the image's texel, v its height up the ring (0 foot, 1 top), up its height in metres over the camera as if the
-// ring were unmoved (the shader takes off what ringShift slid it, vRingShift), cutY where that sight line crosses the fog cut.
+// ring were unmoved (the shader takes off what ringShift slid it, vRingShift), dirY the sight line's unit y as drawn.
 // With a skylineHaze: the texel times `mul`, its luma pulled `flatten` of the way to the haze colour's (the window grids go, the
 // hue stays), mixed toward the haze colour by mix[0] at the foot to mix[1] at the top; under `foot` m about eye level it turns
-// opaque in the height fog's colour at the cut, so the fogged street meets it with no band. Without one, the foot fades to the fog colour over its lowest RING.fade, as before Task 32.
+// opaque. Without one, the foot fades over its lowest RING.fade, as before Task 32. Either way the foot takes the dome's colour
+// along its sight line, which is what the fogged street turns to by the fog cut (gfx.fogSky at full fog, Task 34 L-I), so the
+// two meet with no band at any height fog.
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-export function ringTexel([r, g, b, a], { v, up, cutY }, { haze: h, fog, shade, fogY }) {
+export function ringTexel([r, g, b, a], { v, up, dirY }, { haze: h, fog, top, bottom }) {
   let c = [r, g, b].map((x, i) => x * h.mul[i]);
   const k = 1 + (h.luma / Math.max(luma(c), 0.02) - 1) * h.flatten, m = h.mix[0] + (h.mix[1] - h.mix[0]) * v;
   c = c.map((x, i) => { x = Math.min(x * k, 1); return x + (h.color[i] - x) * m; });
-  const t = smooth(fogY[0], fogY[1], cutY), foot = fog.map((x, i) => shade[i] + (x - shade[i]) * t);
+  const foot = fogSky(fog, top, bottom, dirY, 1);
   const on = h.on > 0.5, w = on ? 1 - smooth(h.foot, h.foot + RING.band, up) : 1 - smooth(0, RING.fade, v);
   return [...c.map((x, i) => x + (foot[i] - x) * w), on ? Math.max(a, w) : a];
 }
@@ -190,16 +191,15 @@ export function ringShift(camZ, radius) {
   const zq = bendStart.value + BG_DEPTH, o = bendOffset(zq), k = radius / Math.max(1, zq - camZ);
   return { x: o.x * k, y: o.y * k };
 }
-// ringTexel in GLSL, after three's map_fragment (uv.y runs 0 at the ring's foot to 1 at its top). Its up and cut are measured as
-// for an unmoved ring: vRingShift (what ringShift slid it) comes off both, so the hazed foot stays at its foot on a hill and the
-// cut keeps the ring's own radius on a turn.
+// ringTexel in GLSL, after three's map_fragment (uv.y runs 0 at the ring's foot to 1 at its top). Its up is measured as for an
+// unmoved ring: vRingShift (what ringShift slid it) comes off, so the hazed foot stays at its foot on a hill. The foot's colour
+// is the dome's along the sight line as drawn, as gfx.fogSky turns the street there.
 const RING_FRAG = /* glsl */`#include <map_fragment>
   vec3 rc = diffuseColor.rgb * hazeMul;
   rc = min( rc * mix( 1.0, hazeLuma / max( dot( rc, vec3( 0.2126, 0.7152, 0.0722 ) ), 0.02 ), hazeFlatten ), vec3( 1.0 ) );
   rc = mix( rc, hazeColor, mix( hazeMix.x, hazeMix.y, vRingY ) );
-  vec3 ringAt = vRingWorld - cameraPosition - vRingShift;
-  float ringUp = ringAt.y, ringCutY = cameraPosition.y + ringUp * hazeFar / max( length( ringAt.xz ), 1.0 );
-  vec3 footColor = mix( uFogShade, ringFog, smoothstep( uFogHeight.x, uFogHeight.y, ringCutY ) );
+  float ringUp = vRingWorld.y - cameraPosition.y - vRingShift.y;
+  vec3 footColor = mix( uSkyBottom, uSkyTop, smoothstep( 0.0, ${SKY_EDGE.toFixed(3)}, normalize( vRingWorld - cameraPosition ).y ) );
   float ringFoot = hazeOn > 0.5 ? 1.0 - smoothstep( hazeFoot, hazeFoot + ${RING.band.toFixed(1)}, ringUp ) : 1.0 - smoothstep( 0.0, ${RING.fade.toFixed(3)}, vRingY );
   diffuseColor = vec4( mix( rc, footColor, ringFoot ), hazeOn > 0.5 ? max( diffuseColor.a, ringFoot ) : diffuseColor.a );`;
 
@@ -213,7 +213,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
 
   // A camera-centred dome, drawn first and outside the fog; its horizon is the look's skyBottom, else the fog's colour.
   const dome = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 16), new THREE.ShaderMaterial({
-    uniforms: { top: { value: new THREE.Color() }, bottom: { value: new THREE.Color() }, sun: { value: new THREE.Vector3(0, 1, 0) },
+    uniforms: { top: fogSkyTop, bottom: fogSkyBottom, sun: { value: new THREE.Vector3(0, 1, 0) }, // top/bottom shared with the bent shaders' fogSky and the rings' foot
       coreColor: { value: new THREE.Color(0) }, haloColor: { value: new THREE.Color(0) }, disc: { value: new THREE.Vector2(1, 1) } },
     vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false, fog: false,
   }));
@@ -231,13 +231,13 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   // four strips twice round).
   // ponytail: merge each image's arcs into one geometry if those draw calls ever show.
   const ringU = { hazeOn: { value: 0 }, hazeColor: { value: new THREE.Color() }, hazeMul: { value: new THREE.Color() }, hazeMix: { value: new THREE.Vector2() }, hazeFlatten: { value: 0 },
-    hazeLuma: { value: 0 }, hazeFoot: { value: 0 }, hazeFar: { value: 200 }, ringFog: { value: new THREE.Color() }, uFogShade: fogShade, uFogHeight: fogHeight };
+    hazeLuma: { value: 0 }, hazeFoot: { value: 0 }, uSkyTop: fogSkyTop, uSkyBottom: fogSkyBottom };
   const ringMaterial = (map = null) => {
     const mat = new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, ringU);
       sh.vertexShader = sh.vertexShader.replace('void main() {', `varying float vRingY;\nvarying vec3 vRingWorld, vRingShift;\nvoid main() {\n  vRingY = uv.y;\n  vRingShift = modelMatrix[ 3 ].xyz - cameraPosition - vec3( 0.0, ${RING.base.toFixed(1)}, 0.0 );\n  vRingWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;`); // a ring's meshes sit at its group's origin
-      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, ringFog, uFogShade;\nuniform vec2 hazeMix, uFogHeight;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot, hazeFar;\nvarying float vRingY;\nvarying vec3 vRingWorld, vRingShift;\nvoid main() {')
+      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, uSkyTop, uSkyBottom;\nuniform vec2 hazeMix;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot;\nvarying float vRingY;\nvarying vec3 vRingWorld, vRingShift;\nvoid main() {')
         .replace('#include <map_fragment>', RING_FRAG);
     };
     return mat;
@@ -303,7 +303,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
     u.coreColor.value.setRGB(...r.core); u.haloColor.value.setRGB(...r.halo); u.disc.value.set(...r.disc);
     [bloom.strength, bloom.threshold, bloom.radius] = r.bloom;
     ringU.hazeOn.value = h.on; ringU.hazeColor.value.setRGB(...h.color); ringU.hazeMul.value.setRGB(...h.mul); ringU.hazeMix.value.set(...h.mix);
-    ringU.hazeFlatten.value = h.flatten; ringU.hazeLuma.value = h.luma; ringU.hazeFoot.value = h.foot; ringU.ringFog.value.setRGB(...r.fog);
+    ringU.hazeFlatten.value = h.flatten; ringU.hazeLuma.value = h.luma; ringU.hazeFoot.value = h.foot;
   };
   return {
     get active() { return active; },
@@ -325,8 +325,7 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
         r.visible = false; r.userData.full.material.map = null;
         for (const arc of r.children.slice(1)) { r.remove(arc); arc.geometry.dispose(); arc.material.dispose(); } // an image's arcs share one geometry and material: disposing twice is harmless
       }
-      if (!s) { hemi.color.copy(hemiBase[0]); hemi.groundColor.copy(hemiBase[1]); fogShade.value.copy(scene.fog.color); fade = null; return; }
-      ringU.hazeFar.value = scene.fog.far;
+      if (!s) { hemi.color.copy(hemiBase[0]); hemi.groundColor.copy(hemiBase[1]); for (const u of [fogShade, fogSkyTop, fogSkyBottom]) u.value.copy(scene.fog.color); fade = null; return; } // no height fog, no fog to the sky
       rig = rigOf(s, { fog: scene.fog, hemi: hemiBase, dir: sunDir }); // setSky has just put the engine's sunDir back
       // A switch from one look to another fades over FADE_MS in render() (the bridge's sun 57 degrees up ahead-left to
       // downtown's 28 degrees on the axis must not pop); the dome's colours fade with it, the ring images swap here. A first

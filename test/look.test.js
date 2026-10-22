@@ -240,8 +240,8 @@ test('a look without the new keys renders as before Task 32: the engine\'s fill,
   close(r.dir, BASE().dir.toArray(), 'no sun.dir: the engine\'s SUN_DIR');
   assert.equal(r.haze.on, 0);
   const texel = [0.3, 0.5, 0.7, 0.4];
-  close(ringTexel(texel, { v: 0, up: -20, cutY: 0 }, r), [...r.fog, 0.4], 'the foot fades to the fog colour, its alpha its own');
-  close(ringTexel(texel, { v: 0.08, up: -20, cutY: 0 }, r), texel, 'from 8% up the image as it is');
+  close(ringTexel(texel, { v: 0, up: -20, cutY: 0, dirY: -0.06 }, r), [...r.fog, 0.4], 'the foot fades to the fog colour, its alpha its own');
+  close(ringTexel(texel, { v: 0.08, up: -20, cutY: 0, dirY: -0.06 }, r), texel, 'from 8% up the image as it is');
   const own = rigFor({ sky: '#9fd3f5', look: { ...LOOK, skyBottom: '#123456' } });
   close(own.bottom, lin('#123456'), 'skyBottom set: the dome\'s own horizon, decoupled from the fog');
 });
@@ -249,17 +249,19 @@ test('a look without the new keys renders as before Task 32: the engine\'s fill,
 test('the skyline haze: the image times mul, its luma flattened toward the haze colour\'s, mixed toward it foot to top; under the foot an opaque band in the height fog at the cut', () => {
   const r = rigFor({ sky: '#000000', look: { fog: { color: '#808080', pale: 0, shade: '#202020', y: [0, 30] }, skylineHaze: { color: '#4080c0', mul: '#ffffff', mix: [0.6, 0.2], flatten: 0, foot: 0 } } });
   assert.equal(r.haze.on, 1);
-  const texel = [0.2, 0.3, 0.1, 0.5], H = lin('#4080c0'), at = (v) => ringTexel(texel, { v, up: 40, cutY: 20 }, r);
+  const texel = [0.2, 0.3, 0.1, 0.5], H = lin('#4080c0'), at = (v) => ringTexel(texel, { v, up: 40, cutY: 20, dirY: 0.11 }, r);
   close(at(0).slice(0, 3), texel.slice(0, 3).map((c, i) => c + (H[i] - c) * 0.6), 'the foot: 60% toward the haze');
   close(at(1).slice(0, 3), texel.slice(0, 3).map((c, i) => c + (H[i] - c) * 0.2), 'the top: 20%');
   assert.equal(at(1)[3], 0.5, 'above the band the image keeps its alpha');
   const flat = rigFor({ sky: '#000000', look: { skylineHaze: { color: '#4080c0', flatten: 1, mix: [0, 0] } } }), luma = (c) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-  close(luma(ringTexel(texel, { v: 0.5, up: 40, cutY: 20 }, flat)), luma(H), 'flatten 1: every texel at the haze colour\'s luma (the window grids go)');
-  close(ringTexel(texel, { v: 0.5, up: 40, cutY: 20 }, flat).slice(0, 2).map((c, i, a) => c / a[1]), [0.2 / 0.3, 1], 'its hue kept');
-  const band = (cutY) => ringTexel(texel, { v: 0.5, up: -10, cutY }, r);
-  close(band(-5), [...lin('#202020'), 1], 'under the foot, cut low: the shade, opaque');
-  close(band(40), [...lin('#808080'), 1], 'cut above the fog\'s top: the fog colour');
-  close(band(15), [...lin('#202020').map((c, i) => c + (lin('#808080')[i] - c) * 0.5), 1], 'halfway: the smoothstep\'s middle');
+  close(luma(ringTexel(texel, { v: 0.5, up: 40, cutY: 20, dirY: 0.11 }, flat)), luma(H), 'flatten 1: every texel at the haze colour\'s luma (the window grids go)');
+  close(ringTexel(texel, { v: 0.5, up: 40, cutY: 20, dirY: 0.11 }, flat).slice(0, 2).map((c, i, a) => c / a[1]), [0.2 / 0.3, 1], 'its hue kept');
+  // Task 34 L-I (board 29 pick 5): the fogged street gives way to the dome's colour by the cut (gfx.fogSky), so the foot it meets
+  // does too, whatever the height fog was there (was: the shade at a low cut, the fog colour at a high one)
+  const band = (cutY, dirY) => ringTexel(texel, { v: 0.5, up: -10, cutY, dirY }, r);
+  for (const cutY of [-5, 15, 40]) close(band(cutY, -0.03), [...r.bottom, 1], `under the foot, cut at ${cutY} m: the dome's horizon colour, opaque`);
+  const own = rigFor({ sky: '#000000', look: { skyTop: '#ff0000', skyBottom: '#0000ff', fog: { color: '#808080', pale: 0, shade: '#202020', y: [0, 30] }, skylineHaze: { foot: 0 } } });
+  close(ringTexel(texel, { v: 0.5, up: -10, cutY: 0, dirY: gfx.SKY_EDGE / 2 }, own), [...lin('#0000ff').map((c, i) => (c + lin('#ff0000')[i]) / 2), 1], 'and up the dome as the dome is: its smoothstep middle at half SKY_EDGE');
 });
 
 test('a theme switch crossfades the rig: the old look at t = 0, the new at t = 1, every number moving one way between', () => {
