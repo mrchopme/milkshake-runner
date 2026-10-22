@@ -19,9 +19,10 @@ export const OPENINGS = {
 // ponytail: calibration knobs, metres (the Task 33 map's skeptic, board 28): jambs at most 0.1 (a 0.18 m one hides 42% of a pane
 // 30 m down the canyon, and the dusk glow with it); heads and sills 0.08 proud, `over` past the opening each side; the AO bake's
 // shade (0.55-0.65 x); the 30 m cap (frames pop there, above it the eye does not read them); a row clipped under a cornice to less
-// than `minH` stays solid; no face looking up above `eye` (the highest a section's camera rides, src/validate.js CAMERA_RANGES:
-// Task 34 L-E, a third of the stamp's triangles, inside the prototype's budget).
-export const RELIEF = { jamb: 0.1, head: { h: 0.14, out: 0.08 }, sill: { h: 0.08, out: 0.08 }, over: 0.06, transom: { h: 0.1, out: 0.06 }, ao: 0.6, cap: 30, minH: 1, eye: 8 };
+// than `minH` stays solid; no face looking up above `eye` (Task 34 L-E, a third of the stamp's triangles, inside the prototype's
+// budget): the highest a camera can ride, a section's 8 m (src/validate.js CAMERA_RANGES) + 0.3 x the highest jump the rules' ranges
+// allow (src/engine.js cameraFor; jumpSpeed 15, gravity -10: 11.25 m) = 11.4; the shipped cameras sit at 5.5 m and lower.
+export const RELIEF = { jamb: 0.1, head: { h: 0.14, out: 0.08 }, sill: { h: 0.08, out: 0.08 }, over: 0.06, transom: { h: 0.1, out: 0.06 }, ao: 0.6, cap: 30, minH: 1, eye: 11.5 };
 const CW = TILE.w / 2, CH = TILE.h / 2, SEG = 4; // a window cell; SEG: along x (z on the street walls) every 4 m, so it bends
 
 // o: { w, y0, y1, base (where the tile's v is 0: its cells stand on base + 3.5 n), top (a cornice's underside: openings clip there),
@@ -56,7 +57,9 @@ export function relief(T, { w, y0, y1, base = y0, top = y1, open, glass, color, 
     if (b - a >= R.minH) rows.push([a, b]);
   }
   if (!cols.length || !rows.length) { tile(0, w, y0, y1, 0); return { face: geo(fo), body: null }; }
-  const proud = (x0, x1, ya, yb, out) => { // a trim bar on the frame: its front, top and shaded underside (its 8 cm ends left out)
+  // a trim bar on the frame: its front, top and shaded underside. ponytail: its two ends (0.08 x 0.08-0.14 m, facing along the wall)
+  // left open: through one a few pixels of the frame's own texels show at most, closing them is 8 more triangles a window (+50%)
+  const proud = (x0, x1, ya, yb, out) => {
     rect(2, 1, J + out, [Math.max(0, x0), Math.min(w, x1)], [ya, yb], trim);
     rect(1, 1, yb, [J, J + out], [Math.max(0, x0), Math.min(w, x1)], trim);
     rect(1, -1, ya, [J, J + out], [Math.max(0, x0), Math.min(w, x1)], trim, () => true);

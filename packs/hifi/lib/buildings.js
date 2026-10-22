@@ -1,11 +1,11 @@
 // The HiFi city's blocks (Task 32, Caedon's board 23 pick, 2026-10-15: "as prototyped"): facades with depth (cornices, a fascia
-// over a recessed storefront, awnings, ledges or piers), every -z end finished, the body in its tile's colour, per-theme heights.
+// over a recessed storefront, awnings, ledges or piers), both ends finished, the body in its tile's colour, per-theme heights.
 //
 // The block list, a contract (signs and furniture anchor on it): the part fills the `blocks` array city.js hands every part (the
 // sixth argument, also the chunk group's userData.blocks), in build order: the -x side first, then +x, each from low z to high.
 //   { side: -1 | 1,  which side of the road
-//     z0, z1,        the facade's span along z (z1 = z0 + frontage - GAP); its end wall stands at z0 - 0.02, its cornice return
-//                    reaches z0 - CORNICE.ret
+//     z0, z1,        the facade's span along z (z1 = z0 + frontage - GAP); its end walls stand at z0 - 0.02 and z1 + 0.02, its
+//                    cornice return reaches z0 - CORNICE.ret
 //     h,             roof height, m, on the floor grid SHOP_H + 3.5n
 //     setAt,         the street wall's top: the first setback, or h without one
 //     shop,          storefront image index (style.shops)
@@ -96,20 +96,22 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
   // `rot` from facing +z (wall()'s turns: +x pi/2, -x -pi/2, -z pi), w wide over y0..y1, its cells from `base`, clipped under `top`
   const J = RELIEF.jamb, TURN = (face) => (face > 0 ? Math.PI / 2 : -Math.PI / 2);
   const stamp = (f, fm, color, rot, x, z, w, y0, y1, base = SHOP_H, top = y1, flat = false) => {
-    const r = relief(T, { w, y0, y1, base, top, open: flat ? null : OPENINGS[style.facades?.[f]] ?? null, glass: style.tileClass?.[f] === 'g', color, trim });
-    put(fm, r.face.rotateY(rot).translate(x, 0, z));
-    if (r.body) put(body, r.body.rotateY(rot).translate(x, 0, z));
+    const rel = relief(T, { w, y0, y1, base, top, open: flat ? null : OPENINGS[style.facades?.[f]] ?? null, glass: style.tileClass?.[f] === 'g', color, trim });
+    put(fm, rel.face.rotateY(rot).translate(x, 0, z));
+    if (rel.body) put(body, rel.body.rotateY(rot).translate(x, 0, z));
   };
-  // A lot's two z ends (x their centre, w wide, for za..zb), the -z one first: the tile alone up to what its neighbour 0.5 m away
-  // hides (hide, [-z, +z]: a height, 0 for nothing), the relief above it. ponytail: a neighbour hides up to its street wall's top
-  // whatever its depth, so a 16 m deep end's back 6 m beside a 10 m deep neighbour stay flat (Task 34 L-E, for the triangle
-  // budget: seen down a 0.5 m gap they never read)
-  const zEnds = (f, fm, c, x, w, za, zb, y0, y1, base, top, hide = [0, 0]) => [-1, 1].forEach((e, i) => {
-    const ze = e < 0 ? za - 0.02 : zb + 0.02, rot = e < 0 ? Math.PI : 0, cut = Math.min(y1, Math.max(y0, hide[i]));
-    if (cut > y0) stamp(f, fm, c, rot, x, ze, w, y0, cut, base, top, true);
-    if (cut < y1) stamp(f, fm, c, rot, x, ze, w, cut, y1, base, top);
-  });
-  const hidden = (row) => row.map((o, i) => { const p = row[i - 1], n = row[i + 1]; return [p && o.za - p.zb < 1 ? p.top : 0, n && n.za - o.zb < 1 ? n.top : 0]; });
+  // A lot's two z ends (x their centre, w wide, for za..zb). The -z one: the tile alone up to what its neighbour 0.5 m away hides
+  // (hide: a height, 0 for nothing), the relief above it. ponytail: a neighbour hides up to its street wall's top whatever its
+  // depth, so a 16 m deep end's back 6 m beside a 10 m deep neighbour stay flat (Task 34 L-E, for the triangle budget: seen down a
+  // 0.5 m gap they never read). The +z one: its tile, flat (the main session's ruling, Task 34 L-E: it looks away from every
+  // camera, which sits behind the runner at lower z, and the bend only translates; Caedon's board 29 pick 5 wanted the facade on it)
+  const zEnds = (f, fm, c, x, w, za, zb, y0, y1, base, top, hide = 0) => {
+    const cut = Math.min(y1, Math.max(y0, hide));
+    if (cut > y0) stamp(f, fm, c, Math.PI, x, za - 0.02, w, y0, cut, base, top, true);
+    if (cut < y1) stamp(f, fm, c, Math.PI, x, za - 0.02, w, cut, y1, base, top);
+    stamp(f, fm, c, 0, x, zb + 0.02, w, y0, y1, base, top, true);
+  };
+  const hidden = (row) => row.map((o, i) => (row[i - 1] && o.za - row[i - 1].zb < 1 ? row[i - 1].top : 0));
   for (const side of [-1, 1]) {
     // ponytail: two sub-streams per chunk side from the chunk's own seed (layout, look), so nothing here reshuffles the shared stream
     const key = (seed ^ (side > 0 ? 0x9e3779b9 : 0x3243f6a8)) >>> 0, lay = rng(key), look = rng(key + 1), next = heightModel(H, look);
@@ -201,7 +203,7 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
       // its walls, the front first, then its two ends (round-4 item 7: no bare body wall): [turn, centre x, centre z, width].
       // ponytail: the ends the plain tile, no relief: they face the next lot or the avenue's blocks across 0.5 m; the end block's
       // front too, the vista 60 m down the side street, where a 0.1 m relief is under two pixels (Task 34 L-E: ~3k triangles a chunk),
-      // and a front looking +z, away from the runner (seen only far off on a bend, as an avenue block's +z end: ~3.5k in midtown)
+      // and a front looking +z, away from every camera (flat as an avenue block's +z end: ~3.5k in midtown)
       const onX = [[-Math.PI / 2, x0 - 0.02, zc, zb - za], [Math.PI / 2, x1 + 0.02, zc, zb - za]], onZ = [[Math.PI, xc, za - 0.02, x1 - x0], [0, xc, zb + 0.02, x1 - x0]];
       (fz ? [onZ[fz > 0 ? 1 : 0], ...onX] : [onX[s > 0 ? 0 : 1], ...onZ]).forEach(([rot, x, z, w], k) => {
         put(sm, plane(T, w, SHOP_H, w / Math.max(1, Math.round(w / DRESS.shopW)), SHOP_H).rotateY(rot).translate(x, SHOP_H / 2, z)); // the whole storefront image, as the blocks' ends wear it
@@ -240,7 +242,7 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
         const fm = facadeMaterial(gfx, style, f), c = colour(f);
         solid(...signed(s, xa, xb), 0, h, za, zb, c);
         stamp(f, fm, c, TURN(-s), s * (xa - 0.02), (za + zb) / 2, zb - za, 0, h, 0, h, true);
-        zEnds(f, fm, c, xc, BACK.w, za, zb, 0, h, 0, h, [h, h]); // hidden whole: flat
+        zEnds(f, fm, c, xc, BACK.w, za, zb, 0, h, 0, h, h); // hidden whole: flat
         stand('back', s, xa, xb, za, zb);
       }
     }

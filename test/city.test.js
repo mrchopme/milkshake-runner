@@ -145,23 +145,26 @@ test('the relief\'s tile faces stand on the facade line, never past it, inside t
   }
 });
 
-// The relief stands where a runner sees it (Task 34 L-E, inside the prototype's triangle budget): an end wall's frame only above
-// a neighbour within 1 m (its street wall hides the rest), a back tower's ends too; the back rows (behind the avenue's blocks, the
-// cross street's gap kept clear of them), the side street's end blocks (60 m down it) and its lots looking +z (away from the
-// runner, as its -z wall's lots) flat planes.
-test('the relief only where a runner sees it: an end above its neighbour; the back rows, end blocks and lots looking away flat', async () => {
+// The relief stands where a runner sees it (Task 34 L-E, inside the prototype's triangle budget): a -z end's frame only above
+// a neighbour within 1 m (its street wall hides the rest), a back tower's ends too; every +z end (the main session's ruling: a
+// back face for every camera behind it, the bend only translates) flat, its storefront and tile kept; the back rows (behind the
+// avenue's blocks, the cross street's gap kept clear of them), the side street's end blocks (60 m down it) and its lots looking
+// +z (away from the runner, as its -z wall's lots) flat planes.
+test('the relief only where a runner sees it: a -z end above its neighbour; +z ends, back rows, end blocks and lots looking away flat', async () => {
   const J = RELIEF.jamb;
   let framed = 0, sides = 0;
   for await (const { at, tile, lots, blocks, cross } of reliefChunks(6)) {
     for (const k of blocks) for (const e of [-1, 1]) {
-      const n = blocks.find((q) => q.side === k.side && (e < 0 ? k.z0 - q.z1 : q.z0 - k.z1) > 0 && (e < 0 ? k.z0 - q.z1 : q.z0 - k.z1) < 1), hide = n ? n.setAt : 0, zf = e < 0 ? k.z0 - 0.02 - J : k.z1 + 0.02 + J;
+      const n = blocks.find((q) => q.side === k.side && (e < 0 ? k.z0 - q.z1 : q.z0 - k.z1) > 0 && (e < 0 ? k.z0 - q.z1 : q.z0 - k.z1) < 1), hide = e > 0 ? Infinity : n ? n.setAt : 0, zf = e < 0 ? k.z0 - 0.02 - J : k.z1 + 0.02 + J;
       for (const p of tile) for (let i = 0; i < p.count; i++) {
         if (Math.abs(p.getZ(i) - zf) > 1e-4 || Math.sign(p.getX(i)) !== k.side) continue;
         framed++;
-        if (p.getY(i) < hide - 1e-4) assert.fail(`${at}: block ${k.lot}'s ${e < 0 ? '-z' : '+z'} end framed at ${p.getY(i).toFixed(2)} m, under its neighbour's ${hide} m`);
+        if (p.getY(i) < hide - 1e-4) assert.fail(`${at}: block ${k.lot}'s ${e < 0 ? '-z' : '+z'} end framed at ${p.getY(i).toFixed(2)} m, under ${e > 0 ? 'nothing: a +z end looks away from every camera' : `its neighbour's ${hide} m`}`);
       }
     }
-    for (const o of lots.filter((q) => q.kind === 'back' || q.kind === 'end' || (q.kind === 'side' && q.z[1] < cross.z && ++sides))) {
+    const away = lots.filter((q) => q.kind === 'side' && q.z[1] < cross.z);
+    sides += away.length;
+    for (const o of [...lots.filter((q) => q.kind === 'back' || q.kind === 'end'), ...away]) {
       const out = (v, [a, b]) => Math.max(a - v, v - b, 0); // how far outside the footprint along one axis
       for (const p of tile) for (let i = 0; i < p.count; i++) { // a frame face stands J out of its wall (a cornice is the body's)
         const dx = out(p.getX(i), o.x), dz = out(p.getZ(i), o.z), inside = (dx === 0 || dx <= 0.25) && (dz === 0 || dz <= 0.25);
@@ -437,7 +440,7 @@ test('the kerb is one value lighter than the paving, its road face shaded', () =
   const g = street(gfx, { z0: 0, length: 120, lanes }, flat, null); let kerb, walk;
   g.traverse((n) => { if (n.userData.kerb) kerb = n; if (n.userData.walk) walk = n; });
   assert.ok(Math.abs(kerb.material.color.r / walk.material.color.r - KERB_TONE.top) < 1e-6, 'the kerb top one value up');
-  assert.equal(kerb.material.map, walk.material.map, 'the kerb wears the paving\'s kerb band');
+  assert.ok(kerb.material.map === walk.material.map, 'the kerb wears the paving\'s kerb band');
   const n = kerb.geometry.attributes.normal, c = kerb.geometry.attributes.color, side = Math.sign(kerb.position.x);
   for (let i = 0; i < n.count; i++) assert.ok(Math.abs(c.getX(i) - (n.getX(i) * side < -0.5 ? KERB_TONE.face / KERB_TONE.top : 1)) < 1e-6, `vertex ${i}`);
 });

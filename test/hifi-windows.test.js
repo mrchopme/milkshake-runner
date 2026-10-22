@@ -47,6 +47,7 @@ test('the relief\'s body pieces carry a colour, darkened toward the glass and un
 });
 
 test('the relief stops at RELIEF.cap (30 m): plain tile above it', () => {
+  assert.equal(RELIEF.cap, 30, 'plain planes above 30 m: up there the frames do not read, and they would only cost triangles (P6, board 28)');
   const { face, body } = stamp({ y1: 60 });
   for (const v of verts(body)) assert.ok(v.y <= RELIEF.cap + 1e-5, `a body vertex at ${v.y.toFixed(2)} m`);
   for (const v of verts(face)) if (v.y > RELIEF.cap + 1e-5) assert.ok(Math.abs(v.z) < 1e-5, `a frame piece at ${v.y.toFixed(2)} m`);
@@ -55,7 +56,7 @@ test('the relief stops at RELIEF.cap (30 m): plain tile above it', () => {
 
 test('a tile with no opening (uptown-02, the fire escape) stays one flat plane; a curtain wall gets transoms, no sills', () => {
   const flat = stamp({ open: null });
-  assert.equal(flat.body, null);
+  assert.ok(flat.body === null, 'no body pieces on a flat wall');
   assert.deepEqual(faceZ(flat.face), [0]);
   const b = new THREE.Box3().setFromBufferAttribute(flat.face.attributes.position);
   assert.ok(Math.abs(b.min.y - 4.3) < 1e-5 && Math.abs(b.max.y - 25.3) < 1e-5 && Math.abs(b.max.x - b.min.x - 15) < 1e-5);
@@ -76,9 +77,10 @@ test('the tile pieces keep the wall\'s pattern: u and v as one plane over the wh
 });
 
 // The triangle budget (the prototype's +9-17k a chunk): a face the camera can only see from above is left out above the highest
-// a section's camera rides (src/validate.js CAMERA_RANGES height 8); seen from the street it is a back face.
-test('no face looking up above RELIEF.eye (8 m): the bars\' tops and the sills\' reveals stop there', () => {
-  assert.equal(RELIEF.eye, 8);
+// a camera rides (a section's 8 m, src/validate.js CAMERA_RANGES, + 0.3 x the rules' highest jump, 11.25 m: 11.4); seen from the
+// street it is a back face.
+test('no face looking up above RELIEF.eye (11.5 m): the bars\' tops and the sills\' reveals stop there', () => {
+  assert.equal(RELIEF.eye, 11.5);
   for (const o of [{}, { open: OPENINGS['hifi/city/facades/downtown-01.webp'], glass: true }]) {
     const { body } = stamp(o), n = body.attributes.normal, p = body.attributes.position;
     let up = 0;
