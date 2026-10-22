@@ -67,7 +67,7 @@ export const fogShade = { value: new THREE.Color() };
 export const fogHeight = { value: new THREE.Vector2(0, 1) };
 export const fogSkyTop = { value: new THREE.Color() }, fogSkyBottom = { value: new THREE.Color() };
 export const SKY_EDGE = 0.3; // the dome reaches its top colour at this dir.y (0.45 before Task 32, Caedon, board 22: a narrower pale band over the horizon). ponytail: calibration knob
-export const FOG_SKY = [0.6, 0.95]; // ponytail: calibration knob, the fogFactor over which the fog gives way to the sky: all sky before the cut (0.999), so the cut shows no edge
+export const FOG_SKY = [0.6, 0.95]; // the fogFactor over which the fog gives way to the sky (Caedon, board 29 pick 5): all sky before the cut (0.999), so the cut shows no edge. ponytail: calibration knob
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 // The GLSL fogSky over plain numbers (linear rgb arrays, dirY the sight line's unit y): what the tests exercise; the GLSL is checked by eye.
 export function fogSky(fog, top, bottom, dirY, fogFactor) {
@@ -130,9 +130,10 @@ export function bend(object) {
     const mats = [].concat(n.material ?? []); // a mesh may carry a material array
     for (const m of mats) bendable(m);
     if (n.isMesh) n.castShadow = n.receiveShadow = mats.every((m) => !m.transparent);
-    // HiFi (Task 34 L-I): three culls on the unbent bounds, which a strong turn plus a hill can swing off screen while the bent
-    // mesh is on it; low-fi keeps the culling. ponytail: off outright; a bounding sphere padded by the bend at its depth would
-    // keep the off-screen savings, if those draw calls ever show.
+    // HiFi (Task 34 L-I, Caedon, board 29 pick 6): three culls on the unbent bounds, which a strong turn plus a hill can swing off
+    // screen while the bent mesh is on it; low-fi keeps the culling. Measured on three street chunks: +0 draw calls in the view
+    // (every chunk mesh is in it), +31 to +35 a frame in the near shadow cascade. ponytail: off outright; a bounding sphere padded
+    // by the bend at its depth would keep the near cascade's savings, if those draw calls ever show.
     if (hook.cutFog && mats.length) n.frustumCulled = false;
   });
   return object;
