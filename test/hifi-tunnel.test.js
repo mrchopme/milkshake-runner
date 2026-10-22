@@ -59,13 +59,18 @@ test('the HiFi tunnel keeps its flared mouth toward the player', async () => {
   assert.ok(nub.max.z < 5, `the +x end sits at z ${nub.max.z.toFixed(2)}, the near end (the player is at -z)`);
 });
 
-test('the HiFi tunnel is one mesh with one paint, without Tripo\'s random metal, shared by every copy', async () => {
+test('the HiFi tunnel is one mesh in the city\'s stone (Task 34 L-I, board 29 pick 5), no metal, shared by every copy', async () => {
   const { default: hifi } = await import('../packs/hifi/props/tunnel.js');
+  const { stone } = await import('../packs/hifi/lib/bridge.js');
   const paint = (o) => { const p = new Set(); o.traverse((n) => { if (n.isMesh) p.add(n.material); }); return [...p]; };
-  const a = paint(hifi.createView(gfx, { z: 0, length: 60, lanes }).object), b = paint(hifi.createView(gfx, { z: 0, length: 60, lanes }).object);
+  const view = hifi.createView(gfx, { z: 0, length: 60, lanes }).object, a = paint(view), b = paint(hifi.createView(gfx, { z: 0, length: 60, lanes }).object);
   assert.equal(a.length, 1);
-  assert.equal(a[0], b[0], 'one material for every copy');
-  assert.ok(a[0].isMeshPhysicalMaterial && a[0].metalness === 0 && a[0].metalnessMap === null, 'metalness 0, no metal map');
+  // assert.ok(a === b), never assert.equal(a, b), on THREE objects: a failing strict diff inspects their typed arrays one element a line and Myers-diffs the lines (a 256 x 128 texture is 131k of them: tens of GB, the Mac freezes; 2026-10-21)
+  assert.ok(a[0] === b[0], 'one material for every copy');
+  assert.ok(a[0] === stone(gfx, ['#888888'], 1, 0, 1).material, 'the bridge piers\' stone material, its ashlar map');
+  assert.ok(a[0].map && a[0].metalness === 0 && a[0].metalnessMap === null && a[0].vertexColors, 'the stone map, metalness 0, no metal map, tinted by vertex colour');
+  const g = view.children[0].children[0].geometry;
+  assert.ok(g.attributes.color && g.attributes.uv.array instanceof Float32Array, 'tinted by vertex colour, on metre UVs');
 });
 
 test('the HiFi tunnel is a looks-only overlay that keeps the shipped length', async () => {

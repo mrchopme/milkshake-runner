@@ -1,8 +1,8 @@
 // HiFi tunnel: the generated stone vault in public/hifi/tunnel.glb, stretched over the shipped tube (content/props/tunnel.js): its `length`
 // (60 m), its roof 6.6 m up, its walls clear of the road, the flared mouth at the near end. One mesh: its triangles are short enough along the
 // tube (the longest 12 m at 60 m, so a chord off the bend by 0.2 m at the sharpest turn) for the bend shader to curve it with the street.
-// Fitted once from the first copy; every tunnel after that shares the paint.
-import { gloss, painter } from '../lib/paint.js';
+// Fitted once from the first copy; every tunnel after that shares the stone (Task 34 L-I, Caedon, board 29 pick 5).
+import { dress } from './overpass.js'; // the overpass's stone (Task 34 L-I), without its parapet course
 
 const YAW = Math.PI / 2;  // ponytail: calibration knob — the tube's axis lies along the model's x and its flared mouth is the +x end: this lays it along the street, the mouth toward the player (-z)
 const CLEAR = 9.6;        // ponytail: calibration knob — m between the walls inside the tube (the road is 9 m wide; the stone walls then reach x +-7.5, the old 7.5 m building line)
@@ -13,7 +13,6 @@ const SINK = 0.1;         // ponytail: calibration knob — the model carries it
 // over the camera's reach (|x| <= 1.5 on the default lanes, anywhere along the tube): the bottom of a lamp globe, 0.6613 rounded down.
 // The mouth flares wider and taller.
 export const BODY = { clear: 0.45, floor: 0.2185, roof: 0.89, ceiling: 0.66 };
-const paint = painter((T, m) => gloss(T, m, { metalness: 0, metalnessMap: null })); // generated material -> a copy of it with Tripo's random metal dropped
 
 let parts; // { scale, offset }, measured from the first copy
 
@@ -23,9 +22,10 @@ export default {
     const model = gfx.asset('hifi/tunnel.glb');
     model.rotation.y = YAW;
     parts ??= build(gfx.three, model, length);
-    model.traverse((n) => { if (n.isMesh) n.material = paint(gfx, n.material); });
     model.scale.copy(parts.scale);
     model.position.copy(parts.offset);
+    model.updateMatrixWorld(true);
+    model.traverse((n) => { if (n.isMesh) dress(gfx, n, Infinity); });
     return { object: gfx.group(model) };
   },
 };
