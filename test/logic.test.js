@@ -607,16 +607,62 @@ test('HiFi lets the skyline through what the fog has fully hidden, and low-fi co
       const hi = compile(T, lib), f = hi.fragmentShader, decl = f.indexOf('uniform float uFogCut;');
       assert.equal(hi.uniforms.uFogCut, gfx.fogCut, `${lib}: one shared uniform the look switches per theme`);
       assert.ok(decl >= 0 && decl < f.indexOf('void main() {') && f.includes(CUT), `${lib}: declared before main; the cut right after three's fog, behind USE_FOG and uFogCut`);
-      // Task 32 height fog (Caedon, board 22): a bent mesh fogs toward uFogShade low down, by its world y before the bend
-      const lit = lib === 'toon', v = hi.vertexShader, MIX = 'mix( uFogShade, fogColor, smoothstep( uFogHeight.x, uFogHeight.y, vFogY ) )';
-      assert.equal(v.includes('varying float vFogY;') && f.includes('varying float vFogY;'), lit, `${lib}: the height varying only where three projects the vertex (a sprite has no project_vertex)`);
+      // Task 32 height fog (Caedon, board 22): a bent mesh fogs toward uFogShade low down; Task 34 L-I (board 29 pick 5): by its
+      // bent height, and far off toward the dome's colour at its elevation
+      const lit = lib === 'toon', v = hi.vertexShader, MIX = 'mix( uFogShade, fogColor, smoothstep( uFogHeight.x, uFogHeight.y, vFogWorld.y ) )';
+      assert.equal(v.includes('varying vec3 vFogWorld;') && f.includes('varying vec3 vFogWorld;'), lit, `${lib}: the varying only where three projects the vertex (a sprite has no project_vertex)`);
       if (lit) {
-        assert.ok(v.indexOf('vFogY = bentWorld.y - bendOffset( bentWorld.z ).y;') > v.indexOf('bentWorld.xyz += bendOffset'), 'taken after the bend, minus its lift: a hill raises the street and its fog together');
+        assert.ok(v.indexOf('vFogWorld = bentWorld.xyz;') > v.indexOf('bentWorld.xyz += bendOffset'), 'taken after the bend: a hill\'s street fogs like the sky it rises into');
+        assert.ok(!v.includes('- bendOffset( bentWorld.z ).y'), 'the lift no longer comes off');
         assert.ok(f.includes(MIX) && f.indexOf(MIX) < f.indexOf('#include <fog_fragment>') && f.includes('#define fogColor'), 'three\'s fog mixes toward the height fog colour');
+        const SKY = '#define fogColor fogSky( hFogColor, normalize( vFogWorld - cameraPosition ).y, fogFactor )';
+        assert.ok(f.indexOf(SKY) > f.indexOf(MIX) && f.indexOf(SKY) < f.indexOf('#include <fog_fragment>') && f.indexOf('vec3 fogSky(') < f.indexOf('void main() {'), 'then toward the dome by the view\'s elevation, as far as three\'s own fogFactor is thick');
         assert.ok(hi.uniforms.uFogShade === gfx.fogShade && hi.uniforms.uFogHeight === gfx.fogHeight, 'shared uniforms the look sets per theme');
-      } else assert.ok(!f.includes('uFogShade') && !('uFogShade' in hi.uniforms), 'a sprite keeps the plain fog');
+        assert.ok(hi.uniforms.uSkyTop === gfx.fogSkyTop && hi.uniforms.uSkyBottom === gfx.fogSkyBottom, 'the dome\'s colours, shared with the dome itself');
+      } else assert.ok(!f.includes('uFogShade') && !f.includes('fogSky') && !('uFogShade' in hi.uniforms), 'a sprite keeps the plain fog');
     } finally { gfx.hook.cutFog = false; }
   }
+});
+
+test('low-fi\'s bent shaders are pinned: without hook.cutFog every program compiles as it did before Task 34', async () => {
+  const { createHash } = await import('node:crypto'), T = gfx.three, got = {};
+  for (const [M, lib] of [[T.MeshToonMaterial, 'toon'], [T.MeshStandardMaterial, 'standard'], [T.SpriteMaterial, 'sprite']]) {
+    const s = { uniforms: {}, vertexShader: T.ShaderLib[lib].vertexShader, fragmentShader: T.ShaderLib[lib].fragmentShader };
+    gfx.bendable(new M()).onBeforeCompile(s, null);
+    got[lib] = createHash('sha256').update(s.vertexShader + '\0' + s.fragmentShader + '\0' + Object.keys(s.uniforms).sort().join()).digest('hex').slice(0, 16);
+  }
+  assert.deepEqual(got, { toon: 'eb814d46f4b0bed2', standard: 'bb60a27b073dba39', sprite: '8d085bfbce9103d3' }, 'hashed on the untouched base (159fb14, passes on e01a1ff; three 0.186): a three upgrade re-pins, a gfx change must not');
+});
+
+test('far off, the fog gives way to the dome\'s colour at the fragment\'s elevation: near fragments keep the plain fog (Task 34 L-I)', () => {
+  const fog = [0.4, 0.3, 0.5], top = [0.2, 0.1, 0.6], bottom = [0.9, 0.5, 0.8], close = (a, b, m) => a.forEach((x, i) => assert.ok(Math.abs(x - b[i]) < 1e-9, `${m}: ${a} vs ${b}`));
+  close(gfx.fogSky(fog, top, bottom, 0.1, gfx.FOG_SKY[0]), fog, 'up to FOG_SKY[0] of the fog: the fog as it is');
+  close(gfx.fogSky(fog, top, bottom, -0.2, gfx.FOG_SKY[1]), bottom, 'from FOG_SKY[1]: below the horizon, the dome\'s horizon colour');
+  close(gfx.fogSky(fog, top, bottom, gfx.SKY_EDGE, 1), top, 'at SKY_EDGE up: the dome\'s top');
+  close(gfx.fogSky(fog, top, bottom, gfx.SKY_EDGE / 2, 1), bottom.map((b, i) => (b + top[i]) / 2), 'halfway up: the dome\'s own smoothstep middle');
+  const k = (gfx.FOG_SKY[0] + gfx.FOG_SKY[1]) / 2;
+  close(gfx.fogSky(fog, top, bottom, -1, k), fog.map((f, i) => (f + bottom[i]) / 2), 'between: a smoothstep on the fog factor');
+  assert.deepEqual(gfx.FOG_SKY, [0.6, 0.95]);
+  assert.ok(gfx.FOG_SKY[1] < 0.999, 'all sky before the fog cut drops the fragment, so the cut shows no edge');
+});
+
+test('HiFi bends without three\'s culling on the unbent bounds: a mesh the bend swings into view is drawn; low-fi keeps the culling', () => {
+  const T = gfx.three, camera = new T.PerspectiveCamera(60, 1, 0.1, 400);
+  camera.position.set(0, 3, -6); camera.lookAt(0, 1.2, 12); camera.updateMatrixWorld();
+  const frustum = new T.Frustum().setFromProjectionMatrix(new T.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  const block = () => { const m = gfx.box(10, 20, 10, '#888888', 130, 10, 180); m.updateMatrixWorld(); return m; }; // straight, 130 m off to the left at 180 m: out of view
+  gfx.setBend({ origin: 0, segments: [{ from: 20, to: 200, turn: 1, hill: 0 }] });
+  try {
+    const x = 130 + gfx.bendOffset(180).x;
+    assert.ok(Math.abs(x) < 20, `a right turn swings it to x ${x.toFixed(1)}, ahead in view`);
+    const drawn = (m) => !m.frustumCulled || frustum.intersectsObject(m); // three's own test (WebGLRenderer.projectObject)
+    assert.equal(drawn(gfx.bend(block())), false, 'low-fi: culled on its unbent bounds, as before');
+    gfx.hook.cutFog = true; // what createLook sets, once, before anything is added
+    try {
+      const g = gfx.bend(gfx.group(block(), gfx.group(block())));
+      g.traverse((n) => { if (n.isMesh) assert.ok(drawn(n), 'every mesh the HiFi bend marks is drawn'); });
+    } finally { gfx.hook.cutFog = false; }
+  } finally { gfx.setBend(); }
 });
 
 test('gfx.bendable runs the look\'s beforeBend hook before the bend wraps: the module\'s hook, then the look\'s, then the bend', () => {

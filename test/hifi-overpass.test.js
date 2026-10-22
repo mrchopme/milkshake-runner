@@ -48,13 +48,22 @@ test('the HiFi overpass lays the span across the street and turns its front towa
   assert.ok(near((nub.min.x + nub.max.x) / 2, 0), 'on the street axis');
 });
 
-test('every HiFi overpass shares one paint, without Tripo\'s random metal', async () => {
+test('every HiFi overpass wears the city\'s stone (Task 34 L-I, board 29 pick 5): the bridge piers\' ashlar, no metal, a lighter parapet course on top', async () => {
   const { default: hifi } = await import('../packs/hifi/props/overpass.js');
+  const { stone } = await import('../packs/hifi/lib/bridge.js'), { PARAPET } = await import('../packs/hifi/props/overpass.js');
   const paint = (o) => { const p = new Set(); o.traverse((n) => { if (n.isMesh) p.add(n.material); }); return [...p]; };
-  const a = paint(hifi.createView(gfx, { z: 0, length: 8, lanes }).object), b = paint(hifi.createView(gfx, { z: 0, length: 8, lanes }).object);
+  const view = hifi.createView(gfx, { z: 0, length: 8, lanes }).object, a = paint(view), b = paint(hifi.createView(gfx, { z: 0, length: 8, lanes }).object);
   assert.equal(a.length, 1);
-  assert.equal(a[0], b[0], 'one material for every copy');
-  assert.ok(a[0].isMeshPhysicalMaterial && a[0].metalness === 0 && a[0].metalnessMap === null, 'metalness 0, no metal map');
+  // assert.ok(a === b), never assert.equal(a, b), on THREE objects: a failing strict diff inspects their typed arrays one element a line and Myers-diffs the lines (a 256 x 128 texture is 131k of them: tens of GB, the Mac freezes; 2026-10-21)
+  assert.ok(a[0] === b[0], 'one material for every copy');
+  assert.ok(a[0] === stone(gfx, ['#888888'], 1, 0, 1).material, 'the piers\' and the quay\'s own stone material: its ashlar map, one draw call\'s worth of state');
+  assert.ok(a[0].map && a[0].metalness === 0 && a[0].metalnessMap === null && a[0].vertexColors, 'the stone map, metalness 0, no metal map, tinted by vertex colour');
+  const top = world(view).max.y, deck = view.children[0].children[0], c = deck.geometry.attributes.color, p = deck.geometry.attributes.position;
+  deck.updateMatrixWorld(true);
+  const tone = (i) => c.getX(i) + c.getY(i) + c.getZ(i), y = (i) => new T.Vector3().fromBufferAttribute(p, i).applyMatrix4(deck.matrixWorld).y;
+  const hi = [...Array(p.count).keys()].filter((i) => y(i) > top - 1e-6), lo = [...Array(p.count).keys()].filter((i) => y(i) < top - PARAPET.h - 1e-6);
+  assert.ok(hi.length && lo.length && hi.every((i) => Math.abs(tone(i) - tone(lo[0]) * PARAPET.tone) < 1e-6), 'the top course PARAPET.tone times the wall\'s');
+  assert.ok(deck.geometry.attributes.uv.array instanceof Float32Array, 'metre UVs, not the model\'s quantised atlas ones');
 });
 
 test('the HiFi overpass is a looks-only overlay that keeps the shipped length', () => {
@@ -65,4 +74,20 @@ test('the HiFi overpass is a looks-only overlay that keeps the shipped length', 
     assert.deepEqual(registry.prop.overpass.assets, ['hifi/overpass.glb']);
     assert.equal(registry.prop.overpass.length, shipped.prop.overpass.length);
   });
+});
+
+test('the stone\'s ashlar is projected per face, so a curved generated surface never stretches it (Task 34 L-I fix round)', async () => {
+  const { dress } = await import('../packs/hifi/props/overpass.js');
+  // a smooth half cylinder along z, scaled as a fitted model is: its vertex normals sweep through every angle, so a per-vertex
+  // projection gives one triangle's corners different axes and smears the texture across it
+  const m = new T.Mesh(new T.CylinderGeometry(3, 3, 1, 24, 1, true, 0, Math.PI).rotateX(Math.PI / 2), new T.MeshStandardMaterial());
+  m.scale.set(1.5, 2, 20); m.updateMatrixWorld(true);
+  dress(gfx, m, Infinity);
+  const g = m.geometry, p = g.attributes.position, uv = g.attributes.uv, idx = g.index, n = idx ? idx.count : p.count, at = (i) => new T.Vector3().fromBufferAttribute(p, i).applyMatrix4(m.matrixWorld);
+  let worst = 0;
+  for (let t = 0; t < n; t += 3) {
+    const k = [0, 1, 2].map((j) => (idx ? idx.getX(t + j) : t + j));
+    for (const [a, b] of [[0, 1], [1, 2], [2, 0]]) worst = Math.max(worst, Math.hypot(uv.getX(k[a]) - uv.getX(k[b]), uv.getY(k[a]) - uv.getY(k[b])) / at(k[a]).distanceTo(at(k[b])));
+  }
+  assert.ok(worst <= 1 + 1e-6, `a planar projection never lengthens an edge: worst ${worst.toFixed(2)}x`);
 });

@@ -56,22 +56,43 @@ const BEND_SPRITE = `
 // fragment the fog has fully hidden is dropped, so the skyline ring shows through instead of a fog-coloured block.
 export const fogCut = { value: 0 };
 // The HiFi height fog, compiled in with the cut: a bent mesh's fog colour is mix(fogShade, the fog's, smoothstep(fogHeight.x,
-// fogHeight.y, its world y before the bend)), so the slot between the buildings fogs deeper low down than at the rooftops
-// (Task 32, Caedon, board 22). The look sets both per theme; a shade equal to the fog colour is no height fog. A sprite (no
-// project_vertex) keeps the plain fog. fogHeight.x < fogHeight.y always (checkLook): smoothstep is undefined otherwise.
+// fogHeight.y, its bent world y)), so the slot between the buildings fogs deeper low down than at the rooftops (Task 32, Caedon,
+// board 22). The look sets both per theme; a shade equal to the fog colour is no height fog. A sprite (no project_vertex) keeps
+// the plain fog. fogHeight.x < fogHeight.y always (checkLook): smoothstep is undefined otherwise.
+// Task 34 L-I (Caedon, board 29 pick 5): by the BENT height (it was the height before the bend, so a far building a hill lifted
+// over the crest kept its street's dark shade against the bright dome), then, as far as the fog is thick (fogFactor FOG_SKY[0]
+// to FOG_SKY[1]), toward the dome's own colour along the sight line (fogSky): far off, a fragment melts into the sky behind it.
+// The dome shares fogSkyTop / fogSkyBottom (src/look.js sets them; without a look, both the fog colour).
 export const fogShade = { value: new THREE.Color() };
 export const fogHeight = { value: new THREE.Vector2(0, 1) };
-const HFOG_VERT = '#include <project_vertex>\n  vFogY = bentWorld.y - bendOffset( bentWorld.z ).y;'; // the bend (patched over the include next) lifts a hill's street and its fog together
-const HFOG_FRAG = '#ifdef USE_FOG\n  vec3 hFogColor = mix( uFogShade, fogColor, smoothstep( uFogHeight.x, uFogHeight.y, vFogY ) );\n  #define fogColor hFogColor\n#endif\n#include <fog_fragment>';
+export const fogSkyTop = { value: new THREE.Color() }, fogSkyBottom = { value: new THREE.Color() };
+export const SKY_EDGE = 0.3; // the dome reaches its top colour at this dir.y (0.45 before Task 32, Caedon, board 22: a narrower pale band over the horizon). ponytail: calibration knob
+export const FOG_SKY = [0.6, 0.95]; // the fogFactor over which the fog gives way to the sky (Caedon, board 29 pick 5): all sky before the cut (0.999), so the cut shows no edge. ponytail: calibration knob
+// GLSL's smoothstep in JavaScript, for the shader mirrors here and in look.js
+export const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+// The GLSL fogSky over plain numbers (linear rgb arrays, dirY the sight line's unit y): what the tests exercise; the GLSL is checked by eye.
+export function fogSky(fog, top, bottom, dirY, fogFactor) {
+  const s = smooth(0, SKY_EDGE, dirY), k = smooth(FOG_SKY[0], FOG_SKY[1], fogFactor);
+  return fog.map((f, i) => f + (bottom[i] + (top[i] - bottom[i]) * s - f) * k);
+}
+const FOG_SKY_FN = `uniform vec3 uSkyTop;
+uniform vec3 uSkyBottom;
+vec3 fogSky( vec3 fog, float dirY, float fogFactor ) {
+  vec3 sky = mix( uSkyBottom, uSkyTop, smoothstep( 0.0, ${SKY_EDGE.toFixed(3)}, dirY ) );
+  return mix( fog, sky, smoothstep( ${FOG_SKY[0].toFixed(3)}, ${FOG_SKY[1].toFixed(3)}, fogFactor ) );
+}`;
+const HFOG_VERT = '#include <project_vertex>\n  vFogWorld = bentWorld.xyz;'; // after the bend (patched over the include next): a hill's street fogs like the sky it rises into
+// three computes fogFactor inside fog_fragment: the macro reads it there, so the sky mix takes three's own (linear or exp2)
+const HFOG_FRAG = '#ifdef USE_FOG\n  vec3 hFogColor = mix( uFogShade, fogColor, smoothstep( uFogHeight.x, uFogHeight.y, vFogWorld.y ) );\n  #define fogColor fogSky( hFogColor, normalize( vFogWorld - cameraPosition ).y, fogFactor )\n#endif\n#include <fog_fragment>';
 function cutFog(shader) {
   if (!hook.cutFog) return; // low-fi compiles three's fragment shaders as they are: no uniform, no discard
   const high = shader.vertexShader.includes('#include <project_vertex>');
   shader.uniforms.uFogCut = fogCut;
   if (high) {
-    Object.assign(shader.uniforms, { uFogShade: fogShade, uFogHeight: fogHeight });
-    shader.vertexShader = shader.vertexShader.replace('void main() {', 'varying float vFogY;\nvoid main() {').replace('#include <project_vertex>', HFOG_VERT);
+    Object.assign(shader.uniforms, { uFogShade: fogShade, uFogHeight: fogHeight, uSkyTop: fogSkyTop, uSkyBottom: fogSkyBottom });
+    shader.vertexShader = shader.vertexShader.replace('void main() {', 'varying vec3 vFogWorld;\nvoid main() {').replace('#include <project_vertex>', HFOG_VERT);
   }
-  shader.fragmentShader = shader.fragmentShader.replace('void main() {', `uniform float uFogCut;${high ? '\nuniform vec3 uFogShade;\nuniform vec2 uFogHeight;\nvarying float vFogY;' : ''}\nvoid main() {`)
+  shader.fragmentShader = shader.fragmentShader.replace('void main() {', `uniform float uFogCut;${high ? `\nuniform vec3 uFogShade;\nuniform vec2 uFogHeight;\nvarying vec3 vFogWorld;\n${FOG_SKY_FN}` : ''}\nvoid main() {`)
     .replace('#include <fog_fragment>', `${high ? HFOG_FRAG : '#include <fog_fragment>'}\n#ifdef USE_FOG\n  if ( uFogCut > 0.5 && fogFactor > 0.999 ) discard; // HiFi: what the fog has fully hidden lets the skyline through\n#endif`);
 }
 function patch(shader) {
@@ -110,6 +131,11 @@ export function bend(object) {
     const mats = [].concat(n.material ?? []); // a mesh may carry a material array
     for (const m of mats) bendable(m);
     if (n.isMesh) n.castShadow = n.receiveShadow = mats.every((m) => !m.transparent);
+    // HiFi (Task 34 L-I, Caedon, board 29 pick 6): three culls on the unbent bounds, which a strong turn plus a hill can swing off
+    // screen while the bent mesh is on it; low-fi keeps the culling. Measured on three street chunks: +0 draw calls in the view
+    // (every chunk mesh is in it), +31 to +35 a frame in the near shadow cascade. ponytail: off outright; a bounding sphere padded
+    // by the bend at its depth would keep the near cascade's savings, if those draw calls ever show.
+    if (hook.cutFog && mats.length) n.frustumCulled = false;
   });
   return object;
 }
