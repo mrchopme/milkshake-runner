@@ -2,7 +2,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { buildRegistry, applyPack } from '../src/registry.js';
-import { discover } from './helpers.js';
+import { discover, same } from './helpers.js';
 import * as gfx from '../src/gfx.js';
 import { adopt } from '../src/assets.js';
 import * as hifi from '../packs/hifi/obstacles/manhole_steam.js';
@@ -44,15 +44,15 @@ test('the HiFi cover sits inside the shipped box, flat on the road, centred, and
   assert.ok(Math.abs(box.min.x + box.max.x) < 1e-6 && Math.abs(box.min.z + box.max.z) < 1e-6, 'centred on its lane');
   const paint = (o) => { let p; o.traverse((n) => { if (n.isMesh && n.material.isMeshPhysicalMaterial) p = n.material; }); return p; };
   assert.ok(paint(a.object)?.clearcoat > 0, 'a sheen over the metal');
-  assert.equal(paint(a.object).metalnessMap, metal, 'bare metal: the model keeps its own metal map (Task 23 ruling)');
-  assert.equal(paint(a.object), paint(b.object), 'every manhole shares one paint material');
+  same(paint(a.object).metalnessMap, metal, 'bare metal: the model keeps its own metal map (Task 23 ruling)');
+  same(paint(a.object), paint(b.object), 'every manhole shares one paint material');
 });
 
 test('the steam is one shared Points cloud that follows the shipped cycle, and gfx.dispose leaves it for the other copies', () => {
   const steam = steamOf(a);
   assert.ok(steam.isPoints);
-  assert.equal(steam.geometry, steamOf(b).geometry);
-  assert.equal(steam.material, steamOf(b).material);
+  same(steam.geometry, steamOf(b).geometry);
+  same(steam.material, steamOf(b).material);
   for (const part of [steam, steam.geometry, steam.material]) assert.ok(part.userData.shared, 'flagged shared');
   assert.equal(steam.geometry.getAttribute('aSeed').count, hifi.STEAM.count);
   const o = {};

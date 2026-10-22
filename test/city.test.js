@@ -17,6 +17,7 @@ import { adopt } from '../src/assets.js';
 import bridge from '../packs/hifi/themes/bridge.js';
 import shippedBridge from '../content/themes/bridge.js';
 import { waterMaterial, WATER } from '../packs/hifi/lib/bridge.js';
+import { same } from './helpers.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 // the shipped ground, pinned (Task 32: Caedon's picks of 2026-10-15, the stack's tuned hexes)
@@ -882,7 +883,7 @@ test('the land wears the sidewalk\'s paving on its top and light ashlar stone on
     let land, walk; g.traverse((n) => { if (n.userData.land) land = n; if (n.userData.walk) walk = n.material; });
     assert.ok(Array.isArray(land.material) && land.material.length === 2, `${id}: the land's stone and its paving`);
     const [stoneMat, paved] = land.material, geo = land.geometry, p = geo.attributes.position, nor = geo.attributes.normal, uv = geo.attributes.uv, c = geo.attributes.color, idx = geo.index;
-    assert.equal(paved, walk, `${id}: the sidewalk's own material`);
+    same(paved, walk, `${id}: the sidewalk's own material`);
     assert.equal(stoneMat, pierMat, `${id}: one stone for the land and the piers`);
     assert.ok(stoneMat.map?.userData.shared && stoneMat.map.wrapS === THREE.RepeatWrapping, `${id}: the stone's shared ashlar tile`);
     const zp = PAVE.len * Math.floor(1200 / PAVE.len);
@@ -910,7 +911,8 @@ test('the road is a cool grey per scene over asphalt grain, its lane lines solid
     hifi.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: rng(1), theme }).traverse((n) => { if (n.userData.road) roads.add(n.material); });
     const want = new THREE.Color(GROUND[id].road).multiplyScalar(1 / asphaltTexture(THREE).userData.mean).getHexString();
     // Caedon 2026-10-15, "Cool grey per scene" like the style frames, replacing board 18's warm #6b675a
-    assert.deepEqual([...roads].map((r) => [r.color.getHexString(), r.map, r.roughness]), [[want, asphaltTexture(THREE), GROUND[id].roadRough]], id);
+    assert.deepEqual([...roads].map((r) => [r.color.getHexString(), r.roughness]), [[want, GROUND[id].roadRough]], id);
+    for (const r of roads) same(r.map, asphaltTexture(THREE), `${id}: the road wears the shared asphalt`);
   }
   const cross = { z: 50 }, g = street(gfx, { z0: 0, length: 120, lanes }, flat, cross);
   let lines; g.traverse((n) => { if (n.isInstancedMesh && n.geometry.parameters.width === DASH.w) lines = n; });

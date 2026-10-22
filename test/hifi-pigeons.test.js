@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { buildRegistry, applyPack } from '../src/registry.js';
-import { discover } from './helpers.js';
+import { discover, same, notSame } from './helpers.js';
 import * as gfx from '../src/gfx.js';
 import { adopt, release } from '../src/assets.js';
 
@@ -62,8 +62,8 @@ test('the HiFi pigeons: one bird instanced over the shipped flock, every bird in
   assert.ok(Math.abs(low - y) < 1e-6, `as big as the box allows: the low birds' feet on its floor (${low.toFixed(3)})`);
   // shared, so a despawn frees only the instance buffers
   const other = flock(b);
-  assert.equal(other.geometry, g, 'every flock draws one geometry');
-  assert.equal(other.material, birds.material, 'and one paint');
+  same(other.geometry, g, 'every flock draws one geometry');
+  same(other.material, birds.material, 'and one paint');
   assert.ok(birds.material.isMeshPhysicalMaterial && birds.material.clearcoat === 0.3 && birds.material.clearcoatRoughness === 0.4, 'the template\'s satin (was 0.6 / 0.2; Caedon, board 29 pick 4)');
   assert.ok(birds.material.metalness === 0 && birds.material.metalnessMap === null, 'Tripo\'s random metal dropped (the Task 23 ruling)');
   let freed = 0;
@@ -109,5 +109,5 @@ test('the bird\'s baked geometry goes with the file it was baked from, and a rel
   release([]);
   assert.equal(freed, 1, 'released with the loaded geometry, not pinned for the session');
   adopt('hifi/pigeon.glb', standIn());
-  assert.notEqual(flock(def.createView(gfx).object).geometry, g, 'the reload is fitted afresh, not drawn with the freed copy');
+  notSame(flock(def.createView(gfx).object).geometry, g, 'the reload is fitted afresh, not drawn with the freed copy');
 });

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
 import { adopt, preload, asset, gateLoads, levelAssets, release } from '../src/assets.js';
+import { same } from './helpers.js';
 
 const model = () => gfx.group(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ map: new THREE.Texture() })));
 
@@ -10,8 +11,8 @@ test('an asset copy shares its geometry and materials with every other copy', ()
   adopt('test/a.glb', model());
   const a = asset('test/a.glb'), b = asset('test/a.glb');
   assert.notEqual(a, b);
-  assert.equal(a.children[0].geometry, b.children[0].geometry);
-  assert.equal(a.children[0].material, b.children[0].material);
+  same(a.children[0].geometry, b.children[0].geometry);
+  same(a.children[0].material, b.children[0].material);
   assert.ok(a.children[0].userData.shared, 'copies carry the shared flag');
 });
 
@@ -105,7 +106,7 @@ test('dropping an instanced copy frees its instance buffers, never the shared mo
 test('an image asset is one shared texture; asking for it as a model, or for a missing one, fails loudly', async () => {
   const tex = new THREE.Texture();
   await preload(['test/sky.webp'], async () => tex);
-  assert.equal(gfx.texture('test/sky.webp'), tex);
+  same(gfx.texture('test/sky.webp'), tex);
   assert.ok(tex.userData.shared, 'flagged shared, so dropping a chunk never frees it');
   assert.throws(() => asset('test/sky.webp'), /asset "test\/sky.webp" is an image: use gfx.texture/);
   assert.throws(() => gfx.texture('test/none.webp'), /texture "test\/none.webp" is not loaded: list it in the module's assets/);

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { buildRegistry, applyPack } from '../src/registry.js';
-import { discover } from './helpers.js';
+import { discover, same } from './helpers.js';
 import * as gfx from '../src/gfx.js';
 import { adopt } from '../src/assets.js';
 
@@ -45,7 +45,7 @@ test('the HiFi hot dog cart shows its +x side to the player, with one glossy pai
   // re-pinned from clearcoat 0.6 / 0.2 (Caedon, board 29 pick 4): the gloss cut across every glossy model
   assert.ok(paint(a).clearcoat === 0.3 && paint(a).clearcoatRoughness === 0.4, 'satin');
   assert.ok(paint(a).clearcoat > 0 && paint(a).metalness === 0 && paint(a).metalnessMap === null, 'glossy, and not the random metal Tripo left in');
-  assert.equal(paint(a), paint(b), 'every cart shares one paint material, umbrella and body');
-  let parts = 0; a.traverse((n) => { if (n.isMesh) { parts++; assert.equal(n.material, paint(a), `${n.name} wears the shared paint`); } });
+  same(paint(a), paint(b), 'every cart shares one paint material, umbrella and body');
+  let parts = 0; a.traverse((n) => { if (n.isMesh) { parts++; same(n.material, paint(a), `${n.name} wears the shared paint`); } });
   assert.equal(parts, 4);
 });

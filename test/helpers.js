@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -16,3 +17,9 @@ export async function discover(root, prefix = 'content', dir = root) {
   }
   return entries;
 }
+
+// THREE objects (materials, textures, geometries, meshes) compare by identity only. ponytail: a FAILING strict assert.equal on two
+// different ones inspects a texture's 131,072 bytes one a line and Myers-diffs the two lists (65 GB: the Mac froze twice,
+// 2026-10-20/21), so these give assert nothing to diff and name the object instead.
+export const same = (a, b, msg = 'the same object') => assert.ok(a === b, msg);
+export const notSame = (a, b, msg = 'different objects') => assert.ok(a !== b, msg);

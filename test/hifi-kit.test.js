@@ -14,6 +14,7 @@ import { BLADE, ASPECT } from '../packs/hifi/lib/signs.js';
 import downtown from '../packs/hifi/themes/downtown.js';
 import midtown from '../packs/hifi/themes/midtown.js';
 import uptown from '../packs/hifi/themes/uptown.js';
+import { same, notSame } from './helpers.js';
 
 // A stand-in for a generated kit model: a unit body and a nub on its front, Tripo's material (metal-rough map, metalness 1).
 // Every generated model faces +x, except the lamp, whose arm reaches -z (task-23-models.md, measured on the decoded meshes).
@@ -193,7 +194,7 @@ test('a loaded model without UVs still builds: the sedan keeps its map as it is'
   withCanvas(() => {
     const g = new THREE.BoxGeometry(1, 1, 1).deleteAttribute('uv'), map = new THREE.Texture({ width: 1, height: 1, px: new Uint8ClampedArray(4) });
     adopt(KIT.sedan.path, new THREE.Group().add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map }))));
-    assert.equal(kitParts(gfx, { ...KIT.sedan }, placeholder('sedan'))[0].material.map, map);
+    same(kitParts(gfx, { ...KIT.sedan }, placeholder('sedan'))[0].material.map, map);
   });
 });
 
@@ -228,7 +229,7 @@ test('a lit kit piece glows through an emissive map of its own texels; an unlit 
     assert.equal(kitParts(gfx, { ...KIT.traffic_light }, placeholder('traffic_light'))[0].material.emissiveIntensity, 1.2, 'the signal glows softer than GLOW (board 17c)');
     assert.equal(lamp.emissiveIntensity, 1.2, 'the lamps glow 1.2 by day, lit at noon as in the frames (Task 32, board 24; they were GLOW, 5)');
     adopt(KIT.bench.path, standIn([1, 0, 0], map));
-    assert.equal(kitParts(gfx, { ...KIT.bench }, placeholder('bench'))[0].material.emissiveMap, null);
+    same(kitParts(gfx, { ...KIT.bench }, placeholder('bench'))[0].material.emissiveMap, null);
   });
 });
 
@@ -391,7 +392,7 @@ test('a kit file released and loaded again is built from the new model, not the 
   release(KIT_FILES.filter((p) => p !== KIT.bin.path)); // a level without bins frees the file
   adopt(KIT.bin.path, standIn()); // a later level loads it again: new geometry and materials
   const after = kitParts(gfx, KIT.bin, placeholder('bin'));
-  assert.notEqual(after[0].geometry, before[0].geometry, 'the reloaded geometry');
+  notSame(after[0].geometry, before[0].geometry, 'the reloaded geometry');
   assert.ok(after[0].material !== before[0].material && after[0].material.isMeshPhysicalMaterial, 'fresh paint');
   assert.equal(kitParts(gfx, KIT.bin, placeholder('bin')), after, 'built once per load');
 });

@@ -11,6 +11,7 @@ import bridge from '../packs/hifi/themes/bridge.js';
 import shippedBridge from '../content/themes/bridge.js';
 import { waterMaterial, WATER } from '../packs/hifi/lib/bridge.js';
 import { pavingTexture, asphaltTexture, PAVE, KERB } from '../packs/hifi/lib/street.js';
+import { same } from './helpers.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 // a stand-in for railings.glb, off-centre and below the origin as generators leave it (as test/hifi-railings.test.js)
@@ -31,7 +32,7 @@ test('the deck is 16 m wide on the cool asphalt, its lane lines where the lanes 
   const g = chunk(1200), [deck] = find(g, 'road'), [b] = worldBoxes(deck);
   assert.ok(near(b.min.x, -8) && near(b.max.x, 8) && near(b.max.y, 0), `deck ${b.min.x}..${b.max.x}, top ${b.max.y}`);
   const want = new THREE.Color('#5a596e').multiplyScalar(1 / asphaltTexture(THREE).userData.mean).getHexString(); // the frames' cool grey (Caedon, 2026-10-15)
-  assert.equal(deck.material.map, asphaltTexture(THREE));
+  same(deck.material.map, asphaltTexture(THREE));
   assert.equal(deck.material.color.getHexString(), want);
   const [marks] = find(g, 'marks'), xs = new Set(), m = new THREE.Matrix4(), p = new THREE.Vector3();
   for (let i = 0; i < marks.count; i++) { marks.getMatrixAt(i, m); p.setFromMatrixPosition(m); xs.add(+p.x.toFixed(3)); }
@@ -56,7 +57,7 @@ test('two 3 m walkways as high as the street\'s kerb outside the road, wearing t
   const g = chunk(1200), [walk] = find(g, 'walkway'), [b] = worldBoxes(walk);
   assert.equal(KERB, 0.18);
   assert.ok(near(b.min.x, -8) && near(b.max.x, 8) && near(b.min.y, 0) && near(b.max.y, KERB), `walkways ${b.min.x}..${b.max.x}, ${b.min.y}..${b.max.y}`);
-  assert.equal(walk.material.map, pavingTexture(THREE, {}));
+  same(walk.material.map, pavingTexture(THREE, {}));
   const pos = walk.geometry.attributes.position, nor = walk.geometry.attributes.normal, uv = walk.geometry.attributes.uv;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
@@ -80,7 +81,7 @@ test('steel railings along both walkway edges, one section every 4 m, 1.1 m tall
         assert.ok(b.min.z >= 1200 - 1e-6 && b.max.z <= 1200 + length + 1e-6, `z ${b.min.z}..${b.max.z}`);
         assert.ok(Math.sign(b.min.x) === side && Math.abs(b.min.x) > 5 && Math.abs(b.max.x) <= 8 + 1e-6, `x ${b.min.x}..${b.max.x}, off the walkway`);
       }
-      assert.equal(r.material, rails[0].material, 'one steel');
+      same(r.material, rails[0].material, 'one steel');
       assert.ok(r.material.isMeshStandardMaterial && near(r.material.roughness, 0.4));
     }
   }
@@ -167,7 +168,7 @@ test('nothing new stands over the road below the portal beams', () => {
 
 test('the water, retuned: a steel blue, faint reflections, finer ripples, facets, and a fog fade from 40 m without the height fog\'s shade', () => {
   const g = chunk(1200), w = find(g, 'water')[0], m = waterMaterial(gfx);
-  assert.equal(w.material, m);
+  same(w.material, m);
   assert.equal(m.color.getHexString(), new THREE.Color('#2f6fb0').getHexString(), 'deeper than C6\'s #3a92cf, which read pale in the merged build (the main session\'s re-shoot; Caedon, board 25: "water retuned in the clean build")');
   assert.ok(m.roughness <= 0.15 && m.userData.reflect === 0.2, 'glossy, so look.js gives it the env at userData.reflect');
   assert.equal(w.geometry.parameters.widthSegments, 60);

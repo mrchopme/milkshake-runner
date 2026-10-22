@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
 import { buildRegistry, applyPack, checkModule, loadPack } from '../src/registry.js';
-import { discover } from './helpers.js';
+import { discover, same } from './helpers.js';
 import * as gfx from '../src/gfx.js';
 import { adopt } from '../src/assets.js';
 
@@ -107,7 +107,7 @@ test('the HiFi taxi fits the shipped taxi footprint, sits on the road, and every
   assert.ok(Math.abs(box.min.x + box.max.x) < 1e-6 && Math.abs(box.min.z + box.max.z) < 1e-6, 'centred on its lane');
   const paint = (o) => { let p; o.traverse((n) => { if (n.isMesh && n.material.isMeshPhysicalMaterial) p = n.material; }); return p; };
   assert.ok(paint(a)?.clearcoat > 0, 'glossy clearcoat paint');
-  assert.equal(paint(a), paint(b), 'every taxi shares one paint material');
+  same(paint(a), paint(b), 'every taxi shares one paint material');
   assert.ok(paint(a).metalness === 0 && paint(a).metalnessMap === null, 'Tripo\'s random metal dropped, as the pickups and the cow do');
 });
 

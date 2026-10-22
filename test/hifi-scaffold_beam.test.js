@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { buildRegistry, applyPack } from '../src/registry.js';
-import { discover } from './helpers.js';
+import { discover, same } from './helpers.js';
 import * as gfx from '../src/gfx.js';
 import { adopt, release } from '../src/assets.js';
 
@@ -95,7 +95,7 @@ test('the HiFi scaffold shows its doorway to the player, with one glossy paint f
   // re-pinned from clearcoat 0.6 / 0.2 (Caedon, board 29 pick 4): the gloss cut across every glossy model
   assert.ok(paint(a).clearcoat === 0.3 && paint(a).clearcoatRoughness === 0.4, 'satin');
   assert.ok(paint(a).clearcoat > 0 && paint(a).metalness === 0 && paint(a).metalnessMap === null, 'glossy, and not the random metal Tripo left in');
-  assert.equal(paint(a), paint(b), 'every scaffold shares one paint material');
+  same(paint(a), paint(b), 'every scaffold shares one paint material');
 });
 
 test('the HiFi scaffold\'s plank stretches all along its middle and reaches both spread ends', () => {
