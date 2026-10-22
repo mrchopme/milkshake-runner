@@ -23,7 +23,7 @@ test('the cascades patch only lit materials, and CSM forgets each one when it is
   try {
     const lit = [THREE.MeshToonMaterial, THREE.MeshStandardMaterial, THREE.MeshPhysicalMaterial, THREE.MeshLambertMaterial, THREE.MeshPhongMaterial].map((T) => gfx.bendable(new T()));
     const unlit = [THREE.MeshBasicMaterial, THREE.SpriteMaterial].map((T) => gfx.bendable(new T()));
-    assert.deepEqual([...csm.shaders.keys()], lit, 'every lit material, and no unlit one: a blob, a glow or a sprite has no lights chunk');
+    assert.ok(csm.shaders.size === lit.length && lit.every((m) => csm.shaders.has(m)), 'every lit material, and no unlit one: a blob, a glow or a sprite has no lights chunk'); // by identity, never a deepEqual of materials (test/helpers.js same())
     lit[0].dispose();
     assert.ok(!csm.shaders.has(lit[0]) && csm.shaders.size === lit.length - 1, 'a disposed material leaves the Map, so spawned pickups and bubbles do not pile up');
     for (const m of [...lit, ...unlit]) m.dispose();

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { buildRegistry, applyPack } from '../src/registry.js';
-import { discover } from './helpers.js';
+import { discover, same, notSame } from './helpers.js';
 import * as gfx from '../src/gfx.js';
 import { adopt, release } from '../src/assets.js';
 import { freeWith } from '../packs/hifi/lib/paint.js';
@@ -27,7 +27,7 @@ test('a model reloaded after assets.release gets fresh paint, not its raw genera
   const a = def.createView(gfx, {}).object, b = def.createView(gfx, {}).object;
   assert.equal(paints(a).length, 1, 'both segments wear one paint');
   assert.ok(glossy(paints(a)[0]), 'the first load is painted');
-  assert.equal(paints(b)[0], paints(a)[0], 'two copies share one paint');
+  same(paints(b)[0], paints(a)[0], 'two copies share one paint');
   let freed = 0;
   paints(a)[0].addEventListener('dispose', () => freed++);
   release([]); // a level without the barrier frees its file
@@ -35,7 +35,7 @@ test('a model reloaded after assets.release gets fresh paint, not its raw genera
   adopt('hifi/barrier_low.glb', standIn()); // a later level loads it again: new materials
   const [p] = paints(def.createView(gfx, {}).object);
   assert.ok(glossy(p), `the reload is painted too, not shown raw (${p.type}, metalness ${p.metalness})`);
-  assert.notEqual(p, paints(a)[0], 'its own paint, not the released one\'s (whose maps were freed)');
+  notSame(p, paints(a)[0], 'its own paint, not the released one\'s (whose maps were freed)');
 });
 
 // Task 27 (final review I1): the city's image materials are keyed by the loaded texture, as paints are by the loaded material,
@@ -65,7 +65,7 @@ test('a facade tile reloaded after assets.release wears a new material, and the 
     adopt(path, next);
     const fresh = facadeMaterial(gfx, style, 0);
     assert.ok(fresh !== old && fresh.map === next, 'the reload wears its own material, not the released one');
-    assert.equal(facadeMaterial(gfx, style, 0), fresh, 'which every chunk shares');
+    same(facadeMaterial(gfx, style, 0), fresh, 'which every chunk shares');
   } finally { globalThis.OffscreenCanvas = saved; }
 });
 

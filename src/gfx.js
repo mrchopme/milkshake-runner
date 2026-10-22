@@ -133,7 +133,7 @@ export function bend(object) {
     if (n.isMesh) n.castShadow = n.receiveShadow = mats.every((m) => !m.transparent);
     // HiFi (Task 34 L-I, Caedon, board 29 pick 6): three culls on the unbent bounds, which a strong turn plus a hill can swing off
     // screen while the bent mesh is on it; low-fi keeps the culling. Measured on three street chunks: +0 draw calls in the view
-    // (every chunk mesh is in it), +31 to +35 a frame in the near shadow cascade. ponytail: off outright; a bounding sphere padded
+    // (every chunk mesh is in it), +31 to +36 a frame in the near shadow cascade. ponytail: off outright; a bounding sphere padded
     // by the bend at its depth would keep the near cascade's savings, if those draw calls ever show.
     if (hook.cutFog && mats.length) n.frustumCulled = false;
   });

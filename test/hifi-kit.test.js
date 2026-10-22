@@ -99,7 +99,7 @@ test('each kit piece is painted once without the generator\'s random metal, and 
   for (const [kind, entry] of Object.entries(KIT)) adopt(entry.path, REAL[kind] || kind in RHYTHM.trees ? model(kind) : standIn(FRONT[kind]));
   for (const kind of Object.keys(KIT)) {
     const parts = kitParts(gfx, KIT[kind], placeholder(kind)), m = parts[0].material;
-    assert.equal(kitParts(gfx, KIT[kind], placeholder(kind)), parts, `${kind}: built once`);
+    same(kitParts(gfx, KIT[kind], placeholder(kind)), parts, `${kind}: built once`);
     assert.ok(m.isMeshPhysicalMaterial && m.metalness === 0 && m.metalnessMap === null && m.roughnessMap, `${kind}: metal off, roughness kept`);
     assert.ok(m.userData.shared, `${kind}: chunks never free it`);
   }
@@ -254,7 +254,7 @@ test('a day theme\'s lamps and a dusk theme\'s, built in one session, each keep 
     assert.ok(day.emissiveMap && day.emissiveIntensity === 1.2 && dusk.emissiveIntensity === RHYTHM.dusk && RHYTHM.dusk === 2, `day ${day.emissiveIntensity}, dusk ${dusk.emissiveIntensity}`);
     assert.ok(again === day && day.emissiveIntensity === 1.2, 'the day paint kept its glow after a dusk chunk');
     assert.ok(dusk.emissiveMap === day.emissiveMap && dusk.map === day.map && dusk.userData.shared, 'the dusk paint shares the day\'s textures, and chunks never free it');
-    assert.equal(lamps({ id: 'uptown', lit: 0.8 }, 360)[0], dusk, 'one dusk paint for every chunk');
+    same(lamps({ id: 'uptown', lit: 0.8 }, 360)[0], dusk, 'one dusk paint for every chunk');
     const n = counts([dusk, day.emissiveMap]);
     freeOnly(KIT.lamp.path);
     assert.deepEqual([...n.values()], [1, 1], 'the dusk paint freed with its file, the glow once');
@@ -394,7 +394,7 @@ test('a kit file released and loaded again is built from the new model, not the 
   const after = kitParts(gfx, KIT.bin, placeholder('bin'));
   notSame(after[0].geometry, before[0].geometry, 'the reloaded geometry');
   assert.ok(after[0].material !== before[0].material && after[0].material.isMeshPhysicalMaterial, 'fresh paint');
-  assert.equal(kitParts(gfx, KIT.bin, placeholder('bin')), after, 'built once per load');
+  same(kitParts(gfx, KIT.bin, placeholder('bin')), after, 'built once per load');
 });
 
 test('a loaded kit model whose build throws warns once and stays a stand-in, without building again every chunk', (t) => {
@@ -429,5 +429,5 @@ test('a released vehicle file frees the traffic made from its paint, and no cach
   load();
   assert.ok([...drive()].every((x) => !made.has(x)), 'the reload drives new copies');
   // the session's material cache does not hold the old copy (and through it the freed file's images) under the old paint's key
-  for (const p of paints) { const probe = { userData: {} }; assert.equal(material(`traffic/${p.uuid}`, () => probe), probe, 'nothing cached for the old paint'); }
+  for (const p of paints) { const probe = { userData: {} }; same(material(`traffic/${p.uuid}`, () => probe), probe, 'nothing cached for the old paint'); }
 });

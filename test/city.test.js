@@ -17,7 +17,7 @@ import { adopt } from '../src/assets.js';
 import bridge from '../packs/hifi/themes/bridge.js';
 import shippedBridge from '../content/themes/bridge.js';
 import { waterMaterial, WATER } from '../packs/hifi/lib/bridge.js';
-import { same } from './helpers.js';
+import { same, notSame } from './helpers.js';
 
 const lanes = { count: 3, width: 2.5, roadHalf: 4.5 };
 // the shipped ground, pinned (Task 32: Caedon's picks of 2026-10-15, the stack's tuned hexes)
@@ -465,9 +465,9 @@ test('the paving and the asphalt are built once, shared, and the theme hex is di
   const maps = (g, key) => { const out = new Set(); g.traverse((n) => { if (n.userData[key]) out.add(n.material.map); }); return [...out]; };
   const [p1] = maps(street(gfx, { z0: 0, length: 120, lanes }, flat, null), 'walk'), [p2] = maps(street(gfx, { z0: 120, length: 120, lanes }, { ...flat, id: 'test2' }, null), 'walk');
   assert.ok(p1.isDataTexture && p1 === p2 && p1.userData.shared, 'one paving per flag size, on every chunk');
-  assert.equal(pavingTexture(THREE, { ground: { flag: 1.5 } }), p1);
-  assert.notEqual(pavingTexture(THREE, { ground: { flag: 1.2 } }), p1, 'uptown\'s smaller flags get their own');
-  assert.equal(asphaltTexture(THREE), asphaltTexture(THREE)); assert.ok(asphaltTexture(THREE).userData.shared);
+  same(pavingTexture(THREE, { ground: { flag: 1.5 } }), p1);
+  notSame(pavingTexture(THREE, { ground: { flag: 1.2 } }), p1, 'uptown\'s smaller flags get their own');
+  same(asphaltTexture(THREE), asphaltTexture(THREE)); assert.ok(asphaltTexture(THREE).userData.shared);
   assert.equal(p1.image.width, PAVE.w); assert.equal(p1.image.height, PAVE.h);
   for (const [t, mean] of [[p1, 0.830], [pavingTexture(THREE, { ground: { flag: 1.2 } }), 0.833], [asphaltTexture(THREE), 0.911]]) assert.ok(Math.abs(t.userData.mean - mean) < 0.005, `mean ${t.userData.mean}`);
   for (const id of ['downtown', 'midtown', 'uptown']) {
@@ -884,7 +884,7 @@ test('the land wears the sidewalk\'s paving on its top and light ashlar stone on
     assert.ok(Array.isArray(land.material) && land.material.length === 2, `${id}: the land's stone and its paving`);
     const [stoneMat, paved] = land.material, geo = land.geometry, p = geo.attributes.position, nor = geo.attributes.normal, uv = geo.attributes.uv, c = geo.attributes.color, idx = geo.index;
     same(paved, walk, `${id}: the sidewalk's own material`);
-    assert.equal(stoneMat, pierMat, `${id}: one stone for the land and the piers`);
+    same(stoneMat, pierMat, `${id}: one stone for the land and the piers`);
     assert.ok(stoneMat.map?.userData.shared && stoneMat.map.wrapS === THREE.RepeatWrapping, `${id}: the stone's shared ashlar tile`);
     const zp = PAVE.len * Math.floor(1200 / PAVE.len);
     let up = 0;

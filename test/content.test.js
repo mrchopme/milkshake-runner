@@ -8,6 +8,7 @@ import magnet from '../content/pickups/magnet.js';
 import barrier from '../content/obstacles/barrier_low.js';
 import beam from '../content/obstacles/scaffold_beam.js';
 import taxi from '../content/obstacles/taxi.js';
+import { same } from './helpers.js';
 
 // In Node there is no GLB loader, so createView falls back to the shape-built cow; the motion code is the same for both.
 test('Milkshake leans and strides harder with speed, and kicks up dust on the ground', async () => {
@@ -100,7 +101,7 @@ test('fitModel skins the loaded mesh in place: six bones under the hips under th
   const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: '#ffffff' }));
   const scene = new THREE.Group(); scene.add(mesh);
   const { model, arms, legs, head, limbAxis } = fitModel(THREE, scene, milkshake);
-  assert.equal(model, scene);
+  same(model, scene);
   const skinned = scene.children[0];
   assert.ok(skinned.isSkinnedMesh && !scene.children.includes(mesh), 'the skinned mesh takes the mesh\'s place in its parent');
   assert.ok(skinned.material.isMeshToonMaterial, 'with the toon material');

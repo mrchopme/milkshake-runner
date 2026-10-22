@@ -21,7 +21,7 @@ export const OPENINGS = {
 // shade (0.55-0.65 x); the 30 m cap (frames pop there, above it the eye does not read them); a row clipped under a cornice to less
 // than `minH` stays solid; no face looking up above `eye` (Task 34 L-E, a third of the stamp's triangles, inside the prototype's
 // budget): the highest a camera can ride, a section's 8 m (src/validate.js CAMERA_RANGES) + 0.3 x the highest jump the rules' ranges
-// allow (src/engine.js cameraFor; jumpSpeed 15, gravity -10: 11.25 m) = 11.4; the shipped cameras sit at 5.5 m and lower.
+// allow (src/engine.js cameraFor; jumpSpeed 15, gravity -10: 11.25 m) = 11.375, rounded up to 11.5; the shipped cameras sit at 5.5 m and lower.
 export const RELIEF = { jamb: 0.1, head: { h: 0.14, out: 0.08 }, sill: { h: 0.08, out: 0.08 }, over: 0.06, transom: { h: 0.1, out: 0.06 }, ao: 0.6, cap: 30, minH: 1, eye: 11.5 };
 const CW = TILE.w / 2, CH = TILE.h / 2, SEG = 4; // a window cell; SEG: along x (z on the street walls) every 4 m, so it bends
 

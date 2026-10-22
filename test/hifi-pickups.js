@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as gfx from '../src/gfx.js';
 import { adopt } from '../src/assets.js';
+import { same } from './helpers.js';
 
 const T = gfx.three;
 const ORB = new T.Vector3(0, 0.9, 0), RADIUS = 0.4; // the shipped orb: a 0.8 m sphere centred 0.9 m above the road
@@ -40,7 +41,7 @@ export function checkPickup(id, overlay, geometry, { glows = false } = {}) {
     // re-pinned from 1 / 0.15 and the shared 0.85 env (Caedon, board 29 pick 4): the full coat blew the jug out into a white column
     assert.ok(p?.clearcoat === 0.3 && p.clearcoatRoughness === 0.4, `a satin clearcoat (${p?.clearcoat}, ${p?.clearcoatRoughness})`);
     assert.equal(p.userData.reflect, 0.3, 'reflections below the look\'s shared knob');
-    assert.equal(p, paintOf(b), 'every copy shares one paint material');
+    same(p, paintOf(b), 'every copy shares one paint material');
     assert.ok(p.metalness === 0 && p.metalnessMap === null, 'no metal');
     assert.ok(p.roughnessMap === orm, 'the roughness map stays');
     assert.equal(p.emissiveMap !== null, glows, glows ? 'the milk glows through an emissive map' : 'no glow unless the brief says so');

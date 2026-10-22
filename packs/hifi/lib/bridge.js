@@ -147,9 +147,12 @@ export function bridgeChunk(gfx, args, style) {
   const pierMesh = instanced(T, pier.geometry, pier.material, piers);
   pierMesh.userData.pier = true;
   g.add(pierMesh);
-  // an abutment under each deck end, so leaving the bridge you never see under the street (Task 34 L-C); one mesh for both
+  // an abutment under each deck end, so leaving the bridge you never see under the street (Task 34 L-C); one mesh for both.
+  // Each at most half the chunk long, so a short tail chunk (a level's length_m mod 120 under 8) keeps both inside [z0, end]
+  // and the two never overlap (the whole-branch review, 2026-10-22)
   if (PIER.abut > 0) {
-    const one = stone(gfx, PIER_COLORS, DECK.w, PIER.top, PIER.abut).geometry, ends = [z0 + PIER.abut / 2, end - PIER.abut / 2].map((z) => one.clone().translate(0, 0, z));
+    const a = Math.min(PIER.abut, (end - z0) / 2);
+    const one = stone(gfx, PIER_COLORS, DECK.w, PIER.top, a).geometry, ends = [z0 + a / 2, end - a / 2].map((z) => one.clone().translate(0, 0, z));
     one.dispose();
     const abut = new T.Mesh(mergeGeometries(ends), pier.material);
     ends.forEach((x) => x.dispose());

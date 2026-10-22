@@ -130,16 +130,16 @@ test('a portal every 120 m, 45 m up, its legs 3.2 m wide, standing on a pier siz
 // Task 34 L-C (Task 33 plan): leaving the bridge you never see under the street. Every bridge chunk has both (a chunk cannot know
 // it is its stretch's first or last), so a bridge-to-bridge seam stands on a 16 m stone pier.
 test('a stone abutment under each deck end, the deck\'s width, from its underside down into the water, inside the chunk', () => {
-  for (const [z0, length] of [[1080, 120], [1200, 80]]) {
-    const g = chunk(z0, 1, length), [deck] = worldBoxes(find(g, 'road')[0]), abut = find(g, 'abutment');
+  for (const [z0, length] of [[1080, 120], [1200, 80], [1320, 5]]) { // 5: a level's tail chunk, where 8 m stones would leave the chunk
+    const g = chunk(z0, 1, length), [deck] = worldBoxes(find(g, 'road')[0]), abut = find(g, 'abutment'), span = Math.min(8, length / 2);
     assert.equal(abut.length, 1, 'both ends in one mesh');
     const p = abut[0].geometry.attributes.position, v = new THREE.Vector3(), ends = { lo: [], hi: [] };
-    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(abut[0].matrixWorld); (v.z < z0 + length / 2 ? ends.lo : ends.hi).push(v.clone()); }
+    for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i).applyMatrix4(abut[0].matrixWorld); (i < p.count / 2 ? ends.lo : ends.hi).push(v.clone()); } // merged lo then hi (on a 5 m chunk the two share their middle z)
     for (const [key, pts] of Object.entries(ends)) {
       const b = new THREE.Box3().setFromPoints(pts), at = `chunk ${z0}, ${key} end`;
       assert.ok(near(b.min.x, -8) && near(b.max.x, 8), `${at}: x ${b.min.x}..${b.max.x}`);
       assert.ok(b.min.y < WATER.y && b.max.y >= deck.min.y && b.max.y < 0, `${at}: from ${b.min.y} to ${b.max.y}, the deck's underside at ${deck.min.y}`);
-      assert.ok(near(b.max.z - b.min.z, 8, 1e-3) && (key === 'lo' ? near(b.min.z, z0, 1e-3) : near(b.max.z, z0 + length, 1e-3)), `${at}: z ${b.min.z}..${b.max.z}`);
+      assert.ok(near(b.max.z - b.min.z, span, 1e-3) && (key === 'lo' ? near(b.min.z, z0, 1e-3) : near(b.max.z, z0 + length, 1e-3)), `${at}: z ${b.min.z}..${b.max.z}, ${span} m long`);
     }
   }
 });

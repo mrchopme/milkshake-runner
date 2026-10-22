@@ -3,14 +3,14 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
 import { adopt, preload, asset, gateLoads, levelAssets, release } from '../src/assets.js';
-import { same } from './helpers.js';
+import { same, notSame } from './helpers.js';
 
 const model = () => gfx.group(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial({ map: new THREE.Texture() })));
 
 test('an asset copy shares its geometry and materials with every other copy', () => {
   adopt('test/a.glb', model());
   const a = asset('test/a.glb'), b = asset('test/a.glb');
-  assert.notEqual(a, b);
+  notSame(a, b);
   same(a.children[0].geometry, b.children[0].geometry);
   same(a.children[0].material, b.children[0].material);
   assert.ok(a.children[0].userData.shared, 'copies carry the shared flag');

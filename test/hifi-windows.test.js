@@ -77,7 +77,7 @@ test('the tile pieces keep the wall\'s pattern: u and v as one plane over the wh
 });
 
 // The triangle budget (the prototype's +9-17k a chunk): a face the camera can only see from above is left out above the highest
-// a camera rides (a section's 8 m, src/validate.js CAMERA_RANGES, + 0.3 x the rules' highest jump, 11.25 m: 11.4); seen from the
+// a camera rides (a section's 8 m, src/validate.js CAMERA_RANGES, + 0.3 x the rules' highest jump, 11.25 m = 11.375, rounded up to 11.5); seen from the
 // street it is a back face.
 test('no face looking up above RELIEF.eye (11.5 m): the bars\' tops and the sills\' reveals stop there', () => {
   assert.equal(RELIEF.eye, 11.5);
