@@ -615,8 +615,8 @@ test('HiFi lets the skyline through what the fog has fully hidden, and low-fi co
         assert.ok(v.indexOf('vFogWorld = bentWorld.xyz;') > v.indexOf('bentWorld.xyz += bendOffset'), 'taken after the bend: a hill\'s street fogs like the sky it rises into');
         assert.ok(!v.includes('- bendOffset( bentWorld.z ).y'), 'the lift no longer comes off');
         assert.ok(f.includes(MIX) && f.indexOf(MIX) < f.indexOf('#include <fog_fragment>') && f.includes('#define fogColor'), 'three\'s fog mixes toward the height fog colour');
-        const SKY = 'hFogColor = fogSky( hFogColor, normalize( vFogWorld - cameraPosition ).y, smoothstep( fogNear, fogFar, vFogDepth ) );';
-        assert.ok(f.indexOf(SKY) > f.indexOf(MIX) && f.indexOf(SKY) < f.indexOf('#define fogColor') && f.indexOf('vec3 fogSky(') < f.indexOf('void main() {'), 'then toward the dome by the view\'s elevation, as far as the fog is thick');
+        const SKY = '#define fogColor fogSky( hFogColor, normalize( vFogWorld - cameraPosition ).y, fogFactor )';
+        assert.ok(f.indexOf(SKY) > f.indexOf(MIX) && f.indexOf(SKY) < f.indexOf('#include <fog_fragment>') && f.indexOf('vec3 fogSky(') < f.indexOf('void main() {'), 'then toward the dome by the view\'s elevation, as far as three\'s own fogFactor is thick');
         assert.ok(hi.uniforms.uFogShade === gfx.fogShade && hi.uniforms.uFogHeight === gfx.fogHeight, 'shared uniforms the look sets per theme');
         assert.ok(hi.uniforms.uSkyTop === gfx.fogSkyTop && hi.uniforms.uSkyBottom === gfx.fogSkyBottom, 'the dome\'s colours, shared with the dome itself');
       } else assert.ok(!f.includes('uFogShade') && !f.includes('fogSky') && !('uFogShade' in hi.uniforms), 'a sprite keeps the plain fog');
@@ -631,7 +631,7 @@ test('low-fi\'s bent shaders are pinned: without hook.cutFog every program compi
     gfx.bendable(new M()).onBeforeCompile(s, null);
     got[lib] = createHash('sha256').update(s.vertexShader + '\0' + s.fragmentShader + '\0' + Object.keys(s.uniforms).sort().join()).digest('hex').slice(0, 16);
   }
-  assert.deepEqual(got, { toon: 'eb814d46f4b0bed2', standard: 'bb60a27b073dba39', sprite: '8d085bfbce9103d3' }, 'hashed at 159fb14 (three 0.186): a three upgrade re-pins, a gfx change must not');
+  assert.deepEqual(got, { toon: 'eb814d46f4b0bed2', standard: 'bb60a27b073dba39', sprite: '8d085bfbce9103d3' }, 'hashed on the untouched base (159fb14, passes on e01a1ff; three 0.186): a three upgrade re-pins, a gfx change must not');
 });
 
 test('far off, the fog gives way to the dome\'s colour at the fragment\'s elevation: near fragments keep the plain fog (Task 34 L-I)', () => {

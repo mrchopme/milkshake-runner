@@ -81,8 +81,8 @@ vec3 fogSky( vec3 fog, float dirY, float fogFactor ) {
   return mix( fog, sky, smoothstep( ${FOG_SKY[0].toFixed(3)}, ${FOG_SKY[1].toFixed(3)}, fogFactor ) );
 }`;
 const HFOG_VERT = '#include <project_vertex>\n  vFogWorld = bentWorld.xyz;'; // after the bend (patched over the include next): a hill's street fogs like the sky it rises into
-// three computes fogFactor inside fog_fragment, after this: the same linear one (engine.js builds a THREE.Fog) is taken here
-const HFOG_FRAG = '#ifdef USE_FOG\n  vec3 hFogColor = mix( uFogShade, fogColor, smoothstep( uFogHeight.x, uFogHeight.y, vFogWorld.y ) );\n  hFogColor = fogSky( hFogColor, normalize( vFogWorld - cameraPosition ).y, smoothstep( fogNear, fogFar, vFogDepth ) );\n  #define fogColor hFogColor\n#endif\n#include <fog_fragment>';
+// three computes fogFactor inside fog_fragment: the macro reads it there, so the sky mix takes three's own (linear or exp2)
+const HFOG_FRAG = '#ifdef USE_FOG\n  vec3 hFogColor = mix( uFogShade, fogColor, smoothstep( uFogHeight.x, uFogHeight.y, vFogWorld.y ) );\n  #define fogColor fogSky( hFogColor, normalize( vFogWorld - cameraPosition ).y, fogFactor )\n#endif\n#include <fog_fragment>';
 function cutFog(shader) {
   if (!hook.cutFog) return; // low-fi compiles three's fragment shaders as they are: no uniform, no discard
   const high = shader.vertexShader.includes('#include <project_vertex>');
