@@ -9,6 +9,7 @@ import { street, CROSS, WALK, FACADE_X, DASH, KERB, PAVE, EDGE, KERB_TONE, SIDE,
 import { buildings, CORNICE, GAP, BACK } from '../packs/hifi/lib/buildings.js';
 import { cityChunk } from '../packs/hifi/lib/city.js';
 import { SHOP_H, tintFor, tinted } from '../packs/hifi/lib/facade.js';
+import { RELIEF } from '../packs/hifi/lib/windows.js';
 import { furniture, FOOT, SEAM, CLEAR, RHYTHM, PITS, PLANTER, TINT } from '../packs/hifi/lib/furniture.js';
 import { ROAD_HALF } from '../src/world.js';
 import { DRIVE } from '../packs/hifi/lib/traffic.js';
@@ -85,28 +86,93 @@ test('buildings stand on the facade line: up to 0.9 m out above 4.5 m, only awni
 });
 
 // The −z faces the camera sees (Task 32, board 23): every block's end, not only the first and the cross street's, since the
-// stepped heights show any end above a shorter neighbour; the storefront band and the block's own tile in each tier.
-test('every block\'s -z end wears a storefront and facade from the ground to its roof, never bare body colour', () => {
+// stepped heights show any end above a shorter neighbour; the storefront band and the block's own tile in each tier. And the +z
+// end (Caedon's round-4 item 7, board 29 pick 5): on a bend the camera sees the far blocks' +z ends, bare they read as half built.
+test('both ends of every block wear a storefront and facade from the ground to its roof, never bare body colour', async () => {
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
-  for (const seed of [1, 2, 3]) for (const [z0, length] of [[0, 120], [240, 80]]) {
-    const g = chunk(seed, z0, length), blocks = g.userData.blocks, faces = [];
+  for (const id of ['downtown', 'midtown', 'uptown']) for (const seed of [1, 2, 3]) for (const [z0, length] of [[0, 120], [240, 80]]) {
+    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
+    const g = hifi.createChunk.call(theme, gfx, { z0, length, lanes, rng: rng(seed), theme }), blocks = g.userData.blocks, faces = [];
     g.traverse((m) => {
       if (!m.userData.building || m.material.vertexColors) return;
       const p = m.geometry.attributes.position;
       for (let i = 0; i < p.count; i += 3) {
         a.fromBufferAttribute(p, i); b.fromBufferAttribute(p, i + 1); c.fromBufferAttribute(p, i + 2);
         const nz = new THREE.Vector3().crossVectors(b.clone().sub(a), c.clone().sub(a)).normalize().z;
-        if (nz < -0.99) faces.push({ z: a.z, x: a.x, y: [Math.min(a.y, b.y, c.y), Math.max(a.y, b.y, c.y)] });
+        if (Math.abs(nz) > 0.99) faces.push({ nz: Math.sign(nz), z: a.z, x: a.x, y: [Math.min(a.y, b.y, c.y), Math.max(a.y, b.y, c.y)] });
       }
     });
-    assert.ok(blocks.length >= 8, `seed ${seed}: ${blocks.length} blocks`);
-    for (const k of blocks) {
-      const ys = faces.filter((f) => Math.abs(f.z - (k.z0 - 0.02)) < 1e-4 && Math.sign(f.x) === k.side).map((f) => f.y).sort((p, q) => p[0] - q[0]);
+    assert.ok(blocks.length >= 6, `${id} seed ${seed}: ${blocks.length} blocks`); // was 8 on downtown alone: midtown's 14-40 m frontages build fewer
+    for (const k of blocks) for (const [nz, at] of [[-1, k.z0 - 0.02], [1, k.z1 + 0.02]]) {
+      const ys = faces.filter((f) => f.nz === nz && Math.abs(f.z - at) < 1e-4 && Math.sign(f.x) === k.side).map((f) => f.y).sort((p, q) => p[0] - q[0]);
       let top = 0; for (const [lo, hi] of ys) if (lo <= top + 1e-4) top = Math.max(top, hi);
-      assert.ok(top >= k.h - 1e-4, `seed ${seed}, chunk ${z0}: the block at z ${k.z0.toFixed(2)} on side ${k.side} is finished to ${top.toFixed(2)} of ${k.h} m`);
+      assert.ok(top >= k.h - 1e-4, `${id} seed ${seed}, chunk ${z0}: the block at z ${k.z0.toFixed(2)} on side ${k.side} is finished on its ${nz < 0 ? '-z' : '+z'} end to ${top.toFixed(2)} of ${k.h} m`);
     }
     assert.ok(blocks.filter((k) => k.side === -1)[0].z0 - CORNICE.ret >= z0 - 1e-6, 'the first block leaves room for its cornice return');
   }
+});
+
+// The window relief (Task 33 pick 4, board 28; lib/windows.js) in every street theme: the tiles' frame faces on the facade line,
+// never past it (the heads and sills, 0.08 m, are the body's: the band test above), all of it inside the chunk; and the side
+// street's lots finished on both ends as the avenue's blocks are (round-4 item 7).
+// (the messages are built only on a failure: per vertex, a template string a pass made this test 40 s)
+const reliefChunks = async function* (seeds = 10) {
+  for (const id of ['downtown', 'midtown', 'uptown']) {
+    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
+    for (let seed = 1; seed <= seeds; seed++) {
+      const z0 = 120 * seed, g = hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }), tile = [];
+      let lots; g.traverse((m) => { lots ??= m.userData.lots; if (m.userData.building && !m.material.vertexColors) tile.push(m.geometry.attributes.position); });
+      yield { z0, g, at: `${id}, seed ${seed}`, tile, lots, blocks: g.userData.blocks, cross: g.userData.cross };
+    }
+  }
+};
+test('the relief\'s tile faces stand on the facade line, never past it, inside the chunk; the side street\'s lots wear both ends', async () => {
+  for await (const { z0, g, at, tile, lots } of reliefChunks()) {
+    const [lo, hi] = zSpan(g), axis = [];
+    assert.ok(lo >= z0 - 1e-6 && hi <= z0 + 120 + 1e-6, `${at}: ${lo.toFixed(2)}..${hi.toFixed(2)}`);
+    for (const p of tile) {
+      for (let i = 0; i < p.count; i++) if (p.getY(i) > SHOP_H + 1e-3 && Math.abs(p.getX(i)) < FACADE_X - 1e-6) assert.fail(`${at}: a tile ${(FACADE_X - Math.abs(p.getX(i))).toFixed(3)} m past the facade line at y ${p.getY(i).toFixed(2)}`);
+      for (let i = 0; i < p.count; i += 3) { // the triangles facing along x or z: [axis, sign, plane, centre on the other axis]
+        const ax = p.getX(i + 1) - p.getX(i), az = p.getZ(i + 1) - p.getZ(i), ay = p.getY(i + 1) - p.getY(i), bx = p.getX(i + 2) - p.getX(i), bz = p.getZ(i + 2) - p.getZ(i), by = p.getY(i + 2) - p.getY(i);
+        const nx = ay * bz - az * by, nz = ax * by - ay * bx, n = Math.hypot(nx, ay * bx - ax * bz, nz), cx = (p.getX(i) + p.getX(i + 1) + p.getX(i + 2)) / 3, cz = (p.getZ(i) + p.getZ(i + 1) + p.getZ(i + 2)) / 3;
+        if (Math.abs(nx) > 0.99 * n) axis.push(['x', Math.sign(nx), p.getX(i), cz]); else if (Math.abs(nz) > 0.99 * n) axis.push(['z', Math.sign(nz), p.getZ(i), cx]);
+      }
+    }
+    for (const o of lots.filter((q) => q.kind === 'side' || q.kind === 'end')) {
+      const [k, x] = o.kind === 'side' ? ['x', o.x] : ['z', o.z], span = o[k === 'x' ? 'z' : 'x'];
+      for (const [s, w] of [[-1, x[0] - 0.02], [1, x[1] + 0.02]]) assert.ok(axis.some(([a, sn, c, m]) => a === k && sn === s && Math.abs(c - w) < 1e-3 && m > span[0] && m < span[1]), `${at}: a ${o.kind} lot ${JSON.stringify(o)} bare on its ${s < 0 ? '-' : '+'}${k} end`);
+    }
+  }
+});
+
+// The relief stands where a runner sees it (Task 34 L-E, inside the prototype's triangle budget): a -z end's frame only above
+// a neighbour within 1 m (its street wall hides the rest), a back tower's ends too; every +z end (the main session's ruling: a
+// back face for every camera behind it, the bend only translates) flat, its storefront and tile kept; the back rows (behind the
+// avenue's blocks, the cross street's gap kept clear of them), the side street's end blocks (60 m down it) and its lots looking
+// +z (away from the runner, as its -z wall's lots) flat planes.
+test('the relief only where a runner sees it: a -z end above its neighbour; +z ends, back rows, end blocks and lots looking away flat', async () => {
+  const J = RELIEF.jamb;
+  let framed = 0, sides = 0;
+  for await (const { at, tile, lots, blocks, cross } of reliefChunks(6)) {
+    for (const k of blocks) for (const e of [-1, 1]) {
+      const n = blocks.find((q) => q.side === k.side && (e < 0 ? k.z0 - q.z1 : q.z0 - k.z1) > 0 && (e < 0 ? k.z0 - q.z1 : q.z0 - k.z1) < 1), hide = e > 0 ? Infinity : n ? n.setAt : 0, zf = e < 0 ? k.z0 - 0.02 - J : k.z1 + 0.02 + J;
+      for (const p of tile) for (let i = 0; i < p.count; i++) {
+        if (Math.abs(p.getZ(i) - zf) > 1e-4 || Math.sign(p.getX(i)) !== k.side) continue;
+        framed++;
+        if (p.getY(i) < hide - 1e-4) assert.fail(`${at}: block ${k.lot}'s ${e < 0 ? '-z' : '+z'} end framed at ${p.getY(i).toFixed(2)} m, under ${e > 0 ? 'nothing: a +z end looks away from every camera' : `its neighbour's ${hide} m`}`);
+      }
+    }
+    const away = lots.filter((q) => q.kind === 'side' && q.z[1] < cross.z);
+    sides += away.length;
+    for (const o of [...lots.filter((q) => q.kind === 'back' || q.kind === 'end'), ...away]) {
+      const out = (v, [a, b]) => Math.max(a - v, v - b, 0); // how far outside the footprint along one axis
+      for (const p of tile) for (let i = 0; i < p.count; i++) { // a frame face stands J out of its wall (a cornice is the body's)
+        const dx = out(p.getX(i), o.x), dz = out(p.getZ(i), o.z), inside = (dx === 0 || dx <= 0.25) && (dz === 0 || dz <= 0.25);
+        if (inside && Math.max(dx, dz) > 0.03) assert.fail(`${at}: a ${o.kind} lot's relief ${Math.max(dx, dz).toFixed(2)} m out of its wall at ${p.getX(i).toFixed(2)}, ${p.getY(i).toFixed(2)}, ${p.getZ(i).toFixed(2)}`);
+      }
+    }
+  }
+  assert.ok(framed > 0 && sides > 0, `${framed} framed end vertices, ${sides} lots looking away`);
 });
 
 // The block list (Task 32): buildings publish what they built, so signs and furniture anchor on real blocks. A contract: C3 and
@@ -144,7 +210,7 @@ test('a block\'s body is its facade tile\'s colour, tinted as the tile, and its 
   assert.deepEqual(want(0).getHexString(THREE.SRGBColorSpace), '404020', 'the tint halves the red');
   for (const seed of [1, 2, 3, 4]) {
     const blocks = [], g = buildings(gfx, { z0: 0, length: 120 }, style, rng(seed), { z: 50 }, blocks), c = new THREE.Color(), v = new THREE.Vector3();
-    let body; g.traverse((m) => { if (m.userData.building && m.material.vertexColors) body = m.geometry; });
+    let body; g.traverse((m) => { if (m.userData.building && m.material.vertexColors) { body = m.geometry; assert.equal(m.material.roughness, 0.45, 'the satin trim and reveals (Task 33 pick 4, board 28: was 0.8)'); } });
     const pos = body.attributes.position, col = body.attributes.color;
     for (const b of blocks) {
       let back = 0, corn = false;
@@ -374,7 +440,7 @@ test('the kerb is one value lighter than the paving, its road face shaded', () =
   const g = street(gfx, { z0: 0, length: 120, lanes }, flat, null); let kerb, walk;
   g.traverse((n) => { if (n.userData.kerb) kerb = n; if (n.userData.walk) walk = n; });
   assert.ok(Math.abs(kerb.material.color.r / walk.material.color.r - KERB_TONE.top) < 1e-6, 'the kerb top one value up');
-  assert.equal(kerb.material.map, walk.material.map, 'the kerb wears the paving\'s kerb band');
+  assert.ok(kerb.material.map === walk.material.map, 'the kerb wears the paving\'s kerb band');
   const n = kerb.geometry.attributes.normal, c = kerb.geometry.attributes.color, side = Math.sign(kerb.position.x);
   for (let i = 0; i < n.count; i++) assert.ok(Math.abs(c.getX(i) - (n.getX(i) * side < -0.5 ? KERB_TONE.face / KERB_TONE.top : 1)) < 1e-6, `vertex ${i}`);
 });
