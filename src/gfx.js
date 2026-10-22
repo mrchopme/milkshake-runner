@@ -68,7 +68,8 @@ export const fogHeight = { value: new THREE.Vector2(0, 1) };
 export const fogSkyTop = { value: new THREE.Color() }, fogSkyBottom = { value: new THREE.Color() };
 export const SKY_EDGE = 0.3; // the dome reaches its top colour at this dir.y (0.45 before Task 32, Caedon, board 22: a narrower pale band over the horizon). ponytail: calibration knob
 export const FOG_SKY = [0.6, 0.95]; // the fogFactor over which the fog gives way to the sky (Caedon, board 29 pick 5): all sky before the cut (0.999), so the cut shows no edge. ponytail: calibration knob
-const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+// GLSL's smoothstep in JavaScript, for the shader mirrors here and in look.js
+export const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 // The GLSL fogSky over plain numbers (linear rgb arrays, dirY the sight line's unit y): what the tests exercise; the GLSL is checked by eye.
 export function fogSky(fog, top, bottom, dirY, fogFactor) {
   const s = smooth(0, SKY_EDGE, dirY), k = smooth(FOG_SKY[0], FOG_SKY[1], fogFactor);

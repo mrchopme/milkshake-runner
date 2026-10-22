@@ -287,3 +287,9 @@ test('each scene\'s sun.dir is the light\'s travel and points ahead (z < 0, the 
 test('glossy materials keep the env at the shared REFLECT 0.4 (was 0.85; Caedon, board 29 pick 4: the old one mirrored every sun ahead)', () => {
   assert.equal(REFLECT, 0.4);
 });
+
+test('the dome and the rings\' foot read the bent shaders\' sky uniforms: gfx.fogSkyTop / fogSkyBottom, one object each (Task 34 L-I)', async () => {
+  // createLook needs WebGL, so this reads its source: the dome's top/bottom and the rings' uSkyTop/uSkyBottom are gfx's objects themselves
+  const src = (await import('node:fs')).readFileSync(new URL('../src/look.js', import.meta.url), 'utf8');
+  assert.ok(src.includes('uniforms: { top: fogSkyTop, bottom: fogSkyBottom,') && src.includes('uSkyTop: fogSkyTop, uSkyBottom: fogSkyBottom'), 'shared, so the street fogs into the very colours the dome paints');
+});

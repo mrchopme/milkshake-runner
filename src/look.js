@@ -6,7 +6,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CSM } from 'three/addons/csm/CSM.js';
 import { texture } from './assets.js';
-import { fogCut, fogShade, fogHeight, fogSkyTop, fogSkyBottom, fogSky, SKY_EDGE, heading, hook, bendOffset, bendStart } from './gfx.js';
+import { fogCut, fogShade, fogHeight, fogSkyTop, fogSkyBottom, fogSky, smooth, SKY_EDGE, heading, hook, bendOffset, bendStart } from './gfx.js';
 
 // The HiFi look (spec §4): tone mapping, sun shadows, studio reflections, a gradient sky and bloom, from a theme's `look`.
 // main.js loads this file only in HiFi sessions; without a look the engine renders exactly as before.
@@ -99,13 +99,12 @@ export const blendRig = (a, b, t) => typeof b === 'number' ? a * (1 - t) + b * t
 
 // The skyline ring's texel, as its shader computes it (RING_FRAG) over the same rig: what the tests exercise; the GLSL is checked
 // by eye. rgba is the image's texel, v its height up the ring (0 foot, 1 top), up its height in metres over the camera as if the
-// ring were unmoved (the shader takes off what ringShift slid it, vRingShift), dirY the sight line's unit y as drawn.
+// ring were unmoved (the shader takes off how far ringShift lifted it, vRingShift), dirY the sight line's unit y as drawn.
 // With a skylineHaze: the texel times `mul`, its luma pulled `flatten` of the way to the haze colour's (the window grids go, the
 // hue stays), mixed toward the haze colour by mix[0] at the foot to mix[1] at the top; under `foot` m about eye level it turns
 // opaque. Without one, the foot fades over its lowest RING.fade, as before Task 32. Either way the foot takes the dome's colour
 // along its sight line, which is what the fogged street turns to by the fog cut (gfx.fogSky at full fog, Task 34 L-I), so the
 // two meet with no band at any height fog.
-const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 export function ringTexel([r, g, b, a], { v, up, dirY }, { haze: h, fog, top, bottom }) {
   let c = [r, g, b].map((x, i) => x * h.mul[i]);
   const k = 1 + (h.luma / Math.max(luma(c), 0.02) - 1) * h.flatten, m = h.mix[0] + (h.mix[1] - h.mix[0]) * v;
@@ -198,7 +197,7 @@ const RING_FRAG = /* glsl */`#include <map_fragment>
   vec3 rc = diffuseColor.rgb * hazeMul;
   rc = min( rc * mix( 1.0, hazeLuma / max( dot( rc, vec3( 0.2126, 0.7152, 0.0722 ) ), 0.02 ), hazeFlatten ), vec3( 1.0 ) );
   rc = mix( rc, hazeColor, mix( hazeMix.x, hazeMix.y, vRingY ) );
-  float ringUp = vRingWorld.y - cameraPosition.y - vRingShift.y;
+  float ringUp = vRingWorld.y - cameraPosition.y - vRingShift;
   vec3 footColor = mix( uSkyBottom, uSkyTop, smoothstep( 0.0, ${SKY_EDGE.toFixed(3)}, normalize( vRingWorld - cameraPosition ).y ) );
   float ringFoot = hazeOn > 0.5 ? 1.0 - smoothstep( hazeFoot, hazeFoot + ${RING.band.toFixed(1)}, ringUp ) : 1.0 - smoothstep( 0.0, ${RING.fade.toFixed(3)}, vRingY );
   diffuseColor = vec4( mix( rc, footColor, ringFoot ), hazeOn > 0.5 ? max( diffuseColor.a, ringFoot ) : diffuseColor.a );`;
@@ -236,8 +235,8 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
     const mat = new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
     mat.onBeforeCompile = (sh) => {
       Object.assign(sh.uniforms, ringU);
-      sh.vertexShader = sh.vertexShader.replace('void main() {', `varying float vRingY;\nvarying vec3 vRingWorld, vRingShift;\nvoid main() {\n  vRingY = uv.y;\n  vRingShift = modelMatrix[ 3 ].xyz - cameraPosition - vec3( 0.0, ${RING.base.toFixed(1)}, 0.0 );\n  vRingWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;`); // a ring's meshes sit at its group's origin
-      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, uSkyTop, uSkyBottom;\nuniform vec2 hazeMix;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot;\nvarying float vRingY;\nvarying vec3 vRingWorld, vRingShift;\nvoid main() {')
+      sh.vertexShader = sh.vertexShader.replace('void main() {', `varying float vRingY, vRingShift;\nvarying vec3 vRingWorld;\nvoid main() {\n  vRingY = uv.y;\n  vRingShift = modelMatrix[ 3 ].y - cameraPosition.y - ${RING.base.toFixed(1)};\n  vRingWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;`); // a ring's meshes sit at its group's origin
+      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, uSkyTop, uSkyBottom;\nuniform vec2 hazeMix;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot;\nvarying float vRingY, vRingShift;\nvarying vec3 vRingWorld;\nvoid main() {')
         .replace('#include <map_fragment>', RING_FRAG);
     };
     return mat;
