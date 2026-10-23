@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import * as gfx from './gfx.js';
-import { generate, normalizeLevel, rng, sectionAt, curveSegments, cameraAt } from './generator.js';
+import { generate, normalizeLevel, rng, sectionAt, curveSegments, turnedBy, cameraAt } from './generator.js';
 import { laneX, obstacleBox, updateObstacle, pull } from './rules.js';
 import { safeCall } from './registry.js';
 
@@ -39,6 +39,9 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
   const drop = (obj) => { root.remove(obj); gfx.dispose(obj); };
   const dropView = (item, label) => { if (item.view.dispose) safeCall(`${label} ${item.id} dispose`, () => item.view.dispose()); drop(item.view.object); };
   const fallbackView = () => ({ object: gfx.box(1, 1, 1, '#ff00ff') }); // a loud pink block instead of a crash
+  // A section's share of its hill: its theme's look.hill under a HiFi look (hook.cutFog), else the whole hill, so low-fi bends as before
+  const hillOf = (s) => (gfx.hook.cutFog ? registry.theme[s.theme.id]?.look?.hill ?? 1 : 1);
+  const themeAt = (z) => { const s = sectionAt(norm, z); return { ...registry.theme[s.theme.id], ...s.theme }; }; // the registered theme under the section's overrides
 
   function build() {
     const length = Math.min(CHUNK, end - builtTo); // the last chunk stops exactly at `end`, so no street runs past the finish line
@@ -59,14 +62,13 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
     }
     for (const p of props) {
       p.def = registry.prop[p.id];
-      p.view = safeCall(`prop ${p.id} createView`, () => p.def.createView(gfx, { z: p.z, length: p.length, lanes }), null) ?? fallbackView();
+      // theme: the section's at the prop's own z (a chunk's is at its start), for a look's sake (the HiFi stone props read look.stone); the shipped props ignore it
+      p.view = safeCall(`prop ${p.id} createView`, () => p.def.createView(gfx, { z: p.z, length: p.length, lanes, theme: themeAt(p.z) }), null) ?? fallbackView();
       p.view.object.position.set(0, 0, p.z);
       root.add(gfx.bend(p.view.object));
       live.props.push(p);
     }
-    const section = sectionAt(norm, builtTo);
-    const themeDef = registry.theme[section.theme.id];
-    const theme = { ...themeDef, ...section.theme };
+    const theme = themeAt(builtTo), themeDef = registry.theme[theme.id];
     const args = { z0: builtTo, length, lanes, rng: rs, theme };
     const g = safeCall(`theme ${theme.id} createChunk`, () => (themeDef.createChunk ? themeDef.createChunk(gfx, args) : defaultChunk(gfx, args)), null) ?? new THREE.Group();
     root.add(gfx.bend(g));
@@ -75,6 +77,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
   }
 
   function update(run, dt) {
+    gfx.time.value = run.time;
     while (builtTo < Math.min(end, run.z + AHEAD)) build();
     const behind = run.z - BEHIND;
     for (const list of [live.obstacles, live.pickups, live.props]) { // a prop stays until its far end is behind
@@ -94,7 +97,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
       if (p.view.update) safeCall(`pickup ${p.id} update`, () => p.view.update(p, run, dt));
     }
     for (const p of live.props) if (p.view.update) safeCall(`prop ${p.id} update`, () => p.view.update(p, run, dt));
-    gfx.setBend({ origin: run.z, segments: curveSegments(norm, run.z, builtTo, seed) }); // every stretch the built street lies in, so nothing pops when it enters view; nothing eases, the street is the anchor
+    gfx.setBend({ origin: run.z, segments: curveSegments(norm, run.z, builtTo, seed, hillOf), turned: turnedBy(norm, run.z + gfx.DEAD, seed) }); // every stretch the built street lies in, so nothing pops when it enters view; nothing eases, the street is the anchor
   }
 
   const skyAt = (z) => {

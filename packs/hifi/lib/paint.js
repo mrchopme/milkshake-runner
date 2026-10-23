@@ -1,0 +1,61 @@
+// A glossy copy of a generated material: every standard field (maps, colour, normal scale, AO, side, alpha, vertex colours),
+// then the extras. Sub-project 1's taxi copied a subset; this is the rule for every generated model (final review, minor).
+// setValues, not Object.assign: it turns '#ffffff' into the material's Color instead of replacing the Color with a string.
+// The source must be a MeshStandardMaterial. userData (the shared flag) is copied on purpose: build a gloss once and share it,
+// as the taxi does, since clearing the flag would let the first despawn dispose the shared paint.
+export function gloss(T, source, extra = {}) {
+  const p = new T.MeshPhysicalMaterial();
+  T.MeshStandardMaterial.prototype.copy.call(p, source);
+  p.defines.PHYSICAL = ''; // the standard copy resets defines to { STANDARD }; without PHYSICAL, ior and specular do nothing
+  p.setValues(extra);
+  return p;
+}
+// The satin coat the painted obstacles (the taxi and Milkshake wear their own), the manhole cover and the pickups wear, and the reflections a prop keeps below look.js's
+// REFLECT (taxi, pickups). ponytail: calibration knobs — 0.3 / 0.4 (the obstacles were 0.6 / 0.2, the pickups 1 / 0.15, at look.js's
+// 0.85 until Caedon's board 29 pick 4, 2026-10-20): the full coat mirrored the sun ahead and blew the jug out into a white column at dusk.
+export const SATIN = { clearcoat: 0.3, clearcoatRoughness: 0.4 }, REFLECT_PROP = 0.3;
+// An overlay's paint, made once per generated material: paint(gfx, source) returns make(T, source, gfx), built the first time
+// that material is seen. Keyed by the material itself (a WeakMap), so every copy of a model shares its paint, a model reloaded
+// after assets.release (new materials) gets fresh paint instead of showing raw, and a released material's paint goes with it.
+export function painter(make) {
+  const paints = new WeakMap();
+  return (gfx, source) => {
+    if (!paints.has(source)) paints.set(source, freeWith(source, make(gfx.three, source, gfx)));
+    return paints.get(source);
+  };
+}
+// Disposes a paint when assets.release disposes the generated material it was made from. The paint is flagged shared, so nothing
+// else frees it, and the look's cascade hook holds every lit material in CSM's Map until its dispose: without this, each level
+// cycle would pin one more paint. The textures the paint made (glow canvases, a recoloured map) go with it; the source's own
+// maps are left to whoever disposes the source (release frees them first), so a paint never frees a map someone else still holds.
+// The source may be a loaded texture the material wears (lib/materials.js): it is the one disposing, so it is skipped too.
+export function freeWith(source, paint) {
+  source.addEventListener('dispose', () => {
+    const own = Object.values(source);
+    for (const t of Object.values(paint)) if (t?.isTexture && t !== source && !own.includes(t)) t.dispose();
+    paint.dispose();
+  });
+  return paint;
+}
+// The colour map redrawn texel by texel (`each(px, i)` rewrites the RGB at px[i]), or null without a map or a canvas (Node).
+// Read the way the source map is (flipY, colour space, channel, wrap); offset and repeat are not copied, so a map that uses
+// them needs its UVs in [0,1].
+export function redraw(T, map, size, each) {
+  if (!map?.image || typeof OffscreenCanvas === 'undefined') return null;
+  const canvas = new OffscreenCanvas(size, size), ctx = canvas.getContext('2d');
+  ctx.drawImage(map.image, 0, 0, size, size);
+  const img = ctx.getImageData(0, 0, size, size), px = img.data;
+  for (let i = 0; i < px.length; i += 4) each(px, i);
+  ctx.putImageData(img, 0, 0);
+  const t = new T.CanvasTexture(canvas);
+  Object.assign(t, { flipY: map.flipY, colorSpace: map.colorSpace, channel: map.channel, wrapS: map.wrapS, wrapT: map.wrapT });
+  return t;
+}
+// The colour map with only the texels `test` accepts, as an emissive map: a lamp glows in its own shape (Caedon, 2026-10-09).
+export const glowMap = (T, map, test, size = 1024) => redraw(T, map, size, (px, i) => { if (!test(px[i], px[i + 1], px[i + 2])) px[i] = px[i + 1] = px[i + 2] = 0; });
+// The same mask as a roughness map: `on` where `test` accepts a texel, `off` elsewhere; data, so no colour space.
+export function roughMap(T, map, test, on, off, size = 1024) {
+  const t = redraw(T, map, size, (px, i) => { px[i] = px[i + 1] = px[i + 2] = Math.round(255 * (test(px[i], px[i + 1], px[i + 2]) ? on : off)); });
+  if (t) t.colorSpace = T.NoColorSpace;
+  return t;
+}

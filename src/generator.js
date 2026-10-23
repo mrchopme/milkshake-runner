@@ -72,7 +72,9 @@ export const FINISH_STRAIGHT_M = 120; // a finite level's last metres are straig
 
 // The stretches of street in [fromZ, toZ) that bend, { from, to, turn, hill } ordered by from, each with its real start and end lines.
 // A section's curve is one stretch; "random" is one stretch per RANDOM_CURVE_M with a seeded pick; nothing runs into the finish straight.
-export function curveSegments(norm, fromZ, toZ, seed = 0) {
+// hillOf(section) scales a section's hill (world.js: its theme's look.hill, HiFi only; 0 is level water on a bridge); 1, the
+// default, is the level's own numbers exactly. The bend is visual only, so this never touches what plays.
+export function curveSegments(norm, fromZ, toZ, seed = 0, hillOf = () => 1) {
   const end = norm.length == null ? Infinity : norm.length - FINISH_STRAIGHT_M;
   const out = [];
   const push = (from, to, turn, hill) => {
@@ -84,15 +86,21 @@ export function curveSegments(norm, fromZ, toZ, seed = 0) {
   };
   for (const s of norm.sections) {
     if (!s.curve || s.to <= fromZ || s.from >= Math.min(toZ, end)) continue;
+    const f = hillOf(s), share = (hill) => (f ? hill * f : 0); // f 0 is +0, never a downhill's -0
     if (s.curve === 'random') {
       for (let k = Math.floor(Math.max(s.from, fromZ) / RANDOM_CURVE_M); k * RANDOM_CURVE_M < Math.min(s.to, toZ, end); k++) {
         const pick = rng((seed + 0x9e3779b9 * (k + 1)) >>> 0);
-        push(Math.max(s.from, k * RANDOM_CURVE_M), Math.min(s.to, (k + 1) * RANDOM_CURVE_M), [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], [-0.6, 0, 0.6][Math.floor(pick() * 3)]);
+        push(Math.max(s.from, k * RANDOM_CURVE_M), Math.min(s.to, (k + 1) * RANDOM_CURVE_M), [-1, -0.5, 0, 0.5, 1][Math.floor(pick() * 5)], share([-0.6, 0, 0.6][Math.floor(pick() * 3)]));
       }
-    } else push(s.from, s.to, s.curve.turn ?? 0, s.curve.hill ?? 0);
+    } else push(s.from, s.to, s.curve.turn ?? 0, share(s.curve.hill ?? 0));
   }
   return out;
 }
+
+// How far the street has turned by z: each stretch's turn times its metres before z (turn·m, positive to the right as `turn`
+// is). A sum over metres, so splitting or merging stretches never changes it: continuous in z, whatever window merged them.
+// ponytail: walks every stretch from 0, so "random" re-picks z / 240 m of them a call (40 at 10 km); keep a running sum if that shows.
+export const turnedBy = (norm, z, seed = 0) => curveSegments(norm, 0, z, seed).reduce((sum, s) => sum + s.turn * (Math.min(z, s.to) - s.from), 0);
 
 function pick(weights, r) {
   const entries = Object.entries(weights);

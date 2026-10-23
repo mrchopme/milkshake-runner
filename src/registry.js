@@ -2,8 +2,13 @@
 export const KIND_DIR = { obstacle: 'obstacles', pickup: 'pickups', prop: 'props', theme: 'themes', character: 'characters', ending: 'endings' };
 const KINDS = Object.keys(KIND_DIR);
 const PLAIN = /^[a-z0-9_-]+$/, NAMESPACED = /^[a-z0-9_-]+\/[a-z0-9_-]+$/, HEX = /^#[0-9a-fA-F]{6}$/;
-const ASSET = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.glb$/; // a .glb under public/: lowercase, no leading slash, no ..
-const LOOK_RANGES = { exposure: [0.2, 3], ambient: [0, 3], env: [0, 3] };
+const ASSET = /^[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\.(?:glb|webp|png)$/; // a model or an image under public/: lowercase, no leading slash, no ..
+const LOOK_RANGES = {
+  exposure: [0.2, 3],
+  ambient: [0, 6], // to 6 (Task 32): the hemisphere is now the main fill
+  env: [0, 3],
+  hill: [0, 1], // the share of its sections' hill the HiFi street shows (Task 33 pick 6): 0 levels a bridge, never more than the level's own
+};
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 const fn = (v) => typeof v === 'function';
@@ -40,6 +45,7 @@ const CHECKS = {
     if (m.stroke !== undefined && typeof m.stroke !== 'boolean') e.push('stroke must be true or false');
     if (m.label !== undefined && !(typeof m.label === 'string' && m.label.length >= 1 && m.label.length <= 3)) e.push('label must be 1-3 characters');
     if (m.createView !== undefined && !fn(m.createView)) e.push('createView must be a function');
+    if (m.createWorn !== undefined && !fn(m.createWorn)) e.push('createWorn must be a function');
     if (m.name !== undefined && !(typeof m.name === 'string' && m.name.length >= 1 && m.name.length <= 24)) e.push('name must be 1-24 characters');
     if (m.blurb !== undefined && !(typeof m.blurb === 'string' && m.blurb.length >= 1 && m.blurb.length <= 80)) e.push('blurb must be 1-80 characters');
     return e;
@@ -48,7 +54,7 @@ const CHECKS = {
   prop(m) {
     const e = [];
     if (!num(m.length, 1, 100)) e.push('length in metres (1-100) is required');
-    if (!fn(m.createView)) e.push('createView(gfx, { z, length, lanes }) is required');
+    if (!fn(m.createView)) e.push('createView(gfx, { z, length, lanes, theme }) is required');
     return e;
   },
   theme(m) {
@@ -80,23 +86,47 @@ const CHECKS = {
   },
 };
 
+// The look's object keys (Task 32) and their fields: [check, what it must be].
+const hex = [(v) => HEX.test(v), 'a hex colour'], range = (lo, hi) => [(v) => num(v, lo, hi), `${lo} to ${hi}`];
+const pair = (lo, hi, rising) => [(v) => Array.isArray(v) && v.length === 2 && v.every((x) => num(x, lo, hi)) && (!rising || v[0] < v[1]), `[a, b], each ${lo} to ${hi}${rising ? ', a < b' : ''}`]; // rising: smoothstep's edges
+const LOOK_SHAPES = {
+  hemi: { sky: hex, ground: hex },
+  fog: { color: hex, near: range(0, 400), pale: range(0, 1), shade: hex, y: pair(-50, 300, true) },
+  skylineHaze: { color: hex, mul: hex, mix: pair(0, 1), flatten: range(0, 1), foot: range(-50, 50) },
+  disc: { size: range(0, 10), core: range(0, 20), halo: range(0, 5), spread: range(0.1, 90), color: hex },
+};
 // A theme's HiFi look (spec §4), every field optional. Used only when the engine has a look pipeline (src/look.js).
 export function checkLook(l) {
   if (!isObj(l)) return ['look must be an object'];
   const e = [];
-  for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'bloom'].includes(k)) e.push(`look: unknown key "${k}"`);
+  for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'skyBottom', 'hemi', 'fog', 'skylineHaze', 'disc', 'bloom', 'skyline', 'skylineHeight', 'hill', 'stone'].includes(k)) e.push(`look: unknown key "${k}"`);
   for (const [k, [lo, hi]] of Object.entries(LOOK_RANGES)) if (l[k] !== undefined && !num(l[k], lo, hi)) e.push(`look.${k} must be ${lo} to ${hi}`);
-  if (l.skyTop !== undefined && !HEX.test(l.skyTop)) e.push('look.skyTop must be a hex colour');
+  for (const k of ['skyTop', 'skyBottom', 'stone']) if (l[k] !== undefined && !HEX.test(l[k])) e.push(`look.${k} must be a hex colour`);
+  // the fill's colours, the fog per scene, the skyline's haze and the sun's disc: each object takes only its own fields
+  for (const [k, shape] of Object.entries(LOOK_SHAPES)) {
+    if (l[k] === undefined) continue;
+    if (!isObj(l[k])) { e.push(`look.${k} must be an object`); continue; }
+    for (const [f, v] of Object.entries(l[k])) {
+      if (!shape[f]) e.push(`look.${k} may only set ${Object.keys(shape).join(', ')}`);
+      else if (!shape[f][0](v)) e.push(`look.${k}.${f} must be ${shape[f][1]}`);
+    }
+  }
+  if (l.skyline !== undefined) {
+    const s = [].concat(l.skyline), img = (p) => typeof p === 'string' && ASSET.test(p) && !p.endsWith('.glb'), near = s.at(-1); // the last is the near ring's, which may be a list
+    if (!(s.length >= 1 && s.length <= 2 && s.slice(0, -1).every(img) && (img(near) || (Array.isArray(near) && near.length >= 1 && near.length <= 8 && near.every(img))))) e.push('look.skyline must be one or two image paths under public/ (the near one may be a list of 1 to 8)');
+  }
+  if (l.skylineHeight !== undefined && !(Array.isArray(l.skylineHeight) && l.skylineHeight.length === 2 && l.skylineHeight.every((h) => num(h, 10, 400)))) e.push('look.skylineHeight must be [far, near], each 10 to 400 metres');
   if (l.sun !== undefined) {
-    if (!isObj(l.sun) || Object.keys(l.sun).some((k) => !['color', 'intensity'].includes(k))) e.push('look.sun may only set color and intensity');
+    if (!isObj(l.sun) || Object.keys(l.sun).some((k) => !['color', 'intensity', 'dir'].includes(k))) e.push('look.sun may only set color, intensity and dir');
     else {
       if (l.sun.color !== undefined && !HEX.test(l.sun.color)) e.push('look.sun.color must be a hex colour');
       if (l.sun.intensity !== undefined && !num(l.sun.intensity, 0, 10)) e.push('look.sun.intensity must be 0 to 10');
+      if (l.sun.dir !== undefined && !(Array.isArray(l.sun.dir) && l.sun.dir.length === 3 && l.sun.dir.every((v) => Number.isFinite(v)) && l.sun.dir[1] < 0)) e.push('look.sun.dir must be [x, y, z] pointing down (y < 0)');
     }
   }
   if (l.bloom !== undefined) {
     if (!isObj(l.bloom) || Object.keys(l.bloom).some((k) => !['strength', 'threshold', 'radius'].includes(k))) e.push('look.bloom may only set strength, threshold and radius');
-    else for (const [k, hi] of [['strength', 3], ['threshold', 1], ['radius', 1]]) if (l.bloom[k] !== undefined && !num(l.bloom[k], 0, hi)) e.push(`look.bloom.${k} must be 0 to ${hi}`);
+    else for (const [k, hi] of [['strength', 3], ['threshold', 3], ['radius', 1]]) if (l.bloom[k] !== undefined && !num(l.bloom[k], 0, hi)) e.push(`look.bloom.${k} must be 0 to ${hi}`); // the bloom reads the half-float HDR scene, so a threshold may pass 1
   }
   return e;
 }
@@ -106,13 +136,13 @@ export function checkModule(m) {
   if (!KINDS.includes(m.kind)) return [`kind must be one of ${KINDS.join(', ')}`];
   if (typeof m.id !== 'string' || !(PLAIN.test(m.id) || NAMESPACED.test(m.id))) return ['id must be a-z0-9_- (built-in) or handle/name (community)'];
   const e = CHECKS[m.kind](m);
-  // Any module may list files the game preloads before play (src/assets.js); only .glb loads today.
-  if (m.assets !== undefined && !(Array.isArray(m.assets) && m.assets.every((a) => typeof a === 'string' && ASSET.test(a)))) e.push('assets must be a list of .glb files under public/, like "hifi/model.glb" (lowercase)');
+  // Any module may list files the game preloads before play (src/assets.js): .glb models, .webp and .png images.
+  if (m.assets !== undefined && !(Array.isArray(m.assets) && m.assets.every((a) => typeof a === 'string' && ASSET.test(a)))) e.push('assets must be a list of .glb, .webp or .png files under public/, like "hifi/model.glb" (lowercase)');
   return e;
 }
 
 // Pack modules (packs/<pack>/<kind>s/<id>.js) re-skin a registered module: how it looks, never how it plays.
-export const SKIN_FIELDS = { obstacle: ['createView'], pickup: ['createView'], prop: ['createView'], character: ['createView'], theme: ['createChunk', 'look'], ending: [] };
+export const SKIN_FIELDS = { obstacle: ['createView'], pickup: ['createView', 'createWorn'], prop: ['createView'], character: ['createView'], theme: ['createChunk', 'look'], ending: [] };
 const PACK_PATH = /^packs\/[a-z0-9_-]+\/([a-z]+)\/(.+)\.js$/;
 
 // entries: [{ path: 'packs/<pack>/<kind>s/<id>.js', module }]. Pure. Returns a new registry with each overlay merged over
@@ -141,7 +171,7 @@ export function applyPack(registry, entries) {
 
 // Browser loader for one pack. Lazy: a low-fi session never downloads pack code.
 export async function loadPack(name, files = import.meta.glob('../packs/**/*.js', { import: 'default' })) {
-  const mine = Object.entries(files).filter(([p]) => p.startsWith(`../packs/${name}/`));
+  const mine = Object.entries(files).filter(([p]) => p.startsWith(`../packs/${name}/`) && !p.startsWith(`../packs/${name}/lib/`)); // lib/ holds the pack's helpers
   return Promise.all(mine.map(async ([p, load]) => ({ path: p.replace(/^(\.\.\/)+/, ''), module: await safeLoad(p, load) }))); // a file that fails to load comes back empty, and applyPack lists it
 }
 
