@@ -93,7 +93,7 @@ export function buildings(gfx, args, style, r, cross, blocks = []) {
     return new T.Color().setRGB(...c.map((v) => v / 255), T.SRGBColorSpace);
   };
   // Every facade wall goes through the window relief (lib/windows.js): tile f's glass on the wall line, its centre (x, z), turned
-  // `rot` from facing +z (wall()'s turns: +x pi/2, -x -pi/2, -z pi), w wide over y0..y1, its cells from `base`, clipped under `top`
+  // `rot` from facing +z (the turns: +x pi/2, -x -pi/2, -z pi; wall() itself takes a side only), w wide over y0..y1, its cells from `base`, clipped under `top`
   const J = RELIEF.jamb, TURN = (face) => (face > 0 ? Math.PI / 2 : -Math.PI / 2);
   const stamp = (f, fm, color, rot, x, z, w, y0, y1, base = SHOP_H, top = y1, flat = false) => {
     const rel = relief(T, { w, y0, y1, base, top, open: flat ? null : OPENINGS[style.facades?.[f]] ?? null, glass: style.tileClass?.[f] === 'g', color, trim });
