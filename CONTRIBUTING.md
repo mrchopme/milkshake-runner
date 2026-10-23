@@ -120,7 +120,8 @@ while the effect lasts and is dropped when it ends.
 // content/props/ari/arch.js
 export default {
   kind: 'prop', id: 'ari/arch', length: 2,   // metres of street it occupies (1-100); the engine places it at the road's centre
-  createView(gfx, { z, length, lanes }) {    // lanes: { count, width, roadHalf }
+  createView(gfx, { z, length, lanes, theme }) {  // lanes: { count, width, roadHalf }; theme: the section's at the prop's own z (its
+                                                //   module under the level's overrides, as createChunk gets it for a chunk's start); ignore it if unneeded
     const x = lanes.roadHalf + 0.5;
     return { object: gfx.group(gfx.box(0.6, 6, 0.6, '#3f8a4c', -x, 3, 1), gfx.box(0.6, 6, 0.6, '#3f8a4c', x, 3, 1)) }; // optional update(p, run, dt), dispose()
   },
@@ -140,7 +141,7 @@ export default {
 ```
 
 A theme may also carry a `look`, used only in HiFi: `{ exposure, sun: { color, intensity, dir }, ambient, env, skyTop,
-skyBottom, hemi, fog, skylineHaze, disc, bloom: { strength, threshold, radius }, skyline, skylineHeight, hill }`, every field
+skyBottom, hemi, fog, skylineHaze, disc, bloom: { strength, threshold, radius }, skyline, skylineHeight, hill, stone }`, every field
 optional and range-checked like the rest. `skyTop` is the top of the sky gradient. `sun.dir` is the way the sunlight
 travels, `[x, y, z]` with y below 0 (z below 0 puts the sun ahead of the runner). `ambient` (0–6) is the fill's strength.
 `skyline` is one or two images from the theme's `assets` wrapped round the horizon (two: the
@@ -166,6 +167,8 @@ through every turn and slide with it, on turns and hills, while the sky dome hol
 - `hill`: how much of its sections' hill the HiFi street shows (0–1, 1 by default). It scales the whole section's bend, deck
   included: 0 keeps a bridge section level, with its deck, water and far shore at one height. Turns are untouched. Low-fi
   always shows the level's own hill, and play never sees the bend.
+- `stone`: a hex, the tint of the HiFi stone props (the overpass and the tunnel) in this theme; without it they wear the
+  bridge piers' stone.
 
 Under a look the engine also draws every bent object without frustum culling (the bend moves it off the bounds three culls
 by), so a module's own `frustumCulled` does not survive `gfx.bend`; low-fi culls as three does.
