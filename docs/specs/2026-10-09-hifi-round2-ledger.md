@@ -807,7 +807,7 @@ The two lanes the stop left were built ONE AT A TIME, each by one fresh Opus imp
 - L-I: `dress` and `PARAPET` live in `props/overpass.js` (the resolution put `PARAPET` with the props; `dress` is ~30 lines); `bridge.js` untouched (`stone()` was already exported). Cost: a prop-to-prop import; `lib/stonework.js` when a third prop wants it.
 - L-I: culling off outright under `hook.cutFog`, not padded spheres (the brief's first option; +0 draws in the view). Cost: +31–36 shadow draw calls a frame.
 - Main session: the fix round's per-face UV projection (the review measured 10.7 % / 9.9 % of the overpass / tunnel area stretched ≥ 2× under the per-vertex one, the fix round 12.2 % / 10.2 % on the real GLBs, spans to 90 m in the tunnel; 0 % and ≤ 3.9 / 11.8 m after) costs unindexed stone copies, ~1.6 MB a model, built once and shared.
-- Main session (the whole-branch review, 2026-10-22, APPROVE WITH FIXES: 35 findings, 6 Important of which 2 confirmed by the skeptics and 4 downgraded): the abutment clamp and the last strict compares fixed in 9f8fa3a; left for a later round, each recorded in `task-34-final-review.md`: the side street's inside-the-chunk test passes vacuously if the ground flags go missing (`city.test.js:289`), the `REFLECT` test pins the literal only, `wall()`'s dead `axis 'z'` branch, L-B's car bounds union dead under HiFi now that bent meshes are never culled (kept: still right if culling returns), `STONE_TINT` copying `PIER_COLORS[2]` by value, the satin pair hardcoded in seven files, the test-side theme-merge one-liner, `dimEnv`'s name.
+- Main session (the whole-branch review, 2026-10-22, APPROVE WITH FIXES: 35 findings, 6 Important of which 2 confirmed by the skeptics and 4 downgraded): the abutment clamp and the last strict compares fixed in 9f8fa3a; left for a later round, each recorded in `task-34-final-review.md` (all done 2026-10-23, see Lanes L-K and L-J below): the side street's inside-the-chunk test passes vacuously if the ground flags go missing (`city.test.js:289`), the `REFLECT` test pins the literal only, `wall()`'s dead `axis 'z'` branch, L-B's car bounds union dead under HiFi now that bent meshes are never culled (kept: still right if culling returns), `STONE_TINT` copying `PIER_COLORS[2]` by value, the satin pair hardcoded in seven files, the test-side theme-merge one-liner, `dimEnv`'s name.
 
 #### Tests re-pinned (each with a one-line why in the test)
 
@@ -845,4 +845,64 @@ Before frames on d89e3a6 (`t34-b4-before-d89e3a6.jpg`), L-E on decba8f from the 
 
 #### Close-out (2026-10-22)
 
-The Task 33 + 34 build is complete on `hi-fi-city` at 9f8fa3a (plus this ledger commit): seven lanes merged, the whole-branch review's fixes in and re-reviewed (Sonnet: the new 5 m abutment case fails on the pre-fix `bridge.js`; of 521 assert calls under `test/` none compares THREE objects strictly), 330 tests, `npm run build` green, low-fi byte-identical, 0 credits, no downloads, no installs. Left for a later round, each recorded above: the props' one stone tint (pass the theme), the tunnel's lamp globes (sample Tripo's texels), `downtown-04`'s rect per bay, the partial window at a wall's end.
+The Task 33 + 34 build is complete on `hi-fi-city` at 9f8fa3a (plus this ledger commit): seven lanes merged, the whole-branch review's fixes in and re-reviewed (Sonnet: the new 5 m abutment case fails on the pre-fix `bridge.js`; of 521 assert calls under `test/` none compares THREE objects strictly), 330 tests, `npm run build` green, low-fi byte-identical, 0 credits, no downloads, no installs. Left for a later round, each recorded above: the props' one stone tint (pass the theme), the tunnel's lamp globes (sample Tripo's texels), `downtown-04`'s rect per bay, the partial window at a wall's end (all four done 2026-10-23, see Lanes L-K and L-J below).
+
+### Lanes L-K and L-J (2026-10-23): the leftovers, on Caedon's "handle all this"
+
+Point-in-time snapshot, written 2026-10-23 by the same side session, against `hi-fi-city` from 6d90077 to a4ef076. Caedon's word (2026-10-22): "handle all this" (the follow-ups the subsection above left for a later round and the whole-branch review's Minors and Nits), then the move of the whole game into PulsePoint's `hatch-arcade` (pickers, human-approved: everything left; all 14 branches with full history; the old public repo archived with a README pointer; Caedon pushes with write access). Built as two lanes one at a time (Opus implementers, Sonnet task reviews, one fix round for L-K, `--no-ff` merges), every test run under the watchdog.
+
+| Lane | What shipped | Fix rounds | Merge (tests) |
+|---|---|---|---|
+| L-K visual follow-ups | the stone props in their section theme's stone: `src/world.js` passes the section's theme (at the prop's own z) to a prop's `createView`, `src/registry.js` whitelists `look.stone`, the HiFi themes carry a stone hex (midtown `#a9896d`, its own `bodies[3]`; uptown `#8c5d47`, the darkest of its content colours; downtown and the bridge fall back to the piers' `PIER_COLORS[2]`, now exported); the tunnel's lamp globes keep Tripo's paint: the faces whose texel is brighter than `LAMP` 0.85 (Rec. 709 luma under the face's uv centre, the map read once through an `OffscreenCanvas`, all stone with a `console.warn` when the pixels cannot be read) form a second material group in the model's own paint (179 faces, 171 the globes: +1 draw, its three 1024² maps uploaded); the overpass, which has no globes, stays one stone group; a theme's tint is its own colour buffer over the one dressed copy's shared position / normal / uv buffers, the dispose chain pinned; `downtown-04`'s two bays get a rect each (`F(0.19,0.78,0.07,0.79)`, `F(0.11,0.69,0.07,0.79)`, re-measured on the tile as P6 did; the opening list cycles by cell); a window a wall's end cuts keeps a clipped opening (its cut side open into the reveal, the end cap over the spandrels only) if at least `RELIEF.cut` 0.3 m remains, else pier | 1 (7b85922, 9eb812a) | 0240118 (341); CONTRIBUTING d6a1239 |
+| L-J quality | the side-street bounds test can no longer pass on nothing (`!b.isEmpty()`, a furniture count > 0); one `themeOf` / `themeChunk` in the city tests; `src/look.js` exports `envFor(m)` (what `hook.beforeBend` sets) and `skyMaterials()` (the dome and the rings' materials, lifted out of `createLook` unchanged), so the `REFLECT` and shared-sky tests test the code instead of a literal and the source text; `wall()` drops its dead axis 'z' branch; one `SATIN` coat `{ clearcoat 0.3, clearcoatRoughness 0.4 }` and one `REFLECT_PROP` 0.3 in `lib/paint.js` spread into the seven satin files and the taxi, no value changed; `dimEnv` → `matteHook` (it masks the leaves' tint too); the car bounds union in `traffic.js` kept with a why (dead while `bend()` turns culling off under a look, still right if culling returns) | 0 | 01a71ca (342) |
+
+#### Engine changes
+
+| Task | File | Change | Why | Generic hook or HiFi-only | Could a module have done it without this? |
+|---|---|---|---|---|---|
+| 34 L-K | `src/world.js` | a prop's `createView` gets `theme` beside `{ z, length, lanes }`: the registered theme under the section's overrides at the prop's own z (`themeAt(z)`, which the chunk build uses too; a chunk's is at its start, and they agree on the shipped levels) | the HiFi stone props tint themselves per theme (the subsection above left them one cool grey) | generic, inert: the four shipped props destructure `z` / `length` / `lanes` only; low-fi byte-identical by trace (the review) | no: only `world.js` holds both the registry and the prop call |
+| 34 L-K | `src/registry.js` | `look.stone` whitelisted, a hex | a pack theme may only set `createChunk` and `look`, so the tint is a look key | HiFi-only: a look key | no |
+| 34 L-J | `src/look.js` | `envFor(m)` exported (the glossy predicate and `m.userData.reflect ?? REFLECT`; `hook.beforeBend` calls it); `skyMaterials()` exported (the dome's material and the rings' shared uniforms and material maker, out of `createLook` unchanged) | the whole-branch review's Minor 3: two tests pinned a literal and grepped the source; now they test the code in Node without WebGL | HiFi-only: `look.js` loads only under a look | no: the hook and the dome / rings are the look's |
+
+#### Rulings (each with its cost if wrong)
+
+- L-K: `look.stone` is a look key, not a theme key; downtown and the bridge stay on the piers' fallback. Cost: one hex a theme.
+- L-K: `LAMP` 0.85, not the brief's "about 0.8" (at 0.80 the tunnel paints 286 faces, 23 of them vault crown facets); the overpass takes no `lamp` (the main session's ruling after the review: its only bright faces were 16 deck-top line facets no camera sees, and the split would have re-uploaded its three 1024² maps, ~17 MB, for nothing). Cost: 0.88 would turn ~15 globe-rim facets to stone; the tunnel's maps are uploaded again (~17 MB) for its globes.
+- L-K: a tint as its own colour buffer over shared buffers (one dressed copy a model, a colour buffer a theme); the painted faces keep the original uv in the one `uv` attribute. Cost: the buffers go only together, with the source, when `assets.release` frees it (pinned).
+- L-K: the opening list cycles by cell index with one shared v (the table test forbids a per-bay v). Cost: per-column rows if a tile ever needs a different v per bay.
+- L-K: a cut opening's end cap over the spandrels only, so the reveal's inside shows from a sideways camera past a block's end where no neighbour covers it; `RELIEF.cut` 0.3 m (a narrower slit of glass reads as a crack; about one wall width in ten on downtown-03 left one under 0.3 m). Cost: a knob.
+- L-J: `SATIN` / `REFLECT_PROP` are a refactor at the pinned values (the obstacle tests untouched); the car bounds union kept; `wall()`'s callers pass the side only; `matteHook` keys the program cache as `dimEnv` did. Cost: none found.
+- Main session: `buildings.js:96`'s comment still names `wall()`'s deleted "-z pi" turn: reworded in a4ef076 with the satin coat's wearers comment the review flagged.
+
+#### Tests
+
+- L-K: +8 (world 1, registry 1, overpass 2, tunnel 2, windows 2) at ff36ec5, +3 in the fix round (the overpass's one group, the dispose chain, `RELIEF.cut` both sides); the openings-table test allows a list. L-J: +1 (`envFor`); the side-street test strengthened; the shared-sky test rewritten over `skyMaterials()`. Total: 330 at 6d90077 → 341 at 0240118 → 342 at 01a71ca.
+
+#### Costs
+
+- L-K: +0 meshes; +0.7–1.3k building triangles a chunk (the cut windows); the tunnel +1 draw (+1 in its shadow cascade) and its Tripo maps uploaded (~17 MB GPU); the overpass unchanged (one draw, no maps); a dressed copy's colour buffer per theme (~0.5 MB a theme a model). L-J: 0.
+
+#### Low-fi invariant
+
+| after | still | result |
+|---|---|---|
+| L-K (0240118), L-J (01a71ca) | `t34-lofi-final2.png`, 2160×3840, `?fixtures&lofi` on a4ef076 | 464,350 bytes, SHA 3d77a9396eb7561df7bf6b010f19d49fc163b0e0fa9048f8890ccc560807a8e3, byte-identical |
+
+#### Frame cost (hifiProbe, 3024×1964, the fixture levels)
+
+| head | theme | mean ms | p95 ms | draw calls | triangles |
+|---|---|---|---|---|---|
+| a4ef076 | downtown | 8.50 | 12.6 | 482 | 4.02 M |
+| a4ef076 | midtown | 8.47 | 12.9 | 482 | 3.56 M |
+| a4ef076 | uptown | 8.28 | 11.0 | 491 | 3.99 M |
+| a4ef076 | bridge | 6.79 | 11.0 | 218 | 2.50 M |
+
+Against a4d2c64 (the two lanes before): within noise on every theme (the fixture levels place no tunnel, so its extra draw is not in the probe).
+
+#### Stills seen (agent-judged; sheets in `t34-boards/`: `t34-lk-tunnel-ff36ec5.jpg`, `t34-lk-facade-ff36ec5.jpg`, `t34-lk-more-ff36ec5.jpg`, `t34-lk-zoom-ff36ec5.jpg`)
+
+The Garden's tunnel and overpass in midtown's warm sandstone under the dusk, the ceiling lamp globes cream again (the readback ran in the browser: no console errors, no shader diagnostics); Broadway's tunnel (905, 920) and overpass (1370) unchanged in downtown's fallback stone, their globes cream too; the two facade fixes are sub-pixel at the standard spots (the tests carry them); uptown's brown not seen (no prop in the Endless frames shot). On a4ef076 (`t34-final2-a4ef076.jpg`): the Garden's tunnel and overpass in tan sandstone, Broadway's in the dark fallback, the globes cream in both tunnels, the facades unchanged at the standard spots.
+
+#### Close-out (2026-10-23)
+
+`hi-fi-city` at a4ef076: nine lanes merged, 342 tests, `npm run build` green, low-fi byte-identical, 0 credits, no downloads, no installs. Left on purpose: nothing from the review's lists; the game's move to `pulsepointinc/hatch-arcade` is Caedon's to run (the commands and the follow-ups it needs, the base path and hosting among them, are in the session's SDD workspace `move/commands.md`).
