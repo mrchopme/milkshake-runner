@@ -4,13 +4,13 @@
 // Between the posts is open: Milkshake slides through there. The generated posts stand 1.04 m apart (0.93 m between the feet) and her
 // arms-down model is about 1.13 m across, so the two halves are spread apart (SPREAD) with the plank's middle stretched to bridge them.
 import { fitBox } from '../lib/fit.js';
-import { gloss, painter } from '../lib/paint.js';
+import { gloss, painter, SATIN } from '../lib/paint.js';
 
 const YAW = Math.PI / 2; // ponytail: calibration knob — the plank runs along z and the doorway between the posts faces +x; +π/2 turns the doorway to the player (-z) and the plank across the lane
 export const SPREAD = 0.2; // ponytail: calibration knob — model units each half (post, feet, plank end) moves outward along the plank: the doorway opens from 0.93 to 1.58 m at the feet, the whole from 1.59 to 2.25 m wide (box 2.4)
 const INNER = 0.28;        // must stay below the nearest foot, at z 0.2829 model units: past it everything moves rigidly (posts and feet keep their shape); inside it only the plank, which stretches
 // metalness 0: Tripo marks parts metallic at random, which reads as dark paint (Task 23 ruling); the roughness map stays
-const paint = painter((T, m) => gloss(T, m, { clearcoat: 0.3, clearcoatRoughness: 0.4, metalness: 0, metalnessMap: null }));
+const paint = painter((T, m) => gloss(T, m, { ...SATIN, metalness: 0, metalnessMap: null }));
 
 let parts; // { scale, offset }, measured from the first copy
 const spread = new WeakMap(); // the loaded geometry -> its widened clone, made once and shared by every copy

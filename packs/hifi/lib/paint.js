@@ -10,6 +10,10 @@ export function gloss(T, source, extra = {}) {
   p.setValues(extra);
   return p;
 }
+// The satin coat every painted obstacle, the manhole cover and the pickups wear, and the reflections a prop keeps below look.js's
+// REFLECT (taxi, pickups). ponytail: calibration knobs — 0.3 / 0.4 (the obstacles were 0.6 / 0.2, the pickups 1 / 0.15, at look.js's
+// 0.85 until Caedon's board 29 pick 4, 2026-10-20): the full coat mirrored the sun ahead and blew the jug out into a white column at dusk.
+export const SATIN = { clearcoat: 0.3, clearcoatRoughness: 0.4 }, REFLECT_PROP = 0.3;
 // An overlay's paint, made once per generated material: paint(gfx, source) returns make(T, source, gfx), built the first time
 // that material is seen. Keyed by the material itself (a WeakMap), so every copy of a model shares its paint, a model reloaded
 // after assets.release (new materials) gets fresh paint instead of showing raw, and a released material's paint goes with it.

@@ -1,12 +1,12 @@
 // HiFi hot_dog_cart: the generated cart in public/hifi/hot_dog_cart.glb, fitted to the shipped box (content/obstacles/hot_dog_cart.js).
 // Caedon's exception to the inside-the-box rule (2026-10-13, "umbrella above the box"): the cart's BODY (wheels, cabinet, handles, lid)
 // fills the jump box, and the umbrella's pole and canopy rise above it. The box, `avoid` and the hit timing stay the shipped ones.
-import { gloss, painter } from '../lib/paint.js';
+import { gloss, painter, SATIN } from '../lib/paint.js';
 
 const YAW = Math.PI / 2;  // ponytail: calibration knob — the model is longer along z (0.79) than x (0.67), its front +x; +π/2 turns its long side across the lane, broadside to the player (-z)
 const BODY_H = 0.531;     // ponytail: calibration knob — model units above the wheels where the body ends (the lid is at 0.530) and the umbrella pole starts; measured on the GLB
 // metalness 0: Tripo marks parts metallic at random, which reads as dark paint (Task 23 ruling); the roughness map stays
-const paint = painter((T, m) => gloss(T, m, { clearcoat: 0.3, clearcoatRoughness: 0.4, metalness: 0, metalnessMap: null }));
+const paint = painter((T, m) => gloss(T, m, { ...SATIN, metalness: 0, metalnessMap: null }));
 
 let parts; // { scale, offset }, measured from the first copy
 

@@ -1,7 +1,7 @@
 // HiFi taxi: the generated toy taxi in public/hifi/taxi.glb, fitted to the shipped taxi's footprint (content/obstacles/taxi.js),
 // so it still reads "change lane". Fitted once from the first copy; every taxi after that shares the paint. Its roof sign is
 // unlit, as the teaser's: the glowing plate it wore was a box laid over a light (Caedon, 2026-10-14, board 18).
-import { gloss, glowMap, painter } from '../lib/paint.js';
+import { gloss, glowMap, painter, REFLECT_PROP } from '../lib/paint.js';
 
 const FOOTPRINT = { w: 2.0, d: 4.0 }; // the shipped taxi's box, metres
 const YAW = -Math.PI / 2;             // ponytail: calibration knob — turns the generated model so its rear faces the player (-z)
@@ -16,7 +16,7 @@ export const isLamp = (r, g, b) => r > 150 && g < 90 && b < 90;
 const paint = painter((T, m) => {
   const lamps = glowMap(T, m.map, isLamp);
   const p = gloss(T, m, { clearcoat: 0.2, clearcoatRoughness: 0.6, metalness: 0, metalnessMap: null, emissive: lamps ? '#ffffff' : '#000000', emissiveMap: lamps, emissiveIntensity: LAMP_GLOW });
-  p.userData.reflect = 0.3; // on the copied userData: setValues would replace it, and with it the shared flag
+  p.userData.reflect = REFLECT_PROP; // on the copied userData: setValues would replace it, and with it the shared flag
   return p;
 });
 

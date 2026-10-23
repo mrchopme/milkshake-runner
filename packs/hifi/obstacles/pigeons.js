@@ -1,7 +1,7 @@
 // HiFi pigeons: the generated bird in public/hifi/pigeon.glb, one InstancedMesh over the shipped flock (content/obstacles/pigeons.js),
 // every bird inside the slide box wherever its wings are in their beat. The wings flap in the vertex stage on the run clock
 // (gfx.time), so a pause freezes them and a still pins them. Fitted once per load from its first copy; every flock shares it and the paint.
-import { gloss, painter } from '../lib/paint.js';
+import { gloss, painter, SATIN } from '../lib/paint.js';
 import { instanced } from '../lib/shapes.js';
 
 const YAW = Math.PI; // ponytail: calibration knob — the bird's head is +z in the model (task-23-models); π turns it to the player (-z), its wings along ±x
@@ -27,7 +27,7 @@ export function flap(x, y, k) {
 }
 
 const paint = painter((T, m, gfx) => {
-  const p = gloss(T, m, { clearcoat: 0.3, clearcoatRoughness: 0.4, metalness: 0, metalnessMap: null });
+  const p = gloss(T, m, { ...SATIN, metalness: 0, metalnessMap: null });
   p.onBeforeCompile = (s) => { // the bird's own vertices, before three's instance and model matrices and the bend place it
     s.uniforms.uTime = gfx.time;
     s.vertexShader = 'uniform float uTime;\n' + s.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>${FLAP_VERTEX}`);
