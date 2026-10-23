@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import * as gfx from '../src/gfx.js';
-import { REFLECT, lookState, cascadeHook, ringWrap, ringArcs, ringArc, lookFog, rigOf, blendRig, ringTexel, ringShift, BG_DEPTH } from '../src/look.js';
+import { REFLECT, envFor, skyMaterials, lookState, cascadeHook, ringWrap, ringArcs, ringArc, lookFog, rigOf, blendRig, ringTexel, ringShift, BG_DEPTH } from '../src/look.js';
 import { checkLook, checkModule } from '../src/registry.js';
 import { createWorld } from '../src/world.js';
 import { resolveRules } from '../src/rules.js';
@@ -288,8 +288,20 @@ test('glossy materials keep the env at the shared REFLECT 0.4 (was 0.85; Caedon,
   assert.equal(REFLECT, 0.4);
 });
 
-test('the dome and the rings\' foot read the bent shaders\' sky uniforms: gfx.fogSkyTop / fogSkyBottom, one object each (Task 34 L-I)', async () => {
-  // createLook needs WebGL, so this reads its source: the dome's top/bottom and the rings' uSkyTop/uSkyBottom are gfx's objects themselves
-  const src = (await import('node:fs')).readFileSync(new URL('../src/look.js', import.meta.url), 'utf8');
-  assert.ok(src.includes('uniforms: { top: fogSkyTop, bottom: fogSkyBottom,') && src.includes('uSkyTop: fogSkyTop, uSkyBottom: fogSkyBottom'), 'shared, so the street fogs into the very colours the dome paints');
+test('hook.beforeBend\'s env strength (envFor): REFLECT on a clearcoat or roughness 0.15 and under, userData.reflect over it, none on a matte one', () => {
+  const coat = new THREE.MeshPhysicalMaterial({ clearcoat: 0.3, clearcoatRoughness: 0.4, roughness: 0.6 }), own = coat.clone();
+  own.userData.reflect = 0.2;
+  assert.equal(envFor(coat), REFLECT);
+  assert.equal(envFor(own), 0.2, 'userData.reflect overrides it');
+  assert.equal(envFor(new THREE.MeshStandardMaterial({ roughness: 0.1 })), REFLECT, 'smooth enough without a clearcoat');
+  assert.equal(envFor(new THREE.MeshStandardMaterial({ roughness: 0.6 })), null, 'a matte material follows the scene\'s env');
+  assert.equal(envFor(new THREE.MeshToonMaterial()), null);
+});
+
+test('the dome and the rings\' foot read the bent shaders\' sky uniforms: gfx.fogSkyTop / fogSkyBottom, one object each (Task 34 L-I)', () => {
+  // createLook needs WebGL; skyMaterials builds the same materials without it. Uniforms by identity (never a strict diff of THREE objects)
+  const { dome, ringMaterial } = skyMaterials(), sh = { uniforms: {}, vertexShader: 'void main() {', fragmentShader: 'void main() {#include <map_fragment>' };
+  ringMaterial().onBeforeCompile(sh);
+  assert.ok(dome.uniforms.top === gfx.fogSkyTop && dome.uniforms.bottom === gfx.fogSkyBottom, 'the dome paints gfx\'s sky uniforms');
+  assert.ok(sh.uniforms.uSkyTop === gfx.fogSkyTop && sh.uniforms.uSkyBottom === gfx.fogSkyBottom, 'the rings\' foot reads them too, so the street fogs into the very colours the dome paints');
 });

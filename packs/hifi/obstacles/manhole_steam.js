@@ -2,11 +2,10 @@
 // and the steam column, made in code: one Points cloud every manhole shares. The shipped cycle and hit timing stay as they are;
 // the view shows the steam while `active` (the cycle's on window) and the vertex shader moves the puffs on the run clock.
 import { fitBox } from '../lib/fit.js';
-import { gloss, painter } from '../lib/paint.js';
+import { gloss, painter, SATIN } from '../lib/paint.js';
 
 const YAW = Math.PI / 2; // ponytail: calibration knob — turns the model's front (+x) toward the player (-z); a flat cover is nearly symmetric, so this is a guess
-const COVER = { clearcoat: 0.3, clearcoatRoughness: 0.4 }; // ponytail: calibration knob — bare cast iron (the model's own metal map stays, Task 23 ruling) under a light wet sheen
-const paint = painter((T, m) => gloss(T, m, COVER));
+const paint = painter((T, m) => gloss(T, m, SATIN)); // bare cast iron (the model's own metal map stays, Task 23 ruling) under a light wet sheen
 // ponytail: calibration knobs. rate: a puff's full rises per second (its life is 1 / rate s); small and large: its diameter in metres at
 // the grate and at the top (large must fit the box: w and d); cone: the share of the box's free width a puff may drift to, at the
 // grate and at the top; opacity per puff; colour below the look's bloom threshold (0.85, linear): steam is not a light.

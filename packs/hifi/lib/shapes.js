@@ -7,9 +7,8 @@ export function box(T, w, h, d, material, x = 0, y = h / 2, z = 0) {
 }
 // A wall plane facing ±x, `d` long along z and `h` tall, its UVs in units of one tile (tw by th metres), so a repeating
 // facade texture keeps its scale on any wall. side = +1 faces +x (a building on the -x side of the road faces +x).
-// axis 'z': a block's end wall facing -z (the camera looks +z), `d` wide along x, u left to right as the camera sees it; side unused.
-export function wall(T, d, h, side, tw, th, v0 = 0, axis = 'x') {
-  return plane(T, d, h, tw, th, v0).rotateY(axis === 'z' ? Math.PI : side > 0 ? Math.PI / 2 : -Math.PI / 2);
+export function wall(T, d, h, side, tw, th, v0 = 0) {
+  return plane(T, d, h, tw, th, v0).rotateY(side > 0 ? Math.PI / 2 : -Math.PI / 2);
 }
 // The same plane unturned, facing +z (a block's +z end, the side street's lots turn it their own way).
 export function plane(T, d, h, tw, th, v0 = 0) {

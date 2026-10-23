@@ -25,6 +25,11 @@ const GROUND = { downtown: { road: '#5c5d74', roadRough: 0.85, walk: '#9a96a3', 
 const flat = { id: 'test', ground: { road: '#000', roadRough: 0.85, walk: '#888', walkRough: 0.9 }, paint: '#fff' }; // a street style with its ground
 const chunk = (seed, z0 = 0, length = 120) => downtown.createChunk.call({ ...shipped, ...downtown }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shipped, ...downtown } });
 const bridgeChunk = (z0, seed = 1, length = 120) => bridge.createChunk.call({ ...shippedBridge, ...bridge }, gfx, { z0, length, lanes, rng: rng(seed), theme: { ...shippedBridge, ...bridge } });
+// a street theme as the game merges it (the shipped theme under its HiFi overlay), and a chunk maker for it
+const themeOf = async (id) => ({ ...(await import(`../content/themes/${id}.js`)).default, ...(await import(`../packs/hifi/themes/${id}.js`)).default });
+const themeChunk = async (id) => { const theme = await themeOf(id); return (seed, z0 = 0, length = 120) => theme.createChunk.call(theme, gfx, { z0, length, lanes, rng: rng(seed), theme }); };
+// The buildings part lists every footprint on its group's userData.lots ({ kind: 'block' | 'side' | 'end' | 'back', x: [lo, hi], z: [lo, hi] }, x signed)
+const lotsOf = (g) => { let out; g.traverse((n) => { out ??= n.userData.lots; }); return out; };
 const bounds = (g, keep = () => true) => { // world box of the meshes `keep` picks, instances included (empty when none)
   const out = new THREE.Box3();
   g.updateMatrixWorld(true);
@@ -92,8 +97,7 @@ test('buildings stand on the facade line: up to 0.9 m out above 4.5 m, only awni
 test('both ends of every block wear a storefront and facade from the ground to its roof, never bare body colour', async () => {
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
   for (const id of ['downtown', 'midtown', 'uptown']) for (const seed of [1, 2, 3]) for (const [z0, length] of [[0, 120], [240, 80]]) {
-    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
-    const g = hifi.createChunk.call(theme, gfx, { z0, length, lanes, rng: rng(seed), theme }), blocks = g.userData.blocks, faces = [];
+    const g = (await themeChunk(id))(seed, z0, length), blocks = g.userData.blocks, faces = [];
     g.traverse((m) => {
       if (!m.userData.building || m.material.vertexColors) return;
       const p = m.geometry.attributes.position;
@@ -119,11 +123,11 @@ test('both ends of every block wear a storefront and facade from the ground to i
 // (the messages are built only on a failure: per vertex, a template string a pass made this test 40 s)
 const reliefChunks = async function* (seeds = 10) {
   for (const id of ['downtown', 'midtown', 'uptown']) {
-    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
+    const make = await themeChunk(id);
     for (let seed = 1; seed <= seeds; seed++) {
-      const z0 = 120 * seed, g = hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }), tile = [];
-      let lots; g.traverse((m) => { lots ??= m.userData.lots; if (m.userData.building && !m.material.vertexColors) tile.push(m.geometry.attributes.position); });
-      yield { z0, g, at: `${id}, seed ${seed}`, tile, lots, blocks: g.userData.blocks, cross: g.userData.cross };
+      const z0 = 120 * seed, g = make(seed, z0), tile = [];
+      g.traverse((m) => { if (m.userData.building && !m.material.vertexColors) tile.push(m.geometry.attributes.position); });
+      yield { z0, g, at: `${id}, seed ${seed}`, tile, lots: lotsOf(g), blocks: g.userData.blocks, cross: g.userData.cross };
     }
   }
 };
@@ -237,10 +241,10 @@ const HEIGHTS = { // short, tall, tall share (h > 40 m), shortest and longest fr
 };
 test('each street theme\'s heights follow its table: walk-ups and towers in runs, a monotone setback, the floor grid, never the same tile twice', async () => {
   for (const [id, H] of Object.entries(HEIGHTS)) {
-    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }, all = [];
+    const make = await themeChunk(id), all = [];
     let tall = 0, back = 0;
     for (let seed = 1; seed <= 80; seed++) {
-      const g = hifi.createChunk.call(theme, gfx, { z0: 0, length: 120, lanes, rng: rng(seed), theme }), blocks = g.userData.blocks, at = `${id}, seed ${seed}`;
+      const g = make(seed), blocks = g.userData.blocks, at = `${id}, seed ${seed}`;
       for (const side of [-1, 1]) {
         const row = blocks.filter((b) => b.side === side), cls = row.map((b) => b.h > (id === 'uptown' ? 30 : 40));
         row.slice(1).forEach((b, i) => assert.notEqual(b.tile, row[i].tile, `${at}: the same tile on neighbours`));
@@ -279,14 +283,16 @@ test('the walls seed their sub-streams from one draw of the chunk stream: the sa
   }
 });
 
-const streetTheme = async (id) => { const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }; return (seed, z0 = 0, length = 120) => hifi.createChunk.call(theme, gfx, { z0, length, lanes, rng: rng(seed), theme }); };
-// the side street's ground and furniture stay in the chunk and the land block, out to the end block's back (the review of Task 34 L-B)
+// the side street's ground and furniture stay in the chunk and the land block, out to the end block's back (the review of Task 34 L-B);
+// non-vacuous: an empty box or no side-street piece would pass every bound (the whole-branch review, Minor 2)
 test('the side street\'s paving, walks and furniture stay inside [z0, z0 + length] and |x| <= SIDE.far + SIDE.end', async () => {
   for (const id of ['downtown', 'midtown', 'uptown']) {
-    const make = await streetTheme(id);
+    const make = await themeChunk(id);
+    let side = 0;
     for (let seed = 1; seed <= 20; seed++) {
       const z0 = 120 * seed, g = make(seed, z0), at = `${id}, seed ${seed}`;
       const b = bounds(g, (n) => n.userData.crossing || n.userData.sideWalk);
+      assert.ok(!b.isEmpty(), `${at}: no side-street ground (the crossing and sideWalk flags)`);
       assert.ok(b.min.z >= z0 - 1e-6 && b.max.z <= z0 + 120 + 1e-6 && Math.max(-b.min.x, b.max.x) <= SIDE.far + SIDE.end + 1e-6, `${at}: the side street's ground ${b.min.x.toFixed(2)}..${b.max.x.toFixed(2)}, z ${b.min.z.toFixed(2)}..${b.max.z.toFixed(2)}`);
       g.traverse((n) => {
         if (!n.userData.furniture && !n.userData.pit && !n.userData.pool) return;
@@ -296,21 +302,21 @@ test('the side street\'s paving, walks and furniture stay inside [z0, z0 + lengt
           if (Math.abs(m.elements[12]) <= FACADE_X) continue; // the avenue's, the tests above
           const box = new THREE.Box3().setFromBufferAttribute(n.geometry.attributes.position).applyMatrix4(m);
           assert.ok(box.min.z >= z0 - 1e-6 && box.max.z <= z0 + 120 + 1e-6 && Math.max(-box.min.x, box.max.x) <= SIDE.far + SIDE.end + 1e-6, `${at}: a side-street ${n.userData.furniture ?? 'pit or pool'} at x ${box.min.x.toFixed(2)}..${box.max.x.toFixed(2)}, z ${box.min.z.toFixed(2)}..${box.max.z.toFixed(2)}`);
+          side++;
         }
       });
     }
+    assert.ok(side > 0, `${id}: no side-street furniture in 20 chunks, so nothing was checked`);
   }
 });
 
 // The side street's blocks (Task 33 pick 2, Caedon board 28 "ON"): rows of lots on the city facade kit, their fronts on its two walls,
 // out to an end block across it at SIDE.far; and the shore's back rows behind the avenue's blocks (pick 7: "the floating street was
-// the bare slab behind the city"), off the side street and its lots. The buildings part lists every footprint on its group's
-// userData.lots ({ kind: 'block' | 'side' | 'end' | 'back', x: [lo, hi], z: [lo, hi] }, x signed) for these tests.
-const lotsOf = (g) => { let out; g.traverse((n) => { out ??= n.userData.lots; }); return out; };
+// the bare slab behind the city"), off the side street and its lots (lotsOf, at the top).
 test('the side street\'s blocks face it: storefronts and facades on its two walls looking ±z, lots end to end out to an end block at SIDE.far, on the mesh budget', async () => {
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
   for (const id of ['downtown', 'midtown', 'uptown']) {
-    const make = await streetTheme(id);
+    const make = await themeChunk(id);
     for (let seed = 1; seed <= 20; seed++) {
       const g = make(seed, 120 * seed), cz = g.userData.cross.z, [wa, wb] = sideWalls(cz), at = `${id}, seed ${seed}`, walls = {}, ends = { [-1]: 0, 1: 0 };
       let meshes = 0; g.traverse((m) => { if (m.isMesh) meshes++; });
@@ -345,7 +351,7 @@ test('the side street\'s blocks face it: storefronts and facades on its two wall
 
 test('the shore\'s back rows stand behind the avenue\'s blocks, off the side street and its lots, inside the chunk, every body piece coloured', async () => {
   for (const id of ['downtown', 'midtown', 'uptown']) {
-    const make = await streetTheme(id);
+    const make = await themeChunk(id);
     let backs = 0;
     for (let seed = 1; seed <= 20; seed++) for (const length of [120, 80]) {
       const z0 = 120 * seed, g = make(seed, z0, length), lots = lotsOf(g), cross = g.userData.cross, at = `${id}, seed ${seed}, ${length} m`;
@@ -471,8 +477,7 @@ test('the paving and the asphalt are built once, shared, and the theme hex is di
   assert.equal(p1.image.width, PAVE.w); assert.equal(p1.image.height, PAVE.h);
   for (const [t, mean] of [[p1, 0.830], [pavingTexture(THREE, { ground: { flag: 1.2 } }), 0.833], [asphaltTexture(THREE), 0.911]]) assert.ok(Math.abs(t.userData.mean - mean) < 0.005, `mean ${t.userData.mean}`);
   for (const id of ['downtown', 'midtown', 'uptown']) {
-    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
-    let walk; hifi.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: rng(1), theme }).traverse((n) => { if (n.userData.walk) walk = n; });
+    let walk; (await themeChunk(id))(1, 1200).traverse((n) => { if (n.userData.walk) walk = n; });
     const want = new THREE.Color(GROUND[id].walk).multiplyScalar(1 / walk.material.map.userData.mean);
     assert.equal(walk.material.color.getHexString(), want.getHexString(), `${id}: the walk renders at its hex on average`);
     assert.equal(walk.material.roughness, GROUND[id].walkRough);
@@ -587,7 +592,6 @@ test('a crossing\'s two traffic lights stand on the far corners, one each side, 
 const avenue = (n, i) => { const m = new THREE.Matrix4(); n.getMatrixAt(i, m); return Math.abs(m.elements[12]) <= FACADE_X ? m : null; };
 const pieces = (g) => { let n = 0; const first = new Set(); g.traverse((m) => { const k = m.userData.furniture; if (k && !first.has(k)) { first.add(k); for (let i = 0; i < m.count; i++) n += !!avenue(m, i); } }); return n; }; // one instance a piece in each of its kind's part meshes
 const THEMES = ['downtown', 'midtown', 'uptown'];
-const themeChunk = async (id) => { const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }; return (seed, z0 = 0) => hifi.createChunk.call(theme, gfx, { z0, length: 120, lanes, rng: rng(seed), theme }); };
 const placed = (g) => { // per side: each kind's instances (the first of its part meshes) and the pits, as { x, z, m, kind }; both tree models under `tree`
   const out = { [-1]: {}, 1: {} }, seen = new Set();
   g.traverse((n) => {
@@ -849,8 +853,7 @@ test('the bridge water lies 2.5 m under the deck, out to the horizon either side
 
 test('a street chunk stands on land: a stone quay under the whole chunk, from just under the street down into the water', async () => {
   for (const id of ['downtown', 'midtown', 'uptown']) for (const seed of [1, 2, 3]) for (const [z0, length] of [[0, 120], [240, 80]]) {
-    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
-    const g = hifi.createChunk.call(theme, gfx, { z0, length, lanes, rng: rng(seed), theme }), at = `${id}, seed ${seed}, chunk ${z0}`;
+    const g = (await themeChunk(id))(seed, z0, length), at = `${id}, seed ${seed}, chunk ${z0}`;
     const land = bounds(g, (n) => n.userData.land), rest = bounds(g, (n) => !n.userData.land);
     assert.ok(Math.abs(land.min.z - z0) < 1e-6 && Math.abs(land.max.z - (z0 + length)) < 1e-6, `${at}: the land runs ${land.min.z}..${land.max.z}`);
     assert.ok(land.min.y < WATER.y, `${at}: its foot at ${land.min.y}, above the water`);
@@ -878,8 +881,7 @@ test('the land wears the sidewalk\'s paving on its top and light ashlar stone on
   const near = (a, b, tol = 1e-6) => Math.abs(a - b) < tol;
   let pierMat; bridgeChunk(1200).traverse((n) => { if (n.userData.pier) pierMat = n.material; });
   for (const id of ['downtown', 'midtown', 'uptown']) {
-    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi };
-    const g = hifi.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: rng(1), theme });
+    const theme = await themeOf(id), g = (await themeChunk(id))(1, 1200);
     let land, walk; g.traverse((n) => { if (n.userData.land) land = n; if (n.userData.walk) walk = n.material; });
     assert.ok(Array.isArray(land.material) && land.material.length === 2, `${id}: the land's stone and its paving`);
     const [stoneMat, paved] = land.material, geo = land.geometry, p = geo.attributes.position, nor = geo.attributes.normal, uv = geo.attributes.uv, c = geo.attributes.color, idx = geo.index;
@@ -907,8 +909,8 @@ test('the land wears the sidewalk\'s paving on its top and light ashlar stone on
 
 test('the road is a cool grey per scene over asphalt grain, its lane lines solid but across the crosswalk (Caedon, board 18; 2026-10-15)', async () => {
   for (const id of ['downtown', 'midtown', 'uptown']) {
-    const hifi = (await import(`../packs/hifi/themes/${id}.js`)).default, theme = { ...(await import(`../content/themes/${id}.js`)).default, ...hifi }, roads = new Set();
-    hifi.createChunk.call(theme, gfx, { z0: 1200, length: 120, lanes, rng: rng(1), theme }).traverse((n) => { if (n.userData.road) roads.add(n.material); });
+    const roads = new Set();
+    (await themeChunk(id))(1, 1200).traverse((n) => { if (n.userData.road) roads.add(n.material); });
     const want = new THREE.Color(GROUND[id].road).multiplyScalar(1 / asphaltTexture(THREE).userData.mean).getHexString();
     // Caedon 2026-10-15, "Cool grey per scene" like the style frames, replacing board 18's warm #6b675a
     assert.deepEqual([...roads].map((r) => [r.color.getHexString(), r.roughness]), [[want, GROUND[id].roadRough]], id);

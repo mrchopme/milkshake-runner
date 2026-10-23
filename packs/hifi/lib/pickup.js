@@ -1,13 +1,12 @@
 // The overlay every HiFi pickup shares: the generated model in public/hifi/<id>.glb, fitted to the 0.8 m sphere the shipped orb fills
 // (radius 0.4, centred 0.9 m above the road), glossy, under the shipped ground shadow. Fitted once from the first copy; every pickup
 // after that shares the paint. The world spins the group about y every frame (src/world.js), so the model's yaw sits on the model.
-import { gloss, glowMap, painter } from './paint.js';
+import { gloss, glowMap, painter, SATIN, REFLECT_PROP } from './paint.js';
 
 const SPHERE = { r: 0.4, y: 0.9 };
 // Tripo marks parts metallic at random, which reads as dark paint (Task 23 ruling): metalness off, the roughness map stays.
-// ponytail: calibration knobs — a satin coat and reflections below look.js's REFLECT (was 1 / 0.15 at 0.85; Caedon, board 29 pick 4):
-// the full coat mirrored the sun ahead and blew the jug out into a white column at dusk.
-const PAINT = { metalness: 0, metalnessMap: null, clearcoat: 0.3, clearcoatRoughness: 0.4 }, REFLECT = 0.3;
+// The satin coat and reflections below look.js's REFLECT: lib/paint.js's SATIN and REFLECT_PROP (Caedon, board 29 pick 4).
+const PAINT = { metalness: 0, metalnessMap: null, ...SATIN };
 
 // yaw: turns the model's front (+x) toward the player (-z). glow: { test, intensity } lights the texels `test` accepts, in their own shape.
 export function pickupOverlay(id, { yaw, glow }) {
@@ -15,7 +14,7 @@ export function pickupOverlay(id, { yaw, glow }) {
   const paint = painter((T, m) => { // generated material -> a copy of it under a glossy clearcoat, its lit texels glowing
     const lit = glow && glowMap(T, m.map, glow.test);
     const p = gloss(T, m, lit ? { ...PAINT, emissive: '#ffffff', emissiveMap: lit, emissiveIntensity: glow.intensity } : PAINT);
-    p.userData.reflect = REFLECT; // on the copied userData: setValues would replace it, and with it the shared flag
+    p.userData.reflect = REFLECT_PROP; // on the copied userData: setValues would replace it, and with it the shared flag
     return p;
   });
   let parts; // { scale, offset }, measured from the first copy
