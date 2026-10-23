@@ -12,24 +12,20 @@ const DECK_AT = 0.722;    // ponytail: calibration knob — the deck's underside
 // tint in every theme" read cool grey under the Garden's warm sky). A theme with none (downtown, the bridge) wears the piers' darkest.
 // ponytail: calibration knobs.
 export const PARAPET = { h: 0.5, tone: 1.3 };   // the top course: one ashlar course tall, this much lighter than the wall
-// A face whose texel in the model's own paint is brighter than this keeps the paint (Caedon, 2026-10-22, Task 34 L-K; ledger, Lanes
-// L-E and L-I: the stone took the tunnel's cream lamp globes). Measured on the GLBs' faces (Rec. 709 luma of the texel under each
-// face's uv centre): the tunnel's vault tops out at 0.80, its globes 0.86-0.98 (171 faces at the crown, plus 8 of its own road lines
-// under the street); the overpass's brightest, 16 faces of its deck-top centre line, 0.85-0.88, out of a runner's sight.
-export const LAMP = 0.85;
 let stoneMat;
 const dressed = new WeakMap(); // generated geometry -> { base: its stone copy, tone: each corner's parapet factor, paint, tints: hex -> geometry }, freed with the source
 // The generated mesh `n` (fitted: its matrices fresh) in stone: an unindexed copy of its geometry with float UVs in metres from
 // where each corner stands in the prop, projected per FACE along its normal's largest axis (along x maps (z, y), along y (x, z),
 // along z (x, y), as shapes.js metreUV): per vertex, a smooth mesh's triangle could take two axes and smear the ashlar across it.
 // Its vertex colour is `tint`, `parapet.tone` times lighter within `parapet.h` of `top` (the prop's highest point; no parapet: h 0).
-// The faces over a bright texel of the model's own map (bright()) go last, a second group in its own material on its own uv: +1 draw.
+// With `lamp` (a luma, 0-1), the faces over a texel of the model's own map brighter than that (bright()) go last, a second group in
+// its own material on its own uv: +1 draw and the model's maps uploaded; without it (the overpass: no globes) all stone, its maps never.
 // A tint is a geometry of its own colours over the one copy's position, normal and uv buffers (one upload whatever the themes).
-export function dress(gfx, n, top, parapet = { h: 0, tone: 1 }, tint = PIER_COLORS[2]) {
+export function dress(gfx, n, top, parapet = { h: 0, tone: 1 }, { tint = PIER_COLORS[2], lamp } = {}) {
   const T = gfx.three, src = n.geometry;
   let d = dressed.get(src);
   if (!d) {
-    const raw = src.index ? src.toNonIndexed() : src.clone(), lit = bright(T, raw, n.material), order = [...lit.keys()].sort((a, b) => lit[a] - lit[b]), stoneN = lit.filter((b) => !b).length;
+    const raw = src.index ? src.toNonIndexed() : src.clone(), lit = bright(T, raw, lamp === undefined ? null : n.material, lamp), order = [...lit.keys()].sort((a, b) => lit[a] - lit[b]), stoneN = lit.filter((b) => !b).length;
     const g = new T.BufferGeometry(); // raw with its faces stone first, painted last
     for (const [k, a] of Object.entries(raw.attributes)) {
       const s = a.itemSize * 3, arr = new a.array.constructor(a.array.length);
@@ -58,7 +54,7 @@ export function dress(gfx, n, top, parapet = { h: 0, tone: 1 }, tint = PIER_COLO
     const g = new T.BufferGeometry(), c = new Float32Array(d.tone.length * 3), col = new T.Color(tint);
     for (const [k, a] of Object.entries(d.base.attributes)) g.setAttribute(k, a);
     g.groups = d.base.groups;
-    d.tone.forEach((t, i) => c.set([col.r * t, col.g * t, col.b * t], i * 3));
+    d.tone.forEach((t, i) => { c[i * 3] = col.r * t; c[i * 3 + 1] = col.g * t; c[i * 3 + 2] = col.b * t; });
     g.setAttribute('color', new T.BufferAttribute(c, 3));
     g.userData.shared = true; // gfx.dispose leaves it; it goes when assets.release frees the generated geometry
     d.tints.set(tint, g);
@@ -69,9 +65,9 @@ export function dress(gfx, n, top, parapet = { h: 0, tone: 1 }, tint = PIER_COLO
   n.material = d.paint ? [stoneMat, d.paint] : stoneMat;
 }
 
-// 1 for each face of the unindexed `g` whose texel under its uv centre in `mat`'s map is brighter than LAMP, else 0. The map's pixels
+// 1 for each face of the unindexed `g` whose texel under its uv centre in `mat`'s map is brighter than `lamp`, else 0. The map's pixels
 // are read once a model: a DataTexture's own (Node, the tests), else its image drawn into a canvas; none readable, or no uv: all stone.
-function bright(T, g, mat) {
+function bright(T, g, mat, lamp) {
   const n = g.attributes.position.count / 3, uv = g.attributes.uv, map = mat?.map, px = uv && pixels(map), at = new T.Vector2();
   if (!px) return new Array(n).fill(0);
   const { data, width: w, height: h } = px;
@@ -81,13 +77,16 @@ function bright(T, g, mat) {
     for (let k = 0; k < 3; k++) at.x += uv.getX(f * 3 + k) / 3, at.y += uv.getY(f * 3 + k) / 3;
     map.transformUv(at); // the map's wrap and flipY, as the GPU samples it
     const i = 4 * (Math.min(h - 1, Math.floor(at.y * h)) * w + Math.min(w - 1, Math.floor(at.x * w)));
-    return +((0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255 > LAMP);
+    return +((0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255 > lamp);
   });
 }
 function pixels(map) {
   const im = map?.image;
-  if (im?.data) return im;
-  try { const x = new OffscreenCanvas(im.width, im.height).getContext('2d'); x.drawImage(im, 0, 0); return x.getImageData(0, 0, im.width, im.height); } catch { return null; }
+  if (!im || im.data) return im ?? null;
+  try { const x = new OffscreenCanvas(im.width, im.height).getContext('2d'); x.drawImage(im, 0, 0); return x.getImageData(0, 0, im.width, im.height); } catch (err) {
+    console.warn(`hifi props: the paint's pixels could not be read (${err.message}): all stone`); // the browser path Node cannot test
+    return null;
+  }
 }
 
 let parts; // { scale, offset }, measured from the first copy
@@ -101,7 +100,7 @@ export default {
     model.scale.copy(parts.scale);
     model.position.copy(parts.offset);
     model.updateMatrixWorld(true);
-    model.traverse((n) => { if (n.isMesh) dress(gfx, n, parts.top, PARAPET, theme?.look?.stone); });
+    model.traverse((n) => { if (n.isMesh) dress(gfx, n, parts.top, PARAPET, { tint: theme?.look?.stone }); });
     return { object: gfx.group(model) };
   },
 };

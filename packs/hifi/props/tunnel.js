@@ -13,6 +13,11 @@ const SINK = 0.1;         // ponytail: calibration knob — the model carries it
 // over the camera's reach (|x| <= 1.5 on the default lanes, anywhere along the tube): the bottom of a lamp globe, 0.6613 rounded down.
 // The mouth flares wider and taller.
 export const BODY = { clear: 0.45, floor: 0.2185, roof: 0.89, ceiling: 0.66 };
+// ponytail: calibration knob — a face whose texel in the model's own paint is brighter than this keeps the paint (Caedon, 2026-10-22,
+// Task 34 L-K; ledger, Lanes L-E and L-I: the stone took the cream lamp globes). Measured on the GLB's faces (Rec. 709 luma of the
+// texel under each face's uv centre): the vault tops out at 0.80, the globes 0.86-0.98: 179 faces painted, 171 at the crown and 8
+// of the model's own road lines under the street (0.80 would paint 286). The overpass has no globes and takes no lamp.
+export const LAMP = 0.85;
 
 let parts; // { scale, offset }, measured from the first copy
 
@@ -25,7 +30,7 @@ export default {
     model.scale.copy(parts.scale);
     model.position.copy(parts.offset);
     model.updateMatrixWorld(true);
-    model.traverse((n) => { if (n.isMesh) dress(gfx, n, Infinity, undefined, theme?.look?.stone); });
+    model.traverse((n) => { if (n.isMesh) dress(gfx, n, Infinity, undefined, { tint: theme?.look?.stone, lamp: LAMP }); });
     return { object: gfx.group(model) };
   },
 };
