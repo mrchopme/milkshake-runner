@@ -26,6 +26,9 @@ const SHADOW_RADIUS = 2.5; // PCF blur in shadow-map texels: three 0.186 dropped
 // The env strength glossy materials keep when a look's env drops to 0.4; userData.reflect overrides it. 0.4 (was 0.85; Caedon,
 // board 29 pick 4, 2026-10-20): with every sun ahead of the runner, 0.85 mirrored it off the head, the jug and the taxi's roof.
 export const REFLECT = 0.4;
+// The env strength a material keeps under a look (hook.beforeBend), or null when it is not glossy: a clearcoat, or roughness 0.15
+// and under (Milkshake, the taxi and painted obstacles, the bridge's water). Pure, so it is tested in Node.
+export const envFor = (m) => m.isMeshStandardMaterial && (m.clearcoat > 0 || m.roughness <= 0.15) ? m.userData.reflect ?? REFLECT : null;
 // A theme switch crossfades the rig over FADE_MS; a camera move over JUMP m between two frames (a new run, a still) snaps it.
 const FADE_MS = 1000, JUMP = 5;
 
@@ -202,6 +205,30 @@ const RING_FRAG = /* glsl */`#include <map_fragment>
   float ringFoot = hazeOn > 0.5 ? 1.0 - smoothstep( hazeFoot, hazeFoot + ${RING.band.toFixed(1)}, ringUp ) : 1.0 - smoothstep( 0.0, ${RING.fade.toFixed(3)}, vRingY );
   diffuseColor = vec4( mix( rc, footColor, ringFoot ), hazeOn > 0.5 ? max( diffuseColor.a, ringFoot ) : diffuseColor.a );`;
 
+// The dome's material and the rings' (their shared uniforms ringU and a maker per image), built without a renderer so Node
+// tests read them: the dome's top/bottom and the rings' uSkyTop/uSkyBottom are gfx's fogSkyTop/fogSkyBottom themselves, so the
+// street fogs into the very colours the dome paints (Task 34 L-I).
+export function skyMaterials() {
+  const dome = new THREE.ShaderMaterial({
+    uniforms: { top: fogSkyTop, bottom: fogSkyBottom, sun: { value: new THREE.Vector3(0, 1, 0) },
+      coreColor: { value: new THREE.Color(0) }, haloColor: { value: new THREE.Color(0) }, disc: { value: new THREE.Vector2(1, 1) } },
+    vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false, fog: false,
+  });
+  const ringU = { hazeOn: { value: 0 }, hazeColor: { value: new THREE.Color() }, hazeMul: { value: new THREE.Color() }, hazeMix: { value: new THREE.Vector2() }, hazeFlatten: { value: 0 },
+    hazeLuma: { value: 0 }, hazeFoot: { value: 0 }, uSkyTop: fogSkyTop, uSkyBottom: fogSkyBottom };
+  const ringMaterial = (map = null) => {
+    const mat = new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, ringU);
+      sh.vertexShader = sh.vertexShader.replace('void main() {', `varying float vRingY, vRingShift;\nvarying vec3 vRingWorld;\nvoid main() {\n  vRingY = uv.y;\n  vRingShift = modelMatrix[ 3 ].y - cameraPosition.y - ${RING.base.toFixed(1)};\n  vRingWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;`); // a ring's meshes sit at its group's origin
+      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, uSkyTop, uSkyBottom;\nuniform vec2 hazeMix;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot;\nvarying float vRingY, vRingShift;\nvarying vec3 vRingWorld;\nvoid main() {')
+        .replace('#include <map_fragment>', RING_FRAG);
+    };
+    return mat;
+  };
+  return { dome, ringU, ringMaterial };
+}
+
 export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const room = new RoomEnvironment();
@@ -209,13 +236,10 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   room.dispose(); // final review, minor: the bake's scene is not needed afterwards
   pmrem.dispose();
   const hemiBase = [hemi.color.clone(), hemi.groundColor.clone()]; // the engine's own fill, for a look without hemi and for no look
+  const sky = skyMaterials(), { ringU, ringMaterial } = sky;
 
   // A camera-centred dome, drawn first and outside the fog; its horizon is the look's skyBottom, else the fog's colour.
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 16), new THREE.ShaderMaterial({
-    uniforms: { top: fogSkyTop, bottom: fogSkyBottom, sun: { value: new THREE.Vector3(0, 1, 0) }, // top/bottom shared with the bent shaders' fogSky and the rings' foot
-      coreColor: { value: new THREE.Color(0) }, haloColor: { value: new THREE.Color(0) }, disc: { value: new THREE.Vector2(1, 1) } },
-    vertexShader: SKY_VERT, fragmentShader: SKY_FRAG, side: THREE.BackSide, depthWrite: false, fog: false,
-  }));
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 16), sky.dome);
   dome.renderOrder = -1;
   dome.frustumCulled = false;
   dome.visible = false;
@@ -229,18 +253,6 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   // (ringArcs), each wearing its own preloaded texture: no composed texture to build or hold, at a draw call an arc (eight for
   // four strips twice round).
   // ponytail: merge each image's arcs into one geometry if those draw calls ever show.
-  const ringU = { hazeOn: { value: 0 }, hazeColor: { value: new THREE.Color() }, hazeMul: { value: new THREE.Color() }, hazeMix: { value: new THREE.Vector2() }, hazeFlatten: { value: 0 },
-    hazeLuma: { value: 0 }, hazeFoot: { value: 0 }, uSkyTop: fogSkyTop, uSkyBottom: fogSkyBottom };
-  const ringMaterial = (map = null) => {
-    const mat = new THREE.MeshBasicMaterial({ map, transparent: true, side: THREE.BackSide, depthWrite: false, fog: false });
-    mat.onBeforeCompile = (sh) => {
-      Object.assign(sh.uniforms, ringU);
-      sh.vertexShader = sh.vertexShader.replace('void main() {', `varying float vRingY, vRingShift;\nvarying vec3 vRingWorld;\nvoid main() {\n  vRingY = uv.y;\n  vRingShift = modelMatrix[ 3 ].y - cameraPosition.y - ${RING.base.toFixed(1)};\n  vRingWorld = ( modelMatrix * vec4( position, 1.0 ) ).xyz;`); // a ring's meshes sit at its group's origin
-      sh.fragmentShader = sh.fragmentShader.replace('void main() {', 'uniform vec3 hazeColor, hazeMul, uSkyTop, uSkyBottom;\nuniform vec2 hazeMix;\nuniform float hazeOn, hazeFlatten, hazeLuma, hazeFoot;\nvarying float vRingY, vRingShift;\nvarying vec3 vRingWorld;\nvoid main() {')
-        .replace('#include <map_fragment>', RING_FRAG);
-    };
-    return mat;
-  };
   const rings = RING.radius.map((r, i) => {
     const ring = new THREE.Group(), full = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 96, 1, true).translate(0, 0.5, 0), ringMaterial());
     full.renderOrder = -0.9 + i * 0.1; full.frustumCulled = false;
@@ -259,16 +271,16 @@ export function createLook({ renderer, scene, camera, sun, hemi, sunDir }) {
   const csm = new CSM({ maxFar: 220, cascades: 2, shadowMapSize: 4096, lightDirection: sunDir, camera, parent: scene, shadowBias: -0.0004 });
   csm.fade = true;
   for (const l of csm.lights) { l.shadow.normalBias = 0.03; l.shadow.radius = SHADOW_RADIUS; l.visible = false; }
-  // L-C: glossy materials (a clearcoat, or roughness 0.15 and under: Milkshake, the taxi and painted obstacles, the bridge's
-  // water) wear the env as their own at REFLECT (or userData.reflect), so their reflections survive the looks' env cut; three
-  // gives a material without its own envMap the scene's environmentIntensity instead. Facade glass shares its material with the
-  // masonry (a roughness map) and follows the scene's env.
+  // L-C: glossy materials (envFor) wear the env as their own at REFLECT (or userData.reflect), so their reflections survive the
+  // looks' env cut; three gives a material without its own envMap the scene's environmentIntensity instead. Facade glass shares
+  // its material with the masonry (a roughness map) and follows the scene's env.
   let active = false, lastRatio = 0;
   const glossy = new Set(), lit = cascadeHook(csm);
   hook.beforeBend = (m) => {
     lit(m);
-    if (!(m.isMeshStandardMaterial && (m.clearcoat > 0 || m.roughness <= 0.15))) return;
-    glossy.add(m); m.envMap = active ? env : null; m.envMapIntensity = m.userData.reflect ?? REFLECT;
+    const k = envFor(m);
+    if (k === null) return;
+    glossy.add(m); m.envMap = active ? env : null; m.envMapIntensity = k;
     m.addEventListener('dispose', () => glossy.delete(m));
   };
   hook.cutFog = true; // the fog cut compiles into bent shaders from here on; a theme's look switches it with fogCut
