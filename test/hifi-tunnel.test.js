@@ -82,6 +82,42 @@ test('the HiFi tunnel is a looks-only overlay that keeps the shipped length', as
   assert.equal(registry.prop.tunnel.length, shipped.prop.tunnel.length);
 });
 
+test('the lamp globes keep Tripo\'s paint (Task 34 L-K): faces over a bright texel are a second group in the model\'s own material, the rest stone', async () => {
+  const { dress, LAMP } = await import('../packs/hifi/props/overpass.js');
+  const { stone } = await import('../packs/hifi/lib/bridge.js');
+  // four quads in a row along x, uv u running with x across a 4 x 1 map: stone grey, cream (a globe), grey, cream; flipY false as glTF's
+  const quads = new T.PlaneGeometry(4, 1, 4, 1), map = new T.DataTexture(new Uint8Array([120, 118, 112, 255, 246, 240, 204, 255, 150, 150, 150, 255, 250, 245, 210, 255]), 4, 1);
+  map.flipY = false; map.needsUpdate = true;
+  const own = new T.MeshStandardMaterial({ map }), m = new T.Mesh(quads, own);
+  m.updateMatrixWorld(true);
+  dress(gfx, m, Infinity);
+  const g = m.geometry, p = g.attributes.position, uv = g.attributes.uv;
+  assert.ok(Array.isArray(m.material) && m.material.length === 2, 'two materials');
+  assert.ok(m.material[0] === stone(gfx, ['#888888'], 1, 0, 1).material && m.material[1] === own, 'the stone, then the model\'s own paint');
+  assert.deepEqual(g.groups.map(({ start, count, materialIndex }) => [start, count, materialIndex]), [[0, 12, 0], [12, 12, 1]], 'two faces a quad: four stone, four paint');
+  for (let t = 0; t < p.count; t += 3) {
+    const cx = (p.getX(t) + p.getX(t + 1) + p.getX(t + 2)) / 3, cell = Math.floor(cx + 2), bright = cell % 2 === 1;
+    assert.equal(t >= 12, bright, `the face centred at x ${cx.toFixed(2)} (cell ${cell}) is in group ${bright ? 1 : 0}`);
+    if (bright) for (let k = 0; k < 3; k++) assert.ok(Math.abs(uv.getX(t + k) - (p.getX(t + k) + 2) / 4) < 1e-6, 'a painted face keeps the model\'s own uv');
+  }
+  const { PIER_COLORS } = await import('../packs/hifi/lib/bridge.js'), s = new T.Color(PIER_COLORS[2]);
+  const crowned = new T.Mesh(new T.PlaneGeometry(4, 1, 4, 1), own);
+  crowned.updateMatrixWorld(true);
+  dress(gfx, crowned, 0.5, { h: 0.5, tone: 2 });
+  const c = crowned.geometry.attributes.color, q = crowned.geometry.attributes.position;
+  assert.equal(crowned.geometry.groups.length, 2);
+  for (let i = 0; i < q.count; i++) assert.ok(Math.abs(c.getX(i) - s.r * (q.getY(i) > 0 ? 2 : 1)) < 1e-6, `the tint and the parapet course over both groups (corner ${i})`);
+  const plain = new T.Mesh(new T.PlaneGeometry(4, 1, 4, 1), new T.MeshStandardMaterial());
+  plain.updateMatrixWorld(true);
+  dress(gfx, plain, Infinity);
+  assert.ok(plain.material === m.material[0] && plain.geometry.groups.length === 0, 'no map: one stone group, one draw');
+  const flat = new T.Mesh(new T.PlaneGeometry(4, 1, 4, 1), new T.MeshStandardMaterial({ map: new T.Texture() }));
+  flat.updateMatrixWorld(true);
+  dress(gfx, flat, Infinity);
+  assert.ok(flat.material === m.material[0], 'a map with no readable pixels: all stone');
+  assert.ok(LAMP > 0.8 && LAMP < 0.9, `the luma threshold ${LAMP}`);
+});
+
 test('the tunnel takes its section theme\'s stone (look.stone, Task 34 L-K), the piers\' darkest stone when the theme has none', async () => {
   const { default: hifi } = await import('../packs/hifi/props/tunnel.js');
   const { PIER_COLORS } = await import('../packs/hifi/lib/bridge.js');
