@@ -14,15 +14,47 @@ const stamp = (o) => relief(THREE, { w: 15, y0: 4.3, y1: 25.3, base: 4.3, open: 
 const verts = (g) => { const p = g.attributes.position, out = []; for (let i = 0; i < p.count; i++) out.push(new THREE.Vector3().fromBufferAttribute(p, i)); return out; };
 const faceZ = (g) => [...new Set(verts(g).map((v) => +v.z.toFixed(6)))].sort((a, b) => a - b);
 
-test('every street theme\'s facade tile has its window opening in the table: a rect inside the 2.5 x 3.5 m cell, or null', () => {
+// Re-pinned (Task 34 L-K): an entry may be a list of rects, one a cell across the tile in turn (downtown-04's two bays differ), on one v.
+test('every street theme\'s facade tile has its window opening in the table: a rect inside the 2.5 x 3.5 m cell (or a rect per bay), or null', () => {
   for (const theme of [downtown, midtown, uptown]) for (const path of theme.assets.filter((a) => a.includes('/facades/'))) {
     assert.ok(path in OPENINGS, `${path} has no entry`);
-    const o = OPENINGS[path];
-    if (o === null) continue;
-    assert.deepEqual(Object.keys(o).sort(), ['u', 'v'], path);
-    for (const [a, b] of [o.u, o.v]) assert.ok(a >= 0.04 - 1e-5 && b <= 0.96 + 1e-5 && b - a >= 0.2, `${path}: ${a}..${b}`);
+    if (OPENINGS[path] === null) continue;
+    const list = [].concat(OPENINGS[path]);
+    assert.ok(list.length === 1 || list.length === 2, `${path}: a rect, or one per bay of the tile's two`);
+    for (const o of list) {
+      assert.deepEqual(Object.keys(o).sort(), ['u', 'v'], path);
+      for (const [a, b] of [o.u, o.v]) assert.ok(a >= 0.04 - 1e-5 && b <= 0.96 + 1e-5 && b - a >= 0.2, `${path}: ${a}..${b}`);
+      assert.deepEqual(o.v, list[0].v, `${path}: the bays share a floor's rows`);
+    }
   }
   assert.equal(OPENINGS['hifi/city/facades/uptown-02.webp'], null, 'the fire escape tile stays flat');
+});
+
+// the x of every jamb (a body face looking along the wall, inside the frame's depth) but the caps at the wall's ends, wall-local from 0
+const jambs = (body, w) => { const n = body.attributes.normal, out = new Set(); verts(body).forEach((v, i) => { if (Math.abs(n.getX(i)) > 0.99 && Math.abs(Math.abs(v.x) - w / 2) > 1e-4) out.add(+(v.x + w / 2).toFixed(4)); }); return [...out].sort((a, b) => a - b); };
+
+test('downtown-04 is cut a rect per bay (Task 34 L-K): its two bays\' windows sit 0.08 cell apart, measured on the tile as P6 measured the table', () => {
+  const list = OPENINGS['hifi/city/facades/downtown-04.webp'], CW = TILE.w / 2;
+  assert.ok(Array.isArray(list) && list.length === 2, 'two rects, the left bay\'s then the right\'s');
+  assert.deepEqual(list.map((o) => o.u), [[0.19, 0.78], [0.11, 0.69]], 'isPane on the tile at 256^2, per bay (the summed read gives the old 0.11..0.77)');
+  const { body } = stamp({ w: 10, open: list });
+  const want = [0, 1, 2, 3].flatMap((k) => list[k % 2].u.map((u) => +(k * CW + u * CW).toFixed(4)));
+  assert.deepEqual(jambs(body, 10), want, 'every cell cut at its own bay\'s rect, alternating along the wall');
+});
+
+test('a window cut short at a wall\'s end is cut short (Task 34 L-K): the glass recessed to the end, the cut side open, the head and sill cut with it', () => {
+  const w = 6.5, CW = TILE.w / 2, o = OPENINGS['hifi/city/facades/downtown-03.webp'], sa = 2 * CW + o.u[0] * CW; // the third cell's window would end at 6.925 m
+  const { face, body } = stamp({ w });
+  assert.deepEqual(jambs(body, w), [0, 1].flatMap((k) => o.u.map((u) => +(k * CW + u * CW).toFixed(4))).concat(+sa.toFixed(4)), 'two whole windows, then the cut one\'s left jamb alone');
+  for (const v of [...verts(face), ...verts(body)]) assert.ok(Math.abs(v.x) <= w / 2 + 1e-5, `nothing past the wall's end: x ${v.x.toFixed(3)}`);
+  const n = body.attributes.normal, rows = [], yb = (k) => 4.3 + k * 3.5;
+  for (let k = 0; k < 6; k++) rows.push([yb(k) + (1 - o.v[1]) * 3.5, yb(k) + (1 - o.v[0]) * 3.5]);
+  const inRow = (y) => rows.some(([a, b]) => y > a + 1e-4 && y < b - 1e-4);
+  verts(body).forEach((v, i) => { if (n.getX(i) > 0.99 && Math.abs(v.x - w / 2) < 1e-4) assert.ok(!inRow(v.y), `the end cap stops at the cut opening: y ${v.y.toFixed(2)}`); });
+  // which tile planes (z) cover the middle of the cut opening on each floor
+  const fv = verts(face), covers = (x, y) => { const zs = new Set(); for (let t = 0; t < fv.length; t += 3) { const [a, b, c] = fv.slice(t, t + 3), s = (p, q) => (q.x - p.x) * (y - p.y) - (q.y - p.y) * (x - p.x), d = [s(a, b), s(b, c), s(c, a)]; if (d.every((e) => e >= 0) || d.every((e) => e <= 0)) zs.add(+a.z.toFixed(6)); } return [...zs]; };
+  for (const [a, b] of rows) assert.deepEqual(covers((sa + w) / 2 - w / 2, (a + b) / 2), [0], `the cut opening at y ${((a + b) / 2).toFixed(2)}: glass on the wall line, no frame over it`);
+  assert.ok(verts(body).some((v) => v.z > RELIEF.jamb + 1e-3 && Math.abs(v.x - w / 2) < 1e-4), 'the sills and heads run to the end');
 });
 
 test('the relief: the tile on the wall line as the glass, its frame faces RELIEF.jamb (<= 0.1 m) out, heads and sills no more than 0.1 m past them', () => {

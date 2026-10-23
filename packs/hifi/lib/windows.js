@@ -9,10 +9,12 @@ import { TILE } from './facade.js';
 // The window opening in each tile's 2.5 x 3.5 m cell, data measured once per image by Task 33's P6 prototype (the glow's pane test,
 // isPane, on the tile's 2 x 2 cells summed; task-33-p6-facades-report.md): { u: [left, right], v: [top, bottom] }, fractions of the
 // cell, v from its top; null: no window reads (uptown-02's fire escape lattice), the wall stays flat. Keyed by image, so a tile keeps
-// its table whichever theme lists it. ponytail: downtown-04 reads about 0.1 cell off centre (a 0.1 m strip of painted glass on a pier).
+// its table whichever theme lists it. A list: a rect a cell across the tile in turn, on one v (Task 34 L-K, Caedon 2026-10-22; ledger, Lanes
+// L-E and L-I: downtown-04's two bays differ, so its one summed rect, 0.11-0.77, left ~8 cm of frame on a pier every other window; the same
+// read per bay gives 0.19-0.78 and 0.11-0.69, v 0.07-0.78 and 0.07-0.79, one 256 px row apart: the table's 0.07-0.79 kept).
 const G = { u: [0.04, 0.96], v: [0.04, 0.96] }, F = (u0, u1, v0, v1) => ({ u: [u0, u1], v: [v0, v1] }), f = (name) => `hifi/city/facades/${name}.webp`;
 export const OPENINGS = {
-  [f('downtown-01')]: G, [f('downtown-02')]: G, [f('downtown-03')]: F(0.23, 0.77, 0.15, 0.75), [f('downtown-04')]: F(0.11, 0.77, 0.07, 0.79), [f('downtown-05')]: F(0.09, 0.91, 0.06, 0.82),
+  [f('downtown-01')]: G, [f('downtown-02')]: G, [f('downtown-03')]: F(0.23, 0.77, 0.15, 0.75), [f('downtown-04')]: [F(0.19, 0.78, 0.07, 0.79), F(0.11, 0.69, 0.07, 0.79)], [f('downtown-05')]: F(0.09, 0.91, 0.06, 0.82),
   [f('midtown-01')]: F(0.13, 0.88, 0.04, 0.96), [f('midtown-02')]: G, [f('midtown-03')]: F(0.19, 0.81, 0.09, 0.78), [f('midtown-04')]: F(0.23, 0.76, 0.16, 0.79), [f('midtown-05')]: G,
   [f('uptown-01')]: F(0.24, 0.75, 0.16, 0.8), [f('uptown-02')]: null, [f('uptown-03')]: F(0.27, 0.73, 0.17, 0.72), [f('uptown-04')]: F(0.23, 0.77, 0.25, 0.77), [f('uptown-05')]: F(0.22, 0.78, 0.19, 0.8),
 };
@@ -26,7 +28,7 @@ export const RELIEF = { jamb: 0.1, head: { h: 0.14, out: 0.08 }, sill: { h: 0.08
 const CW = TILE.w / 2, CH = TILE.h / 2, SEG = 4; // a window cell; SEG: along x (z on the street walls) every 4 m, so it bends
 
 // o: { w, y0, y1, base (where the tile's v is 0: its cells stand on base + 3.5 n), top (a cornice's underside: openings clip there),
-// open (OPENINGS' rect or null), glass (a curtain wall), color, trim (THREE.Color) } -> { face: one tile-material geometry, body: one
+// open (OPENINGS' entry: a rect, a rect per cell in turn, or null), glass (a curtain wall), color, trim (THREE.Color) } -> { face: one tile-material geometry, body: one
 // vertex-coloured geometry for the body mesh, or null when the wall stays flat }
 export function relief(T, { w, y0, y1, base = y0, top = y1, open, glass, color, trim }) {
   const R = RELIEF, J = R.jamb, fo = { pos: [], nor: [], uv: [] }, bo = { pos: [], nor: [], uv: [], col: [] };
@@ -49,11 +51,13 @@ export function relief(T, { w, y0, y1, base = y0, top = y1, open, glass, color, 
     }
   };
   const tile = (x0, x1, ya, yb, z) => { if (x1 - x0 > 1e-3 && yb - ya > 1e-3) rect(2, 1, z, [x0, x1], [ya, yb]); };
-  const yc = !open ? y0 : y1 <= R.cap ? y1 : Math.max(y0, base + CH * Math.floor((R.cap - base) / CH)); // the relief's top
+  const opens = [].concat(open ?? []), V = opens[0]?.v;
+  const yc = !V ? y0 : y1 <= R.cap ? y1 : Math.max(y0, base + CH * Math.floor((R.cap - base) / CH)); // the relief's top
   const cols = [], rows = [];
-  if (open) for (let s = 0; s + open.u[1] * CW <= w - 0.05; s += CW) cols.push([s + open.u[0] * CW, s + open.u[1] * CW]); // whole windows only
-  if (open) for (let yb = base + CH * Math.ceil((y0 - base) / CH - 1e-6); yb + CH <= yc + 1e-6; yb += CH) {
-    const a = yb + (1 - open.v[1]) * CH, b = Math.min(yb + (1 - open.v[0]) * CH, top);
+  // a window the wall's end cuts (within 0.05 m of it) runs to the end, its cut side open (Task 34 L-K: a printed half window before)
+  if (V) for (let k = 0; k * CW < w - 0.05; k++) { const [u0, u1] = opens[k % opens.length].u, sa = k * CW + u0 * CW, sb = k * CW + u1 * CW; if (sa < w - 0.05) cols.push([sa, sb > w - 0.05 ? w : sb]); }
+  if (V) for (let yb = base + CH * Math.ceil((y0 - base) / CH - 1e-6); yb + CH <= yc + 1e-6; yb += CH) {
+    const a = yb + (1 - V[1]) * CH, b = Math.min(yb + (1 - V[0]) * CH, top);
     if (b - a >= R.minH) rows.push([a, b]);
   }
   if (!cols.length || !rows.length) { tile(0, w, y0, y1, 0); return { face: geo(fo), body: null }; }
@@ -66,15 +70,16 @@ export function relief(T, { w, y0, y1, base = y0, top = y1, open, glass, color, 
   };
   const deep = (v) => v[2] < J / 2; // the AO: the reveal's edge at the glass
   for (const [sa, sb] of cols) for (const [a, b] of rows) {
-    rect(0, 1, sa, [a, b], [0, J], color, deep); rect(0, -1, sb, [a, b], [0, J], color, deep); // the jambs
+    rect(0, 1, sa, [a, b], [0, J], color, deep); if (sb < w) rect(0, -1, sb, [a, b], [0, J], color, deep); // the jambs
     rect(1, -1, b, [0, J], [sa, sb], color, deep); rect(1, 1, a, [0, J], [sa, sb], color, deep); // the head's soffit, the sill's reveal
     if (glass) continue;
     proud(sa - R.over, sb + R.over, a - R.sill.h, a, R.sill.out);
     if (b + R.head.h <= top + 1e-6) proud(sa - R.over, sb + R.over, b, b + R.head.h, R.head.out);
   }
   if (glass) for (const [, b] of rows) if (b + R.transom.h <= top + 1e-6) proud(0, w, b, b + R.transom.h, R.transom.out);
-  rect(1, 1, yc, [0, J], [0, w], color); rect(1, -1, y0, [0, J], [0, w], color); rect(0, -1, 0, [y0, yc], [0, J], color); rect(0, 1, w, [y0, yc], [0, J], color); // the caps
   const us = [0, ...cols.flat(), w], ys = [y0, ...rows.flat(), yc];
+  rect(1, 1, yc, [0, J], [0, w], color); rect(1, -1, y0, [0, J], [0, w], color); rect(0, -1, 0, [y0, yc], [0, J], color); // the caps; the end one
+  if (cols.at(-1)[1] < w) rect(0, 1, w, [y0, yc], [0, J], color); else for (let k = 0; k < ys.length; k += 2) rect(0, 1, w, [ys[k], ys[k + 1]], [0, J], color); // left open where a window is cut
   for (let k = 0; k < us.length; k += 2) tile(us[k], us[k + 1], y0, yc, J); // the piers
   for (let k = 0; k < ys.length; k += 2) tile(0, w, ys[k], ys[k + 1], J); // the spandrels
   tile(0, w, y0, yc, 0); // the glass, after the frame (early z drops what the frame covers)
