@@ -62,7 +62,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
     }
     for (const p of props) {
       p.def = registry.prop[p.id];
-      // theme: its section's, for a look's sake (the HiFi stone props read look.stone); the shipped props ignore it
+      // theme: the section's at the prop's own z (a chunk's is at its start), for a look's sake (the HiFi stone props read look.stone); the shipped props ignore it
       p.view = safeCall(`prop ${p.id} createView`, () => p.def.createView(gfx, { z: p.z, length: p.length, lanes, theme: themeAt(p.z) }), null) ?? fallbackView();
       p.view.object.position.set(0, 0, p.z);
       root.add(gfx.bend(p.view.object));

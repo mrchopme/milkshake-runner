@@ -24,7 +24,9 @@ export const OPENINGS = {
 // than `minH` stays solid; no face looking up above `eye` (Task 34 L-E, a third of the stamp's triangles, inside the prototype's
 // budget): the highest a camera can ride, a section's 8 m (src/validate.js CAMERA_RANGES) + 0.3 x the highest jump the rules' ranges
 // allow (src/engine.js cameraFor; jumpSpeed 15, gravity -10: 11.25 m) = 11.375, rounded up to 11.5; the shipped cameras sit at 5.5 m and lower.
-export const RELIEF = { jamb: 0.1, head: { h: 0.14, out: 0.08 }, sill: { h: 0.08, out: 0.08 }, over: 0.06, transom: { h: 0.1, out: 0.06 }, ao: 0.6, cap: 30, minH: 1, eye: 11.5 };
+// A window a wall's end cuts keeps an opening at least `cut` wide (Caedon, 2026-10-22, Task 34 L-K fix round): a narrower slit of glass
+// reads as a crack in the wall, so it stays pier (on downtown-03 about one wall width in ten left one under 0.3 m).
+export const RELIEF = { jamb: 0.1, head: { h: 0.14, out: 0.08 }, sill: { h: 0.08, out: 0.08 }, over: 0.06, transom: { h: 0.1, out: 0.06 }, ao: 0.6, cap: 30, minH: 1, eye: 11.5, cut: 0.3 };
 const CW = TILE.w / 2, CH = TILE.h / 2, SEG = 4; // a window cell; SEG: along x (z on the street walls) every 4 m, so it bends
 
 // o: { w, y0, y1, base (where the tile's v is 0: its cells stand on base + 3.5 n), top (a cornice's underside: openings clip there),
@@ -54,8 +56,8 @@ export function relief(T, { w, y0, y1, base = y0, top = y1, open, glass, color, 
   const opens = [].concat(open ?? []), V = opens[0]?.v;
   const yc = !V ? y0 : y1 <= R.cap ? y1 : Math.max(y0, base + CH * Math.floor((R.cap - base) / CH)); // the relief's top
   const cols = [], rows = [];
-  // a window the wall's end cuts (within 0.05 m of it) runs to the end, its cut side open (Task 34 L-K: a printed half window before)
-  if (V) for (let k = 0; k * CW < w - 0.05; k++) { const [u0, u1] = opens[k % opens.length].u, sa = k * CW + u0 * CW, sb = k * CW + u1 * CW; if (sa < w - 0.05) cols.push([sa, sb > w - 0.05 ? w : sb]); }
+  // a window the wall's end cuts (within 0.05 m of it) runs to the end, its cut side open, if RELIEF.cut wide (Task 34 L-K: a printed half window before)
+  if (V) for (let k = 0; k * CW < w - 0.05; k++) { const [u0, u1] = opens[k % opens.length].u, sa = k * CW + u0 * CW, sb = k * CW + u1 * CW; const end = sb > w - 0.05; if (end ? w - sa >= R.cut : true) cols.push([sa, end ? w : sb]); }
   if (V) for (let yb = base + CH * Math.ceil((y0 - base) / CH - 1e-6); yb + CH <= yc + 1e-6; yb += CH) {
     const a = yb + (1 - V[1]) * CH, b = Math.min(yb + (1 - V[0]) * CH, top);
     if (b - a >= R.minH) rows.push([a, b]);
@@ -78,8 +80,9 @@ export function relief(T, { w, y0, y1, base = y0, top = y1, open, glass, color, 
   }
   if (glass) for (const [, b] of rows) if (b + R.transom.h <= top + 1e-6) proud(0, w, b, b + R.transom.h, R.transom.out);
   const us = [0, ...cols.flat(), w], ys = [y0, ...rows.flat(), yc];
-  rect(1, 1, yc, [0, J], [0, w], color); rect(1, -1, y0, [0, J], [0, w], color); rect(0, -1, 0, [y0, yc], [0, J], color); // the caps; the end one
-  if (cols.at(-1)[1] < w) rect(0, 1, w, [y0, yc], [0, J], color); else for (let k = 0; k < ys.length; k += 2) rect(0, 1, w, [ys[k], ys[k + 1]], [0, J], color); // left open where a window is cut
+  rect(1, 1, yc, [0, J], [0, w], color); rect(1, -1, y0, [0, J], [0, w], color); rect(0, -1, 0, [y0, yc], [0, J], color); // the caps
+  // the end cap: over the spandrels only where a window is cut, so its cut side stays open
+  if (cols.at(-1)[1] < w) rect(0, 1, w, [y0, yc], [0, J], color); else for (let k = 0; k < ys.length; k += 2) rect(0, 1, w, [ys[k], ys[k + 1]], [0, J], color);
   for (let k = 0; k < us.length; k += 2) tile(us[k], us[k + 1], y0, yc, J); // the piers
   for (let k = 0; k < ys.length; k += 2) tile(0, w, ys[k], ys[k + 1], J); // the spandrels
   tile(0, w, y0, yc, 0); // the glass, after the frame (early z drops what the frame covers)

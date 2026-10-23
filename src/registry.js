@@ -54,7 +54,7 @@ const CHECKS = {
   prop(m) {
     const e = [];
     if (!num(m.length, 1, 100)) e.push('length in metres (1-100) is required');
-    if (!fn(m.createView)) e.push('createView(gfx, { z, length, lanes }) is required');
+    if (!fn(m.createView)) e.push('createView(gfx, { z, length, lanes, theme }) is required');
     return e;
   },
   theme(m) {

@@ -51,6 +51,7 @@ test('a window cut short at a wall\'s end is cut short (Task 34 L-K): the glass 
   for (let k = 0; k < 6; k++) rows.push([yb(k) + (1 - o.v[1]) * 3.5, yb(k) + (1 - o.v[0]) * 3.5]);
   const inRow = (y) => rows.some(([a, b]) => y > a + 1e-4 && y < b - 1e-4);
   verts(body).forEach((v, i) => { if (n.getX(i) > 0.99 && Math.abs(v.x - w / 2) < 1e-4) assert.ok(!inRow(v.y), `the end cap stops at the cut opening: y ${v.y.toFixed(2)}`); });
+  verts(body).forEach((v, i) => { if (n.getX(i) < -0.99) assert.ok(Math.abs(v.x - w / 2) > 1e-4, 'no jamb closing the cut side at the wall\'s end'); }); // jambs() leaves the ends out
   // which tile planes (z) cover the middle of the cut opening on each floor
   const fv = verts(face), covers = (x, y) => { const zs = new Set(); for (let t = 0; t < fv.length; t += 3) { const [a, b, c] = fv.slice(t, t + 3), s = (p, q) => (q.x - p.x) * (y - p.y) - (q.y - p.y) * (x - p.x), d = [s(a, b), s(b, c), s(c, a)]; if (d.every((e) => e >= 0) || d.every((e) => e <= 0)) zs.add(+a.z.toFixed(6)); } return [...zs]; };
   for (const [a, b] of rows) assert.deepEqual(covers((sa + w) / 2 - w / 2, (a + b) / 2), [0], `the cut opening at y ${((a + b) / 2).toFixed(2)}: glass on the wall line, no frame over it`);
@@ -118,5 +119,15 @@ test('no face looking up above RELIEF.eye (11.5 m): the bars\' tops and the sill
     let up = 0;
     for (let i = 0; i < n.count; i++) if (n.getY(i) > 0.99) { up++; if (p.getY(i) > RELIEF.eye + 1e-5) assert.fail(`a face looking up at ${p.getY(i).toFixed(2)} m`); }
     if (!o.glass) assert.ok(up > 0, 'the low sills keep their tops');
+  }
+});
+
+test('a cut opening narrower than RELIEF.cut (0.3 m) stays pier, a slit of glass reading as a crack; one at least that wide is cut (Task 34 L-K fix round)', () => {
+  assert.equal(RELIEF.cut, 0.3);
+  const CW = TILE.w / 2, o = OPENINGS['hifi/city/facades/downtown-03.webp'], sa = 2 * CW + o.u[0] * CW;
+  for (const [left, cut] of [[0.29, false], [0.31, true]]) {
+    const w = sa + left, js = jambs(stamp({ w }).body, w);
+    assert.equal(js.includes(+sa.toFixed(4)), cut, `${left} m of window left at the end: ${cut ? 'cut' : 'pier'}`);
+    assert.equal(js.length, cut ? 5 : 4, 'the two whole windows either way');
   }
 });
