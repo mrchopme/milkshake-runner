@@ -22,4 +22,6 @@ export async function discover(root, prefix = 'content', dir = root) {
 // different ones inspects a texture's 131,072 bytes one a line and Myers-diffs the two lists (65 GB: the Mac froze twice,
 // 2026-10-20/21), so these give assert nothing to diff and name the object instead.
 export const same = (a, b, msg = 'the same object') => assert.ok(a === b, msg);
+// an [r, g, b] read from a colour attribute against a THREE.Color, to 1e-6 (numbers only: never a strict diff of THREE objects)
+export const sameColor = (a, c, msg) => assert.ok(Math.abs(a[0] - c.r) + Math.abs(a[1] - c.g) + Math.abs(a[2] - c.b) < 1e-6, `${msg}: ${a}`);
 export const notSame = (a, b, msg = 'different objects') => assert.ok(a !== b, msg);

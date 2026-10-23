@@ -54,7 +54,7 @@ const CHECKS = {
   prop(m) {
     const e = [];
     if (!num(m.length, 1, 100)) e.push('length in metres (1-100) is required');
-    if (!fn(m.createView)) e.push('createView(gfx, { z, length, lanes }) is required');
+    if (!fn(m.createView)) e.push('createView(gfx, { z, length, lanes, theme }) is required');
     return e;
   },
   theme(m) {
@@ -99,9 +99,9 @@ const LOOK_SHAPES = {
 export function checkLook(l) {
   if (!isObj(l)) return ['look must be an object'];
   const e = [];
-  for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'skyBottom', 'hemi', 'fog', 'skylineHaze', 'disc', 'bloom', 'skyline', 'skylineHeight', 'hill'].includes(k)) e.push(`look: unknown key "${k}"`);
+  for (const k of Object.keys(l)) if (!['exposure', 'sun', 'ambient', 'env', 'skyTop', 'skyBottom', 'hemi', 'fog', 'skylineHaze', 'disc', 'bloom', 'skyline', 'skylineHeight', 'hill', 'stone'].includes(k)) e.push(`look: unknown key "${k}"`);
   for (const [k, [lo, hi]] of Object.entries(LOOK_RANGES)) if (l[k] !== undefined && !num(l[k], lo, hi)) e.push(`look.${k} must be ${lo} to ${hi}`);
-  for (const k of ['skyTop', 'skyBottom']) if (l[k] !== undefined && !HEX.test(l[k])) e.push(`look.${k} must be a hex colour`);
+  for (const k of ['skyTop', 'skyBottom', 'stone']) if (l[k] !== undefined && !HEX.test(l[k])) e.push(`look.${k} must be a hex colour`);
   // the fill's colours, the fog per scene, the skyline's haze and the sun's disc: each object takes only its own fields
   for (const [k, shape] of Object.entries(LOOK_SHAPES)) {
     if (l[k] === undefined) continue;

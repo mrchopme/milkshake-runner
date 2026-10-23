@@ -2,7 +2,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { buildRegistry, applyPack } from '../src/registry.js';
-import { discover } from './helpers.js';
+import { discover, sameColor } from './helpers.js';
 import { ROAD_HALF } from '../src/world.js';
 import * as gfx from '../src/gfx.js';
 import { adopt } from '../src/assets.js';
@@ -90,4 +90,59 @@ test('the stone\'s ashlar is projected per face, so a curved generated surface n
     for (const [a, b] of [[0, 1], [1, 2], [2, 0]]) worst = Math.max(worst, Math.hypot(uv.getX(k[a]) - uv.getX(k[b]), uv.getY(k[a]) - uv.getY(k[b])) / at(k[a]).distanceTo(at(k[b])));
   }
   assert.ok(worst <= 1 + 1e-6, `a planar projection never lengthens an edge: worst ${worst.toFixed(2)}x`);
+});
+
+
+test('the overpass takes its section theme\'s stone (look.stone, Task 34 L-K), the piers\' darkest stone when the theme has none', async () => {
+  const { default: hifi } = await import('../packs/hifi/props/overpass.js');
+  const { PIER_COLORS } = await import('../packs/hifi/lib/bridge.js');
+  const deck = (theme) => hifi.createView(gfx, { z: 0, length: 8, lanes, theme }).object.children[0].children[0].geometry;
+  const wall = (theme) => { // the deck's lowest corner: under the parapet course, so its colour is the tint itself
+    const g = deck(theme), c = g.attributes.color, p = g.attributes.position;
+    let lo = 0; for (let i = 1; i < p.count; i++) if (p.getY(i) < p.getY(lo)) lo = i;
+    return [c.getX(lo), c.getY(lo), c.getZ(lo)];
+  };
+  sameColor(wall({ id: 'midtown', look: { stone: '#a9896d' } }), new T.Color('#a9896d'), 'the theme\'s stone');
+  sameColor(wall({ id: 'bridge', look: {} }), new T.Color(PIER_COLORS[2]), 'no stone in the look: the piers\'');
+  sameColor(wall(undefined), new T.Color(PIER_COLORS[2]), 'no theme passed: the piers\'');
+  const a = deck({ look: { stone: '#a9896d' } }), b = deck(undefined);
+  assert.ok(a !== b && a.attributes.position === b.attributes.position && a.attributes.uv === b.attributes.uv, 'a tint is its own colours over the one dressed position and uv buffers');
+  assert.ok(deck({ look: { stone: '#a9896d' } }) === a, 'one geometry a tint, shared by its copies');
+});
+
+test('the warm themes tint their stone props warm; downtown and the bridge keep the piers\' stone (Task 34 L-K)', async () => {
+  const look = async (id) => (await import(`../packs/hifi/themes/${id}.js`)).default.look;
+  assert.equal((await look('midtown')).stone, '#a9896d', 'the Garden\'s low orange sun: a sandstone');
+  assert.equal((await look('uptown')).stone, '#8c5d47', 'the dusk: uptown\'s own quay stone');
+  for (const id of ['downtown', 'bridge']) assert.equal((await look(id)).stone, undefined, `${id}: the piers' stone, downtown's own darkest`);
+});
+
+// Re-pinned (Task 34 L-K fix round, the main session's ruling): the overpass has no lamp globes, so it takes no paint split: its 16
+// bright deck-top centre-line faces would cost a second material, +1 draw and Tripo's three 1024^2 maps uploaded for paint no camera sees.
+test('the overpass dresses all stone whatever its paint (no lamp): one material, its own never kept, so its maps are never uploaded', async () => {
+  const { dress } = await import('../packs/hifi/props/overpass.js'), { stone } = await import('../packs/hifi/lib/bridge.js');
+  const map = new T.DataTexture(new Uint8Array([250, 245, 210, 255]), 1, 1); // all cream: every face over a bright texel
+  map.flipY = false; map.needsUpdate = true;
+  const m = new T.Mesh(new T.PlaneGeometry(4, 1, 4, 1), new T.MeshStandardMaterial({ map }));
+  m.updateMatrixWorld(true);
+  dress(gfx, m, 0.5, { h: 0.5, tone: 1.3 });
+  assert.ok(m.material === stone(gfx, ['#888888'], 1, 0, 1).material, 'the stone alone, not [stone, paint]');
+  assert.equal(m.geometry.groups.length, 0, 'one group, one draw');
+  const view = (await import('../packs/hifi/props/overpass.js')).default.createView(gfx, { z: 0, length: 8, lanes }).object;
+  view.traverse((n) => { if (n.isMesh) assert.ok(!Array.isArray(n.material) && n.geometry.groups.length === 0, 'every overpass mesh one stone group'); });
+});
+
+test('a tint\'s geometry lives as long as the generated source (the shared-buffer ruling): gfx.dispose of one copy frees nothing shared, the source\'s dispose frees every tint', async () => {
+  const { dress } = await import('../packs/hifi/props/overpass.js');
+  const src = new T.PlaneGeometry(4, 1, 4, 1), mesh = () => { const m = new T.Mesh(src, new T.MeshStandardMaterial()); m.updateMatrixWorld(true); return m; };
+  const a = mesh(), b = mesh();
+  dress(gfx, a, Infinity, undefined, { tint: '#a9896d' }); dress(gfx, b, Infinity, undefined, { tint: '#8c5d47' });
+  const ga = a.geometry, gb = b.geometry, gone = new Set();
+  for (const g of [ga, gb]) g.addEventListener('dispose', () => gone.add(g));
+  assert.ok(ga !== gb && ga.attributes.position === gb.attributes.position, 'two tints over one position buffer');
+  gfx.dispose(gfx.group(a));
+  assert.equal(gone.size, 0, 'gfx.dispose of one copy leaves its tint (shared) and so the buffers and the other tint');
+  assert.ok(b.geometry === gb && gb.attributes.position === ga.attributes.position);
+  src.dispose();
+  assert.ok(gone.has(ga) && gone.has(gb), 'the source\'s dispose frees every tint with it');
 });

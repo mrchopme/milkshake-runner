@@ -65,6 +65,12 @@ test('a look may set hill, the share of its sections\' hill the HiFi street show
   assert.match(checkModule({ ...sea, look: { hill: -1 } }).join(), /look.hill must be 0 to 1/);
 });
 
+test('a look may set stone, the hex its HiFi stone props are tinted (Task 34 L-K)', () => {
+  const sea = { kind: 'theme', id: 'ari/sea', sky: '#9fd3f5', fog: 0.2, buildings: { colors: ['#ffffff'], minH: 5, maxH: 10 } };
+  assert.equal(checkModule({ ...sea, look: { stone: '#8c5d47' } }).length, 0);
+  assert.match(checkModule({ ...sea, look: { stone: 'brown' } }).join(), /look.stone must be a hex colour/);
+});
+
 test('safeCall contains a throwing hook', () => {
   assert.equal(safeCall('test hook', () => { throw new Error('boom'); }, 42), 42);
   assert.equal(safeCall('test hook', () => 7, 42), 7);
