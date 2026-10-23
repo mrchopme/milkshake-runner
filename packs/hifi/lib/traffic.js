@@ -56,7 +56,8 @@ export function traffic(gfx, args, style, r, cross) {
     const phase = KINDS.indexOf(kind) / KINDS.length, m = instanced(T, fitted(T, p), driving(gfx, p.material, phase), mats);
     m.customDepthMaterial = shadow(gfx, phase);
     // the drive is in the vertex stage, so the instances' bounds miss most of it: add each car's far end, or a car down the side street
-    // is culled whenever its start (by the avenue) is out of view
+    // is culled whenever its start (by the avenue) is out of view. ponytail: dead while gfx bend() turns culling off under a look
+    // (Task 34 L-I); kept, cheap and still right if culling returns
     const geo = fitted(T, p), ahead = new T.Matrix4().makeTranslation(0, 0, DRIVE.to - DRIVE.from);
     if (!geo.boundingSphere) geo.computeBoundingSphere();
     for (const x of mats) m.boundingSphere.union(geo.boundingSphere.clone().applyMatrix4(x.clone().multiply(ahead)));

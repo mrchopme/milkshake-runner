@@ -36,7 +36,7 @@ export const PITS = { size: 1.5, rim: 0.1, stone: '#9a968f', soil: '#3a2e25' };
 export const PLANTER = { x: 9.8, dz: 1.2, chance: 0.5 };
 // the canopy's tint per theme (instanceColor, linear): our rendered lit green -> the style frames' (style gap §2; midtown and uptown
 // lifted a step by the main session after board 24), then +/- `value` in value and up to `olive` toward olive, hashed from the place.
-// The model's paint masks it to the leaf texels (kit.js's dimEnv), so the bark stays as generated.
+// The model's paint masks it to the leaf texels (kit.js's matteHook), so the bark stays as generated.
 export const TINT = { downtown: ['#6ca126', '#4f8a3a'], midtown: ['#61901d', '#7a8a3a'], uptown: ['#5b831e', '#5f6a2a'], value: 0.08, olive: 0.08 };
 // uptown's light pools: one additive radial quad under each lamp's head, `r` m out, centred `in` m toward the road from the pole
 const POOL = { r: 2.2, in: 1.0, color: '#c9927d' };

@@ -124,13 +124,14 @@ function dress(T, mesh, { glow, repaint, texels, bright = GLOW, matte }) {
   const own = mesh.material.map, map = repaint ? recolour(T, mesh, repaint) : (texels && redraw(T, own, 1024, texels)) || own, lights = glow && glowMap(T, map, glow);
   const rough = matte && roughMap(T, map, matte.leaf, ...matte.rough); // null in Node: the model's own roughness map stays
   const p = gloss(T, mesh.material, { map, metalness: 0, metalnessMap: null, ...(lights && { emissive: '#ffffff', emissiveMap: lights, emissiveIntensity: bright }), ...(matte && { specularIntensity: matte.specular }), ...(rough && { roughness: 1, roughnessMap: rough }) });
-  if (matte) p.onBeforeCompile = dimEnv(matte.env);
+  if (matte) p.onBeforeCompile = matteHook(matte.env);
   return p;
 }
-// three r186 writes scene.environmentIntensity over a material's envMapIntensity whenever it has no envMap of its own
-// (WebGLRenderer.js:2737), so a per-material dimmer wraps the shader's uniform: whatever the look writes, the shader reads k times it.
+// A matte model's shader hook, two jobs: it dims the env to k, and it masks the instance colour to the leaves.
 // Named: gfx.bendable keys the program cache by the material's own onBeforeCompile source.
-// It also masks the instance colour (lib/furniture.js's per-theme tint) to the leaves (Caedon, Task 33, board 28 pick 3: the whole-mesh tint
+// The env: three r186 writes scene.environmentIntensity over a material's envMapIntensity whenever it has no envMap of its own
+// (WebGLRenderer.js:2737), so a per-material dimmer wraps the shader's uniform: whatever the look writes, the shader reads k times it.
+// The leaves: the instance colour (lib/furniture.js's per-theme tint) only where the texel is a leaf (Caedon, Task 33, board 28 pick 3: the whole-mesh tint
 // turned midtown's trunks red): the `leaf` test on the sampled texel back in sRGB 0-255. ponytail: softened +/-10 round leaf()'s
 // thresholds so a mip blending leaf and bark fades instead of fringing; in the shader, not a baked leaf-only map per tree per theme
 // (the P5 report: 1024² each, and the per-tree variation lost). vColor is a vec4 in r186.
@@ -140,7 +141,7 @@ const LEAF_ONLY = `#if ( defined( USE_COLOR ) || defined( USE_COLOR_ALPHA ) ) &&
 #else
   #include <color_fragment>
 #endif`;
-const dimEnv = (k) => function dimEnv(shader) {
+const matteHook = (k) => function matteHook(shader) {
   let v = shader.uniforms.envMapIntensity.value;
   shader.uniforms.envMapIntensity = { get value() { return v * k; }, set value(x) { v = x; } };
   shader.fragmentShader = shader.fragmentShader?.replace('#include <color_fragment>', LEAF_ONLY); // ?.: the env test's stub has none
