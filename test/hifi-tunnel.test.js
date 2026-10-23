@@ -81,3 +81,12 @@ test('the HiFi tunnel is a looks-only overlay that keeps the shipped length', as
   assert.deepEqual(registry.prop.tunnel.assets, ['hifi/tunnel.glb']);
   assert.equal(registry.prop.tunnel.length, shipped.prop.tunnel.length);
 });
+
+test('the tunnel takes its section theme\'s stone (look.stone, Task 34 L-K), the piers\' darkest stone when the theme has none', async () => {
+  const { default: hifi } = await import('../packs/hifi/props/tunnel.js');
+  const { PIER_COLORS } = await import('../packs/hifi/lib/bridge.js');
+  const tint = (theme) => { const c = hifi.createView(gfx, { z: 0, length: 60, lanes, theme }).object.children[0].children[0].geometry.attributes.color; return [c.getX(0), c.getY(0), c.getZ(0)]; };
+  const close = (a, hex, msg) => { const b = new T.Color(hex); assert.ok(Math.abs(a[0] - b.r) + Math.abs(a[1] - b.g) + Math.abs(a[2] - b.b) < 1e-6, `${msg}: ${a}`); };
+  close(tint({ look: { stone: '#8c5d47' } }), '#8c5d47', 'the theme\'s stone');
+  close(tint({ look: {} }), PIER_COLORS[2], 'the piers\' when the look has none');
+});

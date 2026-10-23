@@ -91,3 +91,29 @@ test('the stone\'s ashlar is projected per face, so a curved generated surface n
   }
   assert.ok(worst <= 1 + 1e-6, `a planar projection never lengthens an edge: worst ${worst.toFixed(2)}x`);
 });
+
+const close = (a, hex, msg) => { const b = new T.Color(hex); assert.ok(Math.abs(a[0] - b.r) + Math.abs(a[1] - b.g) + Math.abs(a[2] - b.b) < 1e-6, `${msg}: ${a}`); };
+
+test('the overpass takes its section theme\'s stone (look.stone, Task 34 L-K), the piers\' darkest stone when the theme has none', async () => {
+  const { default: hifi } = await import('../packs/hifi/props/overpass.js');
+  const { PIER_COLORS } = await import('../packs/hifi/lib/bridge.js');
+  const deck = (theme) => hifi.createView(gfx, { z: 0, length: 8, lanes, theme }).object.children[0].children[0].geometry;
+  const wall = (theme) => { // the deck's lowest corner: under the parapet course, so its colour is the tint itself
+    const g = deck(theme), c = g.attributes.color, p = g.attributes.position;
+    let lo = 0; for (let i = 1; i < p.count; i++) if (p.getY(i) < p.getY(lo)) lo = i;
+    return [c.getX(lo), c.getY(lo), c.getZ(lo)];
+  };
+  close(wall({ id: 'midtown', look: { stone: '#a9896d' } }), '#a9896d', 'the theme\'s stone');
+  close(wall({ id: 'bridge', look: {} }), PIER_COLORS[2], 'no stone in the look: the piers\'');
+  close(wall(undefined), PIER_COLORS[2], 'no theme passed: the piers\'');
+  const a = deck({ look: { stone: '#a9896d' } }), b = deck(undefined);
+  assert.ok(a !== b && a.attributes.position === b.attributes.position && a.attributes.uv === b.attributes.uv, 'a tint is its own colours over the one dressed position and uv buffers');
+  assert.ok(deck({ look: { stone: '#a9896d' } }) === a, 'one geometry a tint, shared by its copies');
+});
+
+test('the warm themes tint their stone props warm; downtown and the bridge keep the piers\' stone (Task 34 L-K)', async () => {
+  const look = async (id) => (await import(`../packs/hifi/themes/${id}.js`)).default.look;
+  assert.equal((await look('midtown')).stone, '#a9896d', 'the Garden\'s low orange sun: a sandstone');
+  assert.equal((await look('uptown')).stone, '#8c5d47', 'the dusk: uptown\'s own quay stone');
+  for (const id of ['downtown', 'bridge']) assert.equal((await look(id)).stone, undefined, `${id}: the piers' stone, downtown's own darkest`);
+});

@@ -23,7 +23,8 @@ export default {
   // from 70 m deepening low down, the skyline darkened rose. ponytail: calibration knobs, tuned by eye.
   // ponytail: calibration knob — skylineHeight's near 110 (was 80; Task 32 C7, the redrawn strips, 2048 x 878 with sky over the towers):
   // two laps of 111 m stand its tower mass at 30 m, as the old strips' 31 m, its spires taller (66 m against 60); at 80, three laps of 74 m stood it about half as tall.
-  look: { skyline: SKYLINE, skylineHeight: [110, 110], exposure: 1.05, sun: { color: '#ffd2a1', intensity: 3.5, dir: [0, -0.14, -0.99] }, ambient: 3.0, env: 0.45, hemi: { sky: '#9d86c4', ground: '#7a5a5a' },
+  // ponytail: calibration knob — stone, the overpass and tunnel's tint (Caedon, 2026-10-22, Task 34 L-K; ledger, Lanes L-E and L-I: the piers' cool grey read dark under this warm sky): the brownstone body's sandstone, tuned blind, to confirm on the Garden stills
+  look: { stone: '#a9896d', skyline: SKYLINE, skylineHeight: [110, 110], exposure: 1.05, sun: { color: '#ffd2a1', intensity: 3.5, dir: [0, -0.14, -0.99] }, ambient: 3.0, env: 0.45, hemi: { sky: '#9d86c4', ground: '#7a5a5a' },
     skyTop: '#f2b08a', skyBottom: '#fdd27a', fog: { color: '#b98270', near: 70, pale: 0, shade: '#8f5f5c', y: [0, 45] }, skylineHaze: { color: '#b98270', mul: '#8a6f6a', mix: [0.3, 0.05], flatten: 0.2, foot: 0 },
     disc: { size: 2, core: 5, halo: 0.7, spread: 18, color: '#fdd27a' }, bloom: { strength: 0.5, threshold: 2.4, radius: 0.45 } },
   createChunk(gfx, args) { return cityChunk(gfx, args, { ...STYLE, buildings: args.theme.buildings }); },

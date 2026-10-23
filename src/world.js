@@ -41,6 +41,7 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
   const fallbackView = () => ({ object: gfx.box(1, 1, 1, '#ff00ff') }); // a loud pink block instead of a crash
   // A section's share of its hill: its theme's look.hill under a HiFi look (hook.cutFog), else the whole hill, so low-fi bends as before
   const hillOf = (s) => (gfx.hook.cutFog ? registry.theme[s.theme.id]?.look?.hill ?? 1 : 1);
+  const themeAt = (z) => { const s = sectionAt(norm, z); return { ...registry.theme[s.theme.id], ...s.theme }; }; // the registered theme under the section's overrides
 
   function build() {
     const length = Math.min(CHUNK, end - builtTo); // the last chunk stops exactly at `end`, so no street runs past the finish line
@@ -61,14 +62,13 @@ export function createWorld(scene, level, { registry, rules, seed, end, speedFro
     }
     for (const p of props) {
       p.def = registry.prop[p.id];
-      p.view = safeCall(`prop ${p.id} createView`, () => p.def.createView(gfx, { z: p.z, length: p.length, lanes }), null) ?? fallbackView();
+      // theme: its section's, for a look's sake (the HiFi stone props read look.stone); the shipped props ignore it
+      p.view = safeCall(`prop ${p.id} createView`, () => p.def.createView(gfx, { z: p.z, length: p.length, lanes, theme: themeAt(p.z) }), null) ?? fallbackView();
       p.view.object.position.set(0, 0, p.z);
       root.add(gfx.bend(p.view.object));
       live.props.push(p);
     }
-    const section = sectionAt(norm, builtTo);
-    const themeDef = registry.theme[section.theme.id];
-    const theme = { ...themeDef, ...section.theme };
+    const theme = themeAt(builtTo), themeDef = registry.theme[theme.id];
     const args = { z0: builtTo, length, lanes, rng: rs, theme };
     const g = safeCall(`theme ${theme.id} createChunk`, () => (themeDef.createChunk ? themeDef.createChunk(gfx, args) : defaultChunk(gfx, args)), null) ?? new THREE.Group();
     root.add(gfx.bend(g));

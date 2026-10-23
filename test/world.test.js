@@ -124,6 +124,27 @@ test('props are built, streamed, dropped and bent like obstacles', () => {
   assert.ok(disposed > 0);
 });
 
+test('a prop\'s createView gets { z, length, lanes } as before and its section\'s theme beside them (Task 34 L-K: the HiFi stone props read its look)', () => {
+  const seen = [], arch = { kind: 'prop', id: 'arch', length: 2, createView(gfx, args) { seen.push(args); return { object: gfx.box(1, 1, 1, '#ffffff') }; } };
+  const dusk = { ...theme, id: 'd', look: { stone: '#8c5d47' } };
+  const registry = { obstacle: {}, pickup: {}, prop: { arch }, theme: { t: theme, d: dusk }, character: {}, ending: {} };
+  const lvl = { ...level, obstacles: {}, density: { start: 0, end: 0 }, props: { per_100m: 5, ids: { arch: 1 } }, sections: [{ from_m: 100, to_m: 200, theme: { id: 'd', sky: '#111111' } }] };
+  const world = createWorld(new THREE.Scene(), lvl, { registry, rules, seed: 1, end: 600 });
+  world.update(createRun(rules, { height: 1.9, width: 1 }), 0);
+  assert.ok(seen.length > 2);
+  for (const a of seen) {
+    assert.deepEqual(Object.keys(a), ['z', 'length', 'lanes', 'theme'], 'the old three first, unchanged; a content prop that ignores theme builds as before');
+    assert.equal(a.length, 2);
+    assert.deepEqual(a.lanes, { count: 3, width: rules.laneWidth, roadHalf: 4.5 });
+    const inDusk = a.z >= 100 && a.z < 200;
+    assert.equal(a.theme.id, inDusk ? 'd' : 't', `the theme of the section at z ${a.z}`);
+    assert.equal(a.theme.look?.stone, inDusk ? '#8c5d47' : undefined, 'the registered theme\'s look');
+    assert.equal(a.theme.sky, inDusk ? '#111111' : '#000000', 'merged with the section\'s overrides, as createChunk gets it');
+  }
+  assert.ok(seen.some((a) => a.theme.id === 'd') && seen.some((a) => a.theme.id === 't'));
+  world.dispose();
+});
+
 test('a level-wide curve is fully straight at the finish line, not just aiming there', () => {
   const rock = { kind: 'obstacle', id: 'rock', avoid: 'lane', box: { w: 1, h: 1, d: 1 }, createView(gfx) { return { object: gfx.box(1, 1, 1, '#ffffff') }; } };
   const registry = { obstacle: { rock }, pickup: {}, theme: { t: theme }, character: {}, ending: {} };

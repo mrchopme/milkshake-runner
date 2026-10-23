@@ -25,7 +25,8 @@ export default {
   // windows kept; bloom low so they halo. ponytail: calibration knobs, tuned by eye.
   // ponytail: calibration knob — skylineHeight's near 110 (was 70; Task 32 C7, the redrawn strips, 2048 x 878 with sky over the towers):
   // two laps of 111 m stand its tower mass at 29 m, as the old strips' 32 m, its spires taller (68 m against 53); at 70, three laps of 74 m stood it about half as tall.
-  look: { skyline: SKYLINE, skylineHeight: [100, 110], exposure: 0.75, sun: { color: '#b9a3ff', intensity: 0.45, dir: [0, -0.87, -0.5] }, ambient: 3.2, env: 0.45, hemi: { sky: '#9a7fd4', ground: '#4a3044' },
+  // ponytail: calibration knob — stone, the overpass and tunnel's tint (Caedon, 2026-10-22, Task 34 L-K; ledger, Lanes L-E and L-I): this theme's quay stone (the darkest of its building colours, as bridge.js stone() picks it), a warm brown at dusk
+  look: { stone: '#8c5d47', skyline: SKYLINE, skylineHeight: [100, 110], exposure: 0.75, sun: { color: '#b9a3ff', intensity: 0.45, dir: [0, -0.87, -0.5] }, ambient: 3.2, env: 0.45, hemi: { sky: '#9a7fd4', ground: '#4a3044' },
     skyTop: '#8f68c6', skyBottom: '#d892d6', fog: { color: '#6a4e74', near: 120, pale: 0, shade: '#4f3a5e', y: [0, 35] }, skylineHaze: { mul: '#9a86a0', mix: [0.3, 0.05], flatten: 0, foot: 0 },
     bloom: { strength: 0.55, threshold: 0.95, radius: 0.5 } },
   createChunk(gfx, args) { return cityChunk(gfx, args, { ...STYLE, buildings: args.theme.buildings }); },

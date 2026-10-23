@@ -40,7 +40,7 @@ const CABLE = { r: 0.35, radial: 24, x: 8.0, low: 2.2, saddle: 1, step: 2, colla
 // "lighter land stone", 2026-10-19; was 0.7: the near-black quay face read as a floating street). Ashlar courses `course` tall, blocks `block` long, joints `joint` at `jointTone`,
 // blocks ±`tone` in tone, on metre UVs.
 const STONE = { dry: 1.0, wet: 0.5, band: 0.6, row: 0.25, course: 0.5, block: 1.2, joint: 0.04, jointTone: 0.7, tone: 0.07 };
-const PIER_COLORS = ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3']; // the piers' stone: downtown's building colours
+export const PIER_COLORS = ['#8a8f9c', '#a3714f', '#5d6273', '#c2b8a3']; // the piers' stone: downtown's building colours
 // A grey ashlar tile, 4 blocks by 4 courses, running bond, multiplying the stone's vertex colours; one shared 256 x 128 (~170 KB with mips).
 let ashlar;
 function ashlarTexture(T) {

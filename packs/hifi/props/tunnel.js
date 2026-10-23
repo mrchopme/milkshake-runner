@@ -2,7 +2,7 @@
 // (60 m), its roof 6.6 m up, its walls clear of the road, the flared mouth at the near end. One mesh: its triangles are short enough along the
 // tube (the longest 12 m at 60 m, so a chord off the bend by 0.2 m at the sharpest turn) for the bend shader to curve it with the street.
 // Fitted once from the first copy; every tunnel after that shares the stone (Task 34 L-I, Caedon, board 29 pick 5).
-import { dress } from './overpass.js'; // the overpass's stone (Task 34 L-I), without its parapet course
+import { dress } from './overpass.js'; // the overpass's stone (Task 34 L-I) in the section theme's tint (L-K), without its parapet course
 
 const YAW = Math.PI / 2;  // ponytail: calibration knob — the tube's axis lies along the model's x and its flared mouth is the +x end: this lays it along the street, the mouth toward the player (-z)
 const CLEAR = 9.6;        // ponytail: calibration knob — m between the walls inside the tube (the road is 9 m wide; the stone walls then reach x +-7.5, the old 7.5 m building line)
@@ -18,14 +18,14 @@ let parts; // { scale, offset }, measured from the first copy
 
 export default {
   kind: 'prop', id: 'tunnel', assets: ['hifi/tunnel.glb'],
-  createView(gfx, { length }) {
+  createView(gfx, { length, theme }) {
     const model = gfx.asset('hifi/tunnel.glb');
     model.rotation.y = YAW;
     parts ??= build(gfx.three, model, length);
     model.scale.copy(parts.scale);
     model.position.copy(parts.offset);
     model.updateMatrixWorld(true);
-    model.traverse((n) => { if (n.isMesh) dress(gfx, n, Infinity); });
+    model.traverse((n) => { if (n.isMesh) dress(gfx, n, Infinity, undefined, theme?.look?.stone); });
     return { object: gfx.group(model) };
   },
 };
